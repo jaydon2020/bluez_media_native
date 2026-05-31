@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="org.bluez.MediaTransport1">
+    <method name="Acquire">
+      <arg name="fd" type="h" direction="out"/>
+      <arg name="read_mtu" type="q" direction="out"/>
+      <arg name="write_mtu" type="q" direction="out"/>
+    </method>
+    <method name="TryAcquire">
+      <arg name="fd" type="h" direction="out"/>
+      <arg name="read_mtu" type="q" direction="out"/>
+      <arg name="write_mtu" type="q" direction="out"/>
+    </method>
+    <method name="Release"/>
+    <property name="Device" type="o" access="read"/>
+    <property name="UUID" type="s" access="read"/>
+    <property name="Codec" type="y" access="read"/>
+    <property name="Configuration" type="ay" access="read"/>
+    <property name="State" type="s" access="read"/>
+    <property name="Delay" type="q" access="readwrite"/>
+    <property name="Volume" type="q" access="readwrite"/>
+    <property name="Endpoint" type="o" access="read"/>
+  </interface>
+</node>

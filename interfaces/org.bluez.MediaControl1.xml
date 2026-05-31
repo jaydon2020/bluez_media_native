@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="org.bluez.MediaControl1">
+    <annotation name="org.freedesktop.DBus.Deprecated" value="true"/>
+    <method name="Play"/>
+    <method name="Pause"/>
+    <method name="Stop"/>
+    <method name="Next"/>
+    <method name="Previous"/>
+    <method name="VolumeUp"/>
+    <method name="VolumeDown"/>
+    <method name="FastForward"/>
+    <method name="Rewind"/>
+    <property name="Connected" type="b" access="read"/>
+    <property name="Player" type="o" access="read"/>
+  </interface>
+</node>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="org.bluez.MediaItem1">
+    <method name="Play"/>
+    <method name="AddtoNowPlaying"/>
+    <property name="Player" type="o" access="read"/>
+    <property name="Name" type="s" access="read"/>
+    <property name="Type" type="s" access="read"/>
+    <property name="FolderType" type="s" access="read"/>
+    <property name="Playable" type="b" access="read"/>
+    <property name="Metadata" type="a{sv}" access="read"/>
+  </interface>
+</node>
