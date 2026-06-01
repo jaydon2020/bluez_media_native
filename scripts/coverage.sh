@@ -22,11 +22,13 @@ if ! find "${BUILD_DIR}" -name '*.gcda' -print -quit | grep -q .; then
     exit 0
 fi
 
+# Generate lcov coverage report.
 lcov --capture \
     --directory "${BUILD_DIR}" \
     --output-file "${BUILD_DIR}/coverage_raw.info" \
     --ignore-errors mismatch,empty
 
+# Filter out third-party and test code.
 lcov --remove "${BUILD_DIR}/coverage_raw.info" \
     '*/third_party/*' \
     '*/test/*' \

@@ -31,6 +31,8 @@ fi
 
 echo "Using: ${CLANG_TIDY}"
 
+# Only run on project source files -- exclude generated proxies, vendored Dart
+# API headers, and third_party/.
 find "${ROOT_DIR}/native/src" "${ROOT_DIR}/native/include" \
     \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) \
     ! -path '*/third_party/*' \

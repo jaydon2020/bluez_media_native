@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# Locate sdbus-c++-xml2cpp -- check known build-tree paths first, then PATH.
 _find_xml2cpp() {
     local candidates=(
         "${ROOT_DIR}/build/tools/sdbus-c++-xml2cpp"
@@ -29,6 +30,7 @@ _find_xml2cpp() {
 XML2CPP="$(_find_xml2cpp)"
 echo "Using: ${XML2CPP}"
 
+# Run from repo root so include guards use relative paths.
 cd "${ROOT_DIR}"
 mkdir -p native/generated
 

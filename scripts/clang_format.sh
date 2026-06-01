@@ -25,6 +25,8 @@ fi
 
 echo "Using: ${CLANG_FORMAT}"
 
+# Find all project source files (not third-party, generated proxies, or vendored
+# Dart API headers).
 FILES=$(find "${ROOT_DIR}/native/src" "${ROOT_DIR}/native/include" \
     \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) \
     ! -path '*/third_party/*' \
