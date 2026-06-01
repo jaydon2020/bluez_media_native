@@ -6,9 +6,7 @@
 #include <unistd.h>
 #endif
 
-int sum(int a, int b) {
-  return a + b;
-}
+int sum(int a, int b) { return a + b; }
 
 int sum_long_running(int a, int b) {
 #if _WIN32
