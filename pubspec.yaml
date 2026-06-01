@@ -1,7 +1,10 @@
 name: bluez_media_native
 description: "A new Flutter FFI plugin project."
 version: 0.0.1
-homepage:
+homepage: https://github.com/jaydon2020/bluez_media_native
+repository: https://github.com/jaydon2020/bluez_media_native
+issue_tracker: https://github.com/jaydon2020/bluez_media_native/issues
+documentation: https://pub.dev/documentation/bluez_media_native/latest/
 
 environment:
   sdk: ^3.10.1

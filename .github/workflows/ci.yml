@@ -12,6 +12,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # ── Format ────────────────────────────────────────────────────────────────
   format:
     name: Format check
     runs-on: ubuntu-24.04
@@ -28,6 +29,7 @@ jobs:
       - run: dart format --set-exit-if-changed lib/ example/
       - run: ./scripts/clang_format.sh check
 
+  # ── Static analysis + pub points dry-run ─────────────────────────────────
   analyze:
     name: Flutter analyze + pub dry-run
     runs-on: ubuntu-24.04
@@ -38,8 +40,10 @@ jobs:
         with: { channel: stable }
       - run: flutter pub get
       - run: flutter analyze --fatal-infos
+      # Verify all pub.dev requirements pass before any PR merges
       - run: dart pub publish --dry-run
 
+  # ── C++ unit tests ───────────────────────────────────────────────────────
   test-cpp:
     name: C++ unit tests
     runs-on: ubuntu-24.04
@@ -63,6 +67,7 @@ jobs:
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure -j4
 
+  # ── Generated sdbus-c++ proxies ──────────────────────────────────────────
   generated-proxies:
     name: Generated proxies
     runs-on: ubuntu-24.04
@@ -90,6 +95,7 @@ jobs:
           git diff --exit-code native/generated/ || \
             (echo "Generated proxies are out of date. Run scripts/generate_proxies.sh" && exit 1)
 
+  # ── ASAN + UBSan ─────────────────────────────────────────────────────────
   asan:
     name: ASAN + UBSan
     runs-on: ubuntu-24.04
@@ -104,6 +110,7 @@ jobs:
             libsystemd-dev
       - run: ./scripts/asan.sh build-asan
 
+  # ── clang-tidy ───────────────────────────────────────────────────────────
   clang-tidy:
     name: clang-tidy
     runs-on: ubuntu-24.04
@@ -127,6 +134,7 @@ jobs:
           cmake --build build --parallel
       - run: ./scripts/clang_tidy.sh build
 
+  # ── Coverage (PR only) ──────────────────────────────────────────────────
   coverage:
     name: Coverage
     runs-on: ubuntu-24.04
