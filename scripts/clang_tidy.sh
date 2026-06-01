@@ -35,6 +35,12 @@ find "${ROOT_DIR}/native/src" "${ROOT_DIR}/native/include" \
     \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) \
     ! -path '*/third_party/*' \
     ! -path '*/generated/*' \
+    ! -path '*/internal/*' \
+    ! -name 'dart_api.h' \
+    ! -name 'dart_api_dl.h' \
+    ! -name 'dart_api_dl.c' \
+    ! -name 'dart_native_api.h' \
+    ! -name 'dart_version.h' \
     -print | sort | \
     xargs "${CLANG_TIDY}" -p "${BUILD_DIR}" --warnings-as-errors='*' 2>&1
 
