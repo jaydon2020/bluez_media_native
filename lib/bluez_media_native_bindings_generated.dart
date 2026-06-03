@@ -610,6 +610,154 @@ class BluezMediaNativeBindings {
             )
           >();
 
+  /// ── org.bluez.MediaTransport1 remote transports ────────────────────────────
+  int bluez_media_transport_acquire(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> transport_path,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_transport_acquire(
+      handle,
+      transport_path,
+      out,
+      capacity,
+    );
+  }
+
+  late final _bluez_media_transport_acquirePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_transport_acquire');
+  late final _bluez_media_transport_acquire = _bluez_media_transport_acquirePtr
+      .asFunction<
+        int Function(
+          ffi.Pointer<ffi.Void>,
+          ffi.Pointer<ffi.Char>,
+          ffi.Pointer<ffi.Uint8>,
+          int,
+        )
+      >();
+
+  int bluez_media_transport_try_acquire(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> transport_path,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_transport_try_acquire(
+      handle,
+      transport_path,
+      out,
+      capacity,
+    );
+  }
+
+  late final _bluez_media_transport_try_acquirePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_transport_try_acquire');
+  late final _bluez_media_transport_try_acquire =
+      _bluez_media_transport_try_acquirePtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Uint8>,
+              int,
+            )
+          >();
+
+  int bluez_media_transport_release(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> transport_path,
+  ) {
+    return _bluez_media_transport_release(handle, transport_path);
+  }
+
+  late final _bluez_media_transport_releasePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_transport_release');
+  late final _bluez_media_transport_release = _bluez_media_transport_releasePtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_transport_get_properties(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> transport_path,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_transport_get_properties(
+      handle,
+      transport_path,
+      out,
+      capacity,
+    );
+  }
+
+  late final _bluez_media_transport_get_propertiesPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_transport_get_properties');
+  late final _bluez_media_transport_get_properties =
+      _bluez_media_transport_get_propertiesPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Uint8>,
+              int,
+            )
+          >();
+
+  int bluez_media_transport_set_volume(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> transport_path,
+    int volume,
+  ) {
+    return _bluez_media_transport_set_volume(handle, transport_path, volume);
+  }
+
+  late final _bluez_media_transport_set_volumePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Uint16,
+          )
+        >
+      >('bluez_media_transport_set_volume');
+  late final _bluez_media_transport_set_volume =
+      _bluez_media_transport_set_volumePtr
+          .asFunction<
+            int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, int)
+          >();
+
   /// A very short-lived native function.
   ///
   /// For very short-lived functions, it is fine to call them on the main isolate.

@@ -456,5 +456,108 @@ int bluez_media_item_get_properties(void *handle, const char *item_path,
     return -3;
   }
 }
+// ── org.bluez.MediaTransport1 remote transports ────────────────────────────
+
+int bluez_media_transport_acquire(void *handle, const char *transport_path,
+                                  uint8_t *out, int32_t capacity) {
+  if (handle == nullptr || capacity < 0) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    const auto payload = ctx->media->transport_acquire(transport_path);
+    if (payload.empty()) {
+      return -1;
+    }
+    if (out == nullptr || capacity == 0) {
+      return static_cast<int>(payload.size());
+    }
+    if (capacity < static_cast<int32_t>(payload.size())) {
+      return -2;
+    }
+    std::memcpy(out, payload.data(), payload.size());
+    return static_cast<int>(payload.size());
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_transport_acquire: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_transport_try_acquire(void *handle, const char *transport_path,
+                                      uint8_t *out, int32_t capacity) {
+  if (handle == nullptr || capacity < 0) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    const auto payload = ctx->media->transport_try_acquire(transport_path);
+    if (payload.empty()) {
+      return -1;
+    }
+    if (out == nullptr || capacity == 0) {
+      return static_cast<int>(payload.size());
+    }
+    if (capacity < static_cast<int32_t>(payload.size())) {
+      return -2;
+    }
+    std::memcpy(out, payload.data(), payload.size());
+    return static_cast<int>(payload.size());
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_transport_try_acquire: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_transport_release(void *handle, const char *transport_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->transport_release(transport_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_transport_release: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_transport_get_properties(void *handle, const char *transport_path,
+                                         uint8_t *out, int32_t capacity) {
+  if (handle == nullptr || capacity < 0) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    const auto payload = ctx->media->transport_properties(transport_path);
+    if (payload.empty()) {
+      return -1;
+    }
+    if (out == nullptr || capacity == 0) {
+      return static_cast<int>(payload.size());
+    }
+    if (capacity < static_cast<int32_t>(payload.size())) {
+      return -2;
+    }
+    std::memcpy(out, payload.data(), payload.size());
+    return static_cast<int>(payload.size());
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_transport_get_properties: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_transport_set_volume(void *handle, const char *transport_path,
+                                     uint16_t volume) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->transport_set_volume(transport_path, volume);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_transport_set_volume: %s\n", e.what());
+    return -3;
+  }
+}
 
 } // extern "C"

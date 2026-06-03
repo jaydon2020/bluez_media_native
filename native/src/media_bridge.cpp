@@ -1,3 +1,6 @@
+#include <memory>
+#include <unistd.h>
+
 #include "media_bridge.h"
 
 #include <sstream>
@@ -403,6 +406,108 @@ std::vector<uint8_t> MediaBridge::item_properties(const char *item_path) {
   return glz::encode(props);
 }
 
+std::vector<uint8_t> MediaBridge::transport_acquire(const char *transport_path) {
+  auto proxy = make_transport_proxy(transport_path);
+  sdbus::UnixFd fd;
+  uint16_t read_mtu = 0;
+  uint16_t write_mtu = 0;
+  proxy->callMethod("Acquire")
+      .onInterface(kMediaTransportIface)
+      .storeResultsTo(fd, read_mtu, write_mtu);
+
+  BlueZMediaAcquireResult result;
+  result.transportPath = safe_string(transport_path);
+  // dup the fd so that Dart can take ownership, as sdbus::UnixFd closes it.
+  result.fd = static_cast<uint64_t>(dup(fd.get()));
+  result.readMtu = read_mtu;
+  result.writeMtu = write_mtu;
+  return glz::encode(result);
+}
+
+std::vector<uint8_t> MediaBridge::transport_try_acquire(const char *transport_path) {
+  auto proxy = make_transport_proxy(transport_path);
+  sdbus::UnixFd fd;
+  uint16_t read_mtu = 0;
+  uint16_t write_mtu = 0;
+  proxy->callMethod("TryAcquire")
+      .onInterface(kMediaTransportIface)
+      .storeResultsTo(fd, read_mtu, write_mtu);
+
+  BlueZMediaAcquireResult result;
+  result.transportPath = safe_string(transport_path);
+  result.fd = static_cast<uint64_t>(dup(fd.get()));
+  result.readMtu = read_mtu;
+  result.writeMtu = write_mtu;
+  return glz::encode(result);
+}
+
+int MediaBridge::transport_release(const char *transport_path) {
+  make_transport_proxy(transport_path)
+      ->callMethod("Release")
+      .onInterface(kMediaTransportIface);
+  return 0;
+}
+
+std::vector<uint8_t> MediaBridge::transport_properties(const char *transport_path) {
+  const auto transport = safe_string(transport_path);
+  if (transport.empty()) {
+    return {};
+  }
+
+  auto proxy = make_transport_proxy(transport_path);
+  BlueZMediaTransportProps props;
+  props.objectPath = transport;
+  try {
+    props.device = proxy->getProperty("Device")
+                       .onInterface(kMediaTransportIface)
+                       .get<sdbus::ObjectPath>();
+  } catch (const sdbus::Error &) {}
+  try {
+    props.uuid = proxy->getProperty("UUID")
+                     .onInterface(kMediaTransportIface)
+                     .get<std::string>();
+  } catch (const sdbus::Error &) {}
+  try {
+    props.codec = proxy->getProperty("Codec")
+                      .onInterface(kMediaTransportIface)
+                      .get<uint8_t>();
+  } catch (const sdbus::Error &) {}
+  try {
+    props.configuration = proxy->getProperty("Configuration")
+                              .onInterface(kMediaTransportIface)
+                              .get<std::vector<uint8_t>>();
+  } catch (const sdbus::Error &) {}
+  try {
+    props.state = proxy->getProperty("State")
+                      .onInterface(kMediaTransportIface)
+                      .get<std::string>();
+  } catch (const sdbus::Error &) {}
+  try {
+    props.delay = proxy->getProperty("Delay")
+                      .onInterface(kMediaTransportIface)
+                      .get<uint16_t>();
+  } catch (const sdbus::Error &) {}
+  try {
+    props.volume = proxy->getProperty("Volume")
+                       .onInterface(kMediaTransportIface)
+                       .get<uint16_t>();
+  } catch (const sdbus::Error &) {}
+  try {
+    props.endpoint = proxy->getProperty("Endpoint")
+                         .onInterface(kMediaTransportIface)
+                         .get<sdbus::ObjectPath>();
+  } catch (const sdbus::Error &) {}
+  return glz::encode(props);
+}
+
+int MediaBridge::transport_set_volume(const char *transport_path, uint16_t volume) {
+  make_transport_proxy(transport_path)
+      ->setProperty("Volume")
+      .onInterface(kMediaTransportIface)
+      .toValue(volume);
+  return 0;
+}
+
 bool MediaBridge::has_player(const std::string &player_path) const {
   return players_.contains(player_path);
 }
@@ -672,4 +777,15 @@ MediaBridge::make_item_proxy(const char *item_path) const {
   }
   return sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                             sdbus::ObjectPath{item});
+}
+
+std::unique_ptr<sdbus::IProxy>
+MediaBridge::make_transport_proxy(const char *transport_path) const {
+  const auto transport = safe_string(transport_path);
+  if (transport.empty()) {
+    throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
+                       "transport_path is required"};
+  }
+  return sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
+                            sdbus::ObjectPath{transport});
 }

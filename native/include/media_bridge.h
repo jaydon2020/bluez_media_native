@@ -75,6 +75,12 @@ public:
   int item_add_to_now_playing(const char *item_path);
   std::vector<uint8_t> item_properties(const char *item_path);
 
+  std::vector<uint8_t> transport_acquire(const char *transport_path);
+  std::vector<uint8_t> transport_try_acquire(const char *transport_path);
+  int transport_release(const char *transport_path);
+  std::vector<uint8_t> transport_properties(const char *transport_path);
+  int transport_set_volume(const char *transport_path, uint16_t volume);
+
   [[nodiscard]] bool has_player(const std::string &player_path) const;
   [[nodiscard]] size_t registered_player_count() const;
 
@@ -85,6 +91,7 @@ private:
   static constexpr auto kMediaFolderIface = "org.bluez.MediaFolder1";
   static constexpr auto kMediaItemIface = "org.bluez.MediaItem1";
   static constexpr auto kMediaPlayerIface = "org.bluez.MediaPlayer1";
+  static constexpr auto kMediaTransportIface = "org.bluez.MediaTransport1";
   static constexpr auto kMprisPlayerIface = "org.mpris.MediaPlayer2.Player";
   static constexpr auto kMprisRootIface = "org.mpris.MediaPlayer2";
 
@@ -111,6 +118,8 @@ private:
   make_folder_proxy(const char *folder_path) const;
   [[nodiscard]] std::unique_ptr<sdbus::IProxy>
   make_item_proxy(const char *item_path) const;
+  [[nodiscard]] std::unique_ptr<sdbus::IProxy>
+  make_transport_proxy(const char *transport_path) const;
 
   sdbus::IConnection &conn_;
   std::map<std::string, MediaPlayerRegistrationRecord> players_;

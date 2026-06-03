@@ -112,6 +112,23 @@ BLUEZ_MEDIA_EXPORT int bluez_media_item_get_properties(void *handle,
                                                        uint8_t *out,
                                                        int32_t capacity);
 
+// ── org.bluez.MediaTransport1 remote transports ────────────────────────────
+
+BLUEZ_MEDIA_EXPORT int
+bluez_media_transport_acquire(void *handle, const char *transport_path,
+                              uint8_t *out, int32_t capacity);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_transport_try_acquire(void *handle, const char *transport_path,
+                                  uint8_t *out, int32_t capacity);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_transport_release(void *handle, const char *transport_path);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_transport_get_properties(void *handle, const char *transport_path,
+                                     uint8_t *out, int32_t capacity);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_transport_set_volume(void *handle, const char *transport_path,
+                                 uint16_t volume);
+
 // A very short-lived native function.
 //
 // For very short-lived functions, it is fine to call them on the main isolate.

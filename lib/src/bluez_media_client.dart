@@ -10,6 +10,7 @@ import 'bluez_media_control.dart';
 import 'bluez_media_folder.dart';
 import 'bluez_media_item.dart';
 import 'bluez_media_player.dart';
+import 'bluez_media_transport.dart';
 import 'ffi/codec.dart';
 import 'ffi/types.dart';
 import 'internal/library_loader.dart';
@@ -18,8 +19,10 @@ export 'bluez_media_control.dart';
 export 'bluez_media_folder.dart';
 export 'bluez_media_item.dart';
 export 'bluez_media_player.dart';
+export 'bluez_media_transport.dart';
 export 'ffi/types.dart'
     show
+        BlueZMediaAcquireResult,
         BlueZMediaControlProps,
         BlueZMediaFolderItems,
         BlueZMediaFolderProps,
@@ -71,6 +74,7 @@ class BluezMediaClient {
   final _controls = <String, BluezMediaControl>{};
   final _folders = <String, BluezMediaFolder>{};
   final _items = <String, BluezMediaItem>{};
+  final _transports = <String, BluezMediaTransport>{};
 
   BluezMediaClient._(this._handle);
 
@@ -135,6 +139,14 @@ class BluezMediaClient {
     return _items.putIfAbsent(
       objectPath,
       () => BluezMediaItem.internal(this, objectPath),
+    );
+  }
+
+  /// Return a cached proxy for a remote `org.bluez.MediaTransport1` object.
+  BluezMediaTransport transport(String objectPath) {
+    return _transports.putIfAbsent(
+      objectPath,
+      () => BluezMediaTransport.internal(this, objectPath),
     );
   }
 
@@ -558,6 +570,141 @@ class BluezMediaClient {
       calloc.free(itemPathPtr);
     }
   }
+
+  // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
+
+  BlueZMediaAcquireResult transportAcquire(String transportPath) {
+    _ensureOpen();
+    final transportPathPtr = transportPath.toNativeUtf8();
+    try {
+      final size = _bindings.bluez_media_transport_acquire(
+        _handle,
+        transportPathPtr.cast<Char>(),
+        nullptr,
+        0,
+      );
+      if (size < 0) {
+        _checkResult(size, 'acquire media transport size');
+      }
+
+      final out = calloc<Uint8>(size);
+      try {
+        final result = _bindings.bluez_media_transport_acquire(
+          _handle,
+          transportPathPtr.cast<Char>(),
+          out,
+          size,
+        );
+        if (result < 0) {
+          _checkResult(result, 'acquire media transport');
+        }
+
+        final bytes = Uint8List.fromList(out.asTypedList(result));
+        return GlazeCodec.decode<BlueZMediaAcquireResult>(bytes, 0);
+      } finally {
+        calloc.free(out);
+      }
+    } finally {
+      calloc.free(transportPathPtr);
+    }
+  }
+
+  BlueZMediaAcquireResult transportTryAcquire(String transportPath) {
+    _ensureOpen();
+    final transportPathPtr = transportPath.toNativeUtf8();
+    try {
+      final size = _bindings.bluez_media_transport_try_acquire(
+        _handle,
+        transportPathPtr.cast<Char>(),
+        nullptr,
+        0,
+      );
+      if (size < 0) {
+        _checkResult(size, 'try acquire media transport size');
+      }
+
+      final out = calloc<Uint8>(size);
+      try {
+        final result = _bindings.bluez_media_transport_try_acquire(
+          _handle,
+          transportPathPtr.cast<Char>(),
+          out,
+          size,
+        );
+        if (result < 0) {
+          _checkResult(result, 'try acquire media transport');
+        }
+
+        final bytes = Uint8List.fromList(out.asTypedList(result));
+        return GlazeCodec.decode<BlueZMediaAcquireResult>(bytes, 0);
+      } finally {
+        calloc.free(out);
+      }
+    } finally {
+      calloc.free(transportPathPtr);
+    }
+  }
+
+  void transportRelease(String transportPath) {
+    _callPathControl(
+      transportPath,
+      _bindings.bluez_media_transport_release,
+      'release media transport',
+    );
+  }
+
+  BlueZMediaTransportProps getMediaTransportProperties(String transportPath) {
+    _ensureOpen();
+    final transportPathPtr = transportPath.toNativeUtf8();
+    try {
+      final size = _bindings.bluez_media_transport_get_properties(
+        _handle,
+        transportPathPtr.cast<Char>(),
+        nullptr,
+        0,
+      );
+      if (size < 0) {
+        _checkResult(size, 'get media transport properties size');
+      }
+
+      final out = calloc<Uint8>(size);
+      try {
+        final result = _bindings.bluez_media_transport_get_properties(
+          _handle,
+          transportPathPtr.cast<Char>(),
+          out,
+          size,
+        );
+        if (result < 0) {
+          _checkResult(result, 'get media transport properties');
+        }
+
+        final bytes = Uint8List.fromList(out.asTypedList(result));
+        return GlazeCodec.decode<BlueZMediaTransportProps>(bytes, 0);
+      } finally {
+        calloc.free(out);
+      }
+    } finally {
+      calloc.free(transportPathPtr);
+    }
+  }
+
+  void transportSetVolume(String transportPath, int volume) {
+    _ensureOpen();
+    final transportPathPtr = transportPath.toNativeUtf8();
+    try {
+      final result = _bindings.bluez_media_transport_set_volume(
+        _handle,
+        transportPathPtr.cast<Char>(),
+        volume,
+      );
+      _checkResult(result, 'set media transport volume');
+    } finally {
+      calloc.free(transportPathPtr);
+    }
+  }
+
+  // ── Error handling ─────────────────────────────────────────────────────────
 
   void _ensureOpen() {
     if (_handle == nullptr) {
