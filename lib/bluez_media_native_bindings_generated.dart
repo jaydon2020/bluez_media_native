@@ -218,6 +218,193 @@ class BluezMediaNativeBindings {
             )
           >();
 
+  /// ── org.bluez.MediaControl1 remote controller controls ─────────────────────
+  int bluez_media_control_play(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+  ) {
+    return _bluez_media_control_play(handle, control_path);
+  }
+
+  late final _bluez_media_control_playPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_control_play');
+  late final _bluez_media_control_play = _bluez_media_control_playPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_control_pause(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+  ) {
+    return _bluez_media_control_pause(handle, control_path);
+  }
+
+  late final _bluez_media_control_pausePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_control_pause');
+  late final _bluez_media_control_pause = _bluez_media_control_pausePtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_control_stop(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+  ) {
+    return _bluez_media_control_stop(handle, control_path);
+  }
+
+  late final _bluez_media_control_stopPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_control_stop');
+  late final _bluez_media_control_stop = _bluez_media_control_stopPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_control_next(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+  ) {
+    return _bluez_media_control_next(handle, control_path);
+  }
+
+  late final _bluez_media_control_nextPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_control_next');
+  late final _bluez_media_control_next = _bluez_media_control_nextPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_control_previous(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+  ) {
+    return _bluez_media_control_previous(handle, control_path);
+  }
+
+  late final _bluez_media_control_previousPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_control_previous');
+  late final _bluez_media_control_previous = _bluez_media_control_previousPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_control_volume_up(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+  ) {
+    return _bluez_media_control_volume_up(handle, control_path);
+  }
+
+  late final _bluez_media_control_volume_upPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_control_volume_up');
+  late final _bluez_media_control_volume_up = _bluez_media_control_volume_upPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_control_volume_down(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+  ) {
+    return _bluez_media_control_volume_down(handle, control_path);
+  }
+
+  late final _bluez_media_control_volume_downPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_control_volume_down');
+  late final _bluez_media_control_volume_down =
+      _bluez_media_control_volume_downPtr
+          .asFunction<
+            int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+          >();
+
+  int bluez_media_control_fast_forward(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+  ) {
+    return _bluez_media_control_fast_forward(handle, control_path);
+  }
+
+  late final _bluez_media_control_fast_forwardPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_control_fast_forward');
+  late final _bluez_media_control_fast_forward =
+      _bluez_media_control_fast_forwardPtr
+          .asFunction<
+            int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+          >();
+
+  int bluez_media_control_rewind(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+  ) {
+    return _bluez_media_control_rewind(handle, control_path);
+  }
+
+  late final _bluez_media_control_rewindPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_control_rewind');
+  late final _bluez_media_control_rewind = _bluez_media_control_rewindPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_control_get_properties(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> control_path,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_control_get_properties(
+      handle,
+      control_path,
+      out,
+      capacity,
+    );
+  }
+
+  late final _bluez_media_control_get_propertiesPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_control_get_properties');
+  late final _bluez_media_control_get_properties =
+      _bluez_media_control_get_propertiesPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Uint8>,
+              int,
+            )
+          >();
+
   /// A very short-lived native function.
   ///
   /// For very short-lived functions, it is fine to call them on the main isolate.

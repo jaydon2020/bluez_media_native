@@ -53,12 +53,25 @@ public:
   int player_previous(const char *player_path);
   std::vector<uint8_t> player_properties(const char *player_path);
 
+  int control_play(const char *control_path);
+  int control_pause(const char *control_path);
+  int control_stop(const char *control_path);
+  int control_next(const char *control_path);
+  int control_previous(const char *control_path);
+  int control_volume_up(const char *control_path);
+  int control_volume_down(const char *control_path);
+  int control_fast_forward(const char *control_path);
+  int control_rewind(const char *control_path);
+  std::vector<uint8_t> control_properties(const char *control_path);
+
   [[nodiscard]] bool has_player(const std::string &player_path) const;
   [[nodiscard]] size_t registered_player_count() const;
 
 private:
   static constexpr auto kBluezService = "org.bluez";
   static constexpr auto kMediaIface = "org.bluez.Media1";
+  static constexpr auto kMediaControlIface = "org.bluez.MediaControl1";
+  static constexpr auto kMediaPlayerIface = "org.bluez.MediaPlayer1";
   static constexpr auto kMprisPlayerIface = "org.mpris.MediaPlayer2.Player";
   static constexpr auto kMprisRootIface = "org.mpris.MediaPlayer2";
 
@@ -76,6 +89,8 @@ private:
 
   [[nodiscard]] std::unique_ptr<sdbus::IProxy>
   make_player_proxy(const char *player_path) const;
+  [[nodiscard]] std::unique_ptr<sdbus::IProxy>
+  make_control_proxy(const char *control_path) const;
 
   sdbus::IConnection &conn_;
   std::map<std::string, MediaPlayerRegistrationRecord> players_;

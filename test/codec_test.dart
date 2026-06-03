@@ -102,6 +102,22 @@ void main() {
       expect(props.playlist, '/org/bluez/hci0/dev_AA/player0/playlist');
     });
 
+    test('decodes BlueZMediaControlProps', () {
+      final b = BytesBuilder();
+      _writeString(b, '/org/bluez/hci0/dev_AA');
+      _writeUint32(b, 0x3);
+      _writeBool(b, true);
+      _writeString(b, '/org/bluez/hci0/dev_AA/player0');
+
+      final data = Uint8List.fromList(b.toBytes());
+      final props = GlazeCodec.decode<BlueZMediaControlProps>(data, 0);
+
+      expect(props.objectPath, '/org/bluez/hci0/dev_AA');
+      expect(props.changedMask, 0x3);
+      expect(props.connected, true);
+      expect(props.player, '/org/bluez/hci0/dev_AA/player0');
+    });
+
     test('decodes BlueZMediaEndpointProps', () {
       final b = BytesBuilder();
       _writeString(b, '/bluez_media/endpoint/a2dp_sink');

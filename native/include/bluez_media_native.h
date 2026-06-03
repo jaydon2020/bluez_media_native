@@ -61,6 +61,30 @@ BLUEZ_MEDIA_EXPORT int
 bluez_media_player_get_properties(void *handle, const char *player_path,
                                   uint8_t *out, int32_t capacity);
 
+// ── org.bluez.MediaControl1 remote controller controls ─────────────────────
+
+BLUEZ_MEDIA_EXPORT int bluez_media_control_play(void *handle,
+                                                const char *control_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_control_pause(void *handle,
+                                                 const char *control_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_control_stop(void *handle,
+                                                const char *control_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_control_next(void *handle,
+                                                const char *control_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_control_previous(void *handle,
+                                                    const char *control_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_control_volume_up(void *handle,
+                                                     const char *control_path);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_control_volume_down(void *handle, const char *control_path);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_control_fast_forward(void *handle, const char *control_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_control_rewind(void *handle,
+                                                  const char *control_path);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_control_get_properties(void *handle, const char *control_path,
+                                   uint8_t *out, int32_t capacity);
+
 // A very short-lived native function.
 //
 // For very short-lived functions, it is fine to call them on the main isolate.

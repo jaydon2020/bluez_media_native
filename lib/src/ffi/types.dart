@@ -48,6 +48,21 @@ class BlueZMediaPlayerProps {
   });
 }
 
+/// MediaControl1 properties from BlueZ.
+class BlueZMediaControlProps {
+  final String objectPath;
+  final int changedMask;
+  final bool connected;
+  final String player;
+
+  const BlueZMediaControlProps({
+    required this.objectPath,
+    this.changedMask = 0,
+    this.connected = false,
+    this.player = '',
+  });
+}
+
 /// MediaEndpoint1 properties and configuration from BlueZ.
 class BlueZMediaEndpointProps {
   final String objectPath;

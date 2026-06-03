@@ -17,6 +17,8 @@ class GlazeCodec {
       return _decodeMediaProperty(r) as T;
     } else if (T == BlueZMediaPlayerProps) {
       return _decodeMediaPlayerProps(r) as T;
+    } else if (T == BlueZMediaControlProps) {
+      return _decodeMediaControlProps(r) as T;
     } else if (T == BlueZMediaEndpointProps) {
       return _decodeMediaEndpointProps(r) as T;
     } else if (T == BlueZMediaTransportProps) {
@@ -55,6 +57,15 @@ class GlazeCodec {
       browsable: r.readBool(),
       searchable: r.readBool(),
       playlist: r.readString(),
+    );
+  }
+
+  static BlueZMediaControlProps _decodeMediaControlProps(_Reader r) {
+    return BlueZMediaControlProps(
+      objectPath: r.readString(),
+      changedMask: r.readUint32(),
+      connected: r.readBool(),
+      player: r.readString(),
     );
   }
 

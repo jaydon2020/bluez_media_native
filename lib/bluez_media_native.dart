@@ -10,7 +10,8 @@ import 'bluez_media_native_bindings_generated.dart';
 import 'src/ffi/codec.dart';
 import 'src/ffi/types.dart';
 
-export 'src/ffi/types.dart' show BlueZMediaPlayerProps, BlueZMediaProperty;
+export 'src/ffi/types.dart'
+    show BlueZMediaControlProps, BlueZMediaPlayerProps, BlueZMediaProperty;
 
 class BluezMediaPlayerRegistrationConfig {
   final String adapterPath;
@@ -197,6 +198,111 @@ class BluezMediaClient {
     }
   }
 
+  void controlPlay(String controlPath) {
+    _callControl(
+      controlPath,
+      _bindings.bluez_media_control_play,
+      'play media control',
+    );
+  }
+
+  void controlPause(String controlPath) {
+    _callControl(
+      controlPath,
+      _bindings.bluez_media_control_pause,
+      'pause media control',
+    );
+  }
+
+  void controlStop(String controlPath) {
+    _callControl(
+      controlPath,
+      _bindings.bluez_media_control_stop,
+      'stop media control',
+    );
+  }
+
+  void controlNext(String controlPath) {
+    _callControl(
+      controlPath,
+      _bindings.bluez_media_control_next,
+      'next media control',
+    );
+  }
+
+  void controlPrevious(String controlPath) {
+    _callControl(
+      controlPath,
+      _bindings.bluez_media_control_previous,
+      'previous media control',
+    );
+  }
+
+  void volumeUp(String controlPath) {
+    _callControl(
+      controlPath,
+      _bindings.bluez_media_control_volume_up,
+      'volume up',
+    );
+  }
+
+  void volumeDown(String controlPath) {
+    _callControl(
+      controlPath,
+      _bindings.bluez_media_control_volume_down,
+      'volume down',
+    );
+  }
+
+  void fastForward(String controlPath) {
+    _callControl(
+      controlPath,
+      _bindings.bluez_media_control_fast_forward,
+      'fast forward',
+    );
+  }
+
+  void rewind(String controlPath) {
+    _callControl(controlPath, _bindings.bluez_media_control_rewind, 'rewind');
+  }
+
+  BlueZMediaControlProps getMediaControlProperties(String controlPath) {
+    _ensureOpen();
+
+    final controlPathPtr = controlPath.toNativeUtf8();
+    try {
+      final size = _bindings.bluez_media_control_get_properties(
+        _handle,
+        controlPathPtr.cast<Char>(),
+        nullptr,
+        0,
+      );
+      if (size < 0) {
+        _checkResult(size, 'get media control properties size');
+      }
+
+      final out = calloc<Uint8>(size);
+      try {
+        final result = _bindings.bluez_media_control_get_properties(
+          _handle,
+          controlPathPtr.cast<Char>(),
+          out,
+          size,
+        );
+        if (result < 0) {
+          _checkResult(result, 'get media control properties');
+        }
+
+        final bytes = Uint8List.fromList(out.asTypedList(result));
+        return GlazeCodec.decode<BlueZMediaControlProps>(bytes, 0);
+      } finally {
+        calloc.free(out);
+      }
+    } finally {
+      calloc.free(controlPathPtr);
+    }
+  }
+
   void _ensureOpen() {
     if (_handle == nullptr) {
       throw StateError('BluezMediaClient is closed.');
@@ -216,6 +322,22 @@ class BluezMediaClient {
       _checkResult(result, '$operation player');
     } finally {
       calloc.free(playerPathPtr);
+    }
+  }
+
+  void _callControl(
+    String controlPath,
+    int Function(Pointer<Void>, Pointer<Char>) call,
+    String operation,
+  ) {
+    _ensureOpen();
+
+    final controlPathPtr = controlPath.toNativeUtf8();
+    try {
+      final result = call(_handle, controlPathPtr.cast<Char>());
+      _checkResult(result, operation);
+    } finally {
+      calloc.free(controlPathPtr);
     }
   }
 

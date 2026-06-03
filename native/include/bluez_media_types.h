@@ -2,10 +2,11 @@
 //
 // Message discriminator byte at offset 0 in kExternalTypedData:
 //   0x01 = BlueZMediaPlayerProps     (player PropertiesChanged or snapshot)
-//   0x02 = BlueZMediaEndpointProps   (endpoint configuration)
-//   0x03 = BlueZMediaTransportProps  (transport PropertiesChanged or snapshot)
-//   0x04 = BlueZMediaFolderProps     (folder PropertiesChanged or snapshot)
-//   0x05 = BlueZMediaItemProps       (media item PropertiesChanged or snapshot)
+//   0x02 = BlueZMediaControlProps    (control PropertiesChanged or snapshot)
+//   0x03 = BlueZMediaEndpointProps   (endpoint configuration)
+//   0x04 = BlueZMediaTransportProps  (transport PropertiesChanged or snapshot)
+//   0x05 = BlueZMediaFolderProps     (folder PropertiesChanged or snapshot)
+//   0x06 = BlueZMediaItemProps       (media item PropertiesChanged or snapshot)
 //   0x10 = BlueZMediaAcquireResult   (Acquire / TryAcquire result)
 //   0x20 = BlueZMediaError           (method call failed)
 //   0xFF = sentinel (stream done)
@@ -68,6 +69,22 @@ template <> struct glz::meta<BlueZMediaPlayerProps> {
       glz::field("browsable", &BlueZMediaPlayerProps::browsable),
       glz::field("searchable", &BlueZMediaPlayerProps::searchable),
       glz::field("playlist", &BlueZMediaPlayerProps::playlist));
+};
+
+// ── MediaControl1 properties ───────────────────────────────────────────────
+
+struct BlueZMediaControlProps {
+  std::string objectPath;
+  uint32_t changedMask{};
+  bool connected{};
+  std::string player;
+};
+template <> struct glz::meta<BlueZMediaControlProps> {
+  static constexpr auto fields = std::make_tuple(
+      glz::field("objectPath", &BlueZMediaControlProps::objectPath),
+      glz::field("changedMask", &BlueZMediaControlProps::changedMask),
+      glz::field("connected", &BlueZMediaControlProps::connected),
+      glz::field("player", &BlueZMediaControlProps::player));
 };
 
 // ── MediaEndpoint1 properties/configuration ────────────────────────────────

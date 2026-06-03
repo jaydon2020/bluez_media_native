@@ -163,4 +163,150 @@ int bluez_media_player_get_properties(void *handle, const char *player_path,
   }
 }
 
+int bluez_media_control_play(void *handle, const char *control_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->control_play(control_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_play: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_control_pause(void *handle, const char *control_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->control_pause(control_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_pause: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_control_stop(void *handle, const char *control_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->control_stop(control_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_stop: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_control_next(void *handle, const char *control_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->control_next(control_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_next: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_control_previous(void *handle, const char *control_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->control_previous(control_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_previous: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_control_volume_up(void *handle, const char *control_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->control_volume_up(control_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_volume_up: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_control_volume_down(void *handle, const char *control_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->control_volume_down(control_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_volume_down: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_control_fast_forward(void *handle, const char *control_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->control_fast_forward(control_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_fast_forward: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_control_rewind(void *handle, const char *control_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->control_rewind(control_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_rewind: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_control_get_properties(void *handle, const char *control_path,
+                                       uint8_t *out, int32_t capacity) {
+  if (handle == nullptr) {
+    return -1;
+  }
+  if (capacity < 0) {
+    return -1;
+  }
+
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    const auto payload = ctx->media->control_properties(control_path);
+    if (payload.empty()) {
+      return -1;
+    }
+    if (out == nullptr || capacity == 0) {
+      return static_cast<int>(payload.size());
+    }
+    if (capacity < static_cast<int32_t>(payload.size())) {
+      return -2;
+    }
+    std::memcpy(out, payload.data(), payload.size());
+    return static_cast<int>(payload.size());
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_control_get_properties: %s\n", e.what());
+    return -3;
+  }
+}
+
 } // extern "C"

@@ -71,35 +71,35 @@ int MediaBridge::unregister_player(const char *adapter_path,
 int MediaBridge::player_play(const char *player_path) {
   make_player_proxy(player_path)
       ->callMethod("Play")
-      .onInterface("org.bluez.MediaPlayer1");
+      .onInterface(kMediaPlayerIface);
   return 0;
 }
 
 int MediaBridge::player_pause(const char *player_path) {
   make_player_proxy(player_path)
       ->callMethod("Pause")
-      .onInterface("org.bluez.MediaPlayer1");
+      .onInterface(kMediaPlayerIface);
   return 0;
 }
 
 int MediaBridge::player_stop(const char *player_path) {
   make_player_proxy(player_path)
       ->callMethod("Stop")
-      .onInterface("org.bluez.MediaPlayer1");
+      .onInterface(kMediaPlayerIface);
   return 0;
 }
 
 int MediaBridge::player_next(const char *player_path) {
   make_player_proxy(player_path)
       ->callMethod("Next")
-      .onInterface("org.bluez.MediaPlayer1");
+      .onInterface(kMediaPlayerIface);
   return 0;
 }
 
 int MediaBridge::player_previous(const char *player_path) {
   make_player_proxy(player_path)
       ->callMethod("Previous")
-      .onInterface("org.bluez.MediaPlayer1");
+      .onInterface(kMediaPlayerIface);
   return 0;
 }
 
@@ -114,79 +114,164 @@ std::vector<uint8_t> MediaBridge::player_properties(const char *player_path) {
   props.objectPath = player;
   try {
     props.equalizer = proxy->getProperty("Equalizer")
-                          .onInterface("org.bluez.MediaPlayer1")
+                          .onInterface(kMediaPlayerIface)
                           .get<std::string>();
   } catch (const sdbus::Error &) {
   }
   try {
     props.repeat = proxy->getProperty("Repeat")
-                       .onInterface("org.bluez.MediaPlayer1")
+                       .onInterface(kMediaPlayerIface)
                        .get<std::string>();
   } catch (const sdbus::Error &) {
   }
   try {
     props.shuffle = proxy->getProperty("Shuffle")
-                        .onInterface("org.bluez.MediaPlayer1")
+                        .onInterface(kMediaPlayerIface)
                         .get<std::string>();
   } catch (const sdbus::Error &) {
   }
   try {
     props.scan = proxy->getProperty("Scan")
-                     .onInterface("org.bluez.MediaPlayer1")
+                     .onInterface(kMediaPlayerIface)
                      .get<std::string>();
   } catch (const sdbus::Error &) {
   }
   props.status = proxy->getProperty("Status")
-                     .onInterface("org.bluez.MediaPlayer1")
+                     .onInterface(kMediaPlayerIface)
                      .get<std::string>();
   props.position = proxy->getProperty("Position")
-                       .onInterface("org.bluez.MediaPlayer1")
+                       .onInterface(kMediaPlayerIface)
                        .get<uint32_t>();
   props.track =
       track_to_properties(proxy->getProperty("Track")
-                              .onInterface("org.bluez.MediaPlayer1")
+                              .onInterface(kMediaPlayerIface)
                               .get<std::map<std::string, sdbus::Variant>>());
 
   try {
     props.device = proxy->getProperty("Device")
-                       .onInterface("org.bluez.MediaPlayer1")
+                       .onInterface(kMediaPlayerIface)
                        .get<sdbus::ObjectPath>();
   } catch (const sdbus::Error &) {
   }
   try {
     props.name = proxy->getProperty("Name")
-                     .onInterface("org.bluez.MediaPlayer1")
+                     .onInterface(kMediaPlayerIface)
                      .get<std::string>();
   } catch (const sdbus::Error &) {
   }
   try {
     props.type = proxy->getProperty("Type")
-                     .onInterface("org.bluez.MediaPlayer1")
+                     .onInterface(kMediaPlayerIface)
                      .get<std::string>();
   } catch (const sdbus::Error &) {
   }
   try {
     props.subtype = proxy->getProperty("Subtype")
-                        .onInterface("org.bluez.MediaPlayer1")
+                        .onInterface(kMediaPlayerIface)
                         .get<std::string>();
   } catch (const sdbus::Error &) {
   }
   try {
     props.browsable = proxy->getProperty("Browsable")
-                          .onInterface("org.bluez.MediaPlayer1")
+                          .onInterface(kMediaPlayerIface)
                           .get<bool>();
   } catch (const sdbus::Error &) {
   }
   try {
     props.searchable = proxy->getProperty("Searchable")
-                           .onInterface("org.bluez.MediaPlayer1")
+                           .onInterface(kMediaPlayerIface)
                            .get<bool>();
   } catch (const sdbus::Error &) {
   }
   try {
     props.playlist = proxy->getProperty("Playlist")
-                         .onInterface("org.bluez.MediaPlayer1")
+                         .onInterface(kMediaPlayerIface)
                          .get<sdbus::ObjectPath>();
+  } catch (const sdbus::Error &) {
+  }
+
+  return glz::encode(props);
+}
+
+int MediaBridge::control_play(const char *control_path) {
+  make_control_proxy(control_path)
+      ->callMethod("Play")
+      .onInterface(kMediaControlIface);
+  return 0;
+}
+
+int MediaBridge::control_pause(const char *control_path) {
+  make_control_proxy(control_path)
+      ->callMethod("Pause")
+      .onInterface(kMediaControlIface);
+  return 0;
+}
+
+int MediaBridge::control_stop(const char *control_path) {
+  make_control_proxy(control_path)
+      ->callMethod("Stop")
+      .onInterface(kMediaControlIface);
+  return 0;
+}
+
+int MediaBridge::control_next(const char *control_path) {
+  make_control_proxy(control_path)
+      ->callMethod("Next")
+      .onInterface(kMediaControlIface);
+  return 0;
+}
+
+int MediaBridge::control_previous(const char *control_path) {
+  make_control_proxy(control_path)
+      ->callMethod("Previous")
+      .onInterface(kMediaControlIface);
+  return 0;
+}
+
+int MediaBridge::control_volume_up(const char *control_path) {
+  make_control_proxy(control_path)
+      ->callMethod("VolumeUp")
+      .onInterface(kMediaControlIface);
+  return 0;
+}
+
+int MediaBridge::control_volume_down(const char *control_path) {
+  make_control_proxy(control_path)
+      ->callMethod("VolumeDown")
+      .onInterface(kMediaControlIface);
+  return 0;
+}
+
+int MediaBridge::control_fast_forward(const char *control_path) {
+  make_control_proxy(control_path)
+      ->callMethod("FastForward")
+      .onInterface(kMediaControlIface);
+  return 0;
+}
+
+int MediaBridge::control_rewind(const char *control_path) {
+  make_control_proxy(control_path)
+      ->callMethod("Rewind")
+      .onInterface(kMediaControlIface);
+  return 0;
+}
+
+std::vector<uint8_t> MediaBridge::control_properties(const char *control_path) {
+  const auto control = safe_string(control_path);
+  if (control.empty()) {
+    return {};
+  }
+
+  auto proxy = make_control_proxy(control_path);
+  BlueZMediaControlProps props;
+  props.objectPath = control;
+  props.connected = proxy->getProperty("Connected")
+                        .onInterface(kMediaControlIface)
+                        .get<bool>();
+  try {
+    props.player = proxy->getProperty("Player")
+                       .onInterface(kMediaControlIface)
+                       .get<sdbus::ObjectPath>();
   } catch (const sdbus::Error &) {
   }
 
@@ -399,4 +484,15 @@ MediaBridge::make_player_proxy(const char *player_path) const {
   }
   return sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                             sdbus::ObjectPath{player});
+}
+
+std::unique_ptr<sdbus::IProxy>
+MediaBridge::make_control_proxy(const char *control_path) const {
+  const auto control = safe_string(control_path);
+  if (control.empty()) {
+    throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
+                       "control_path is required"};
+  }
+  return sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
+                            sdbus::ObjectPath{control});
 }

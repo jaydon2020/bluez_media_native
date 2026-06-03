@@ -63,6 +63,24 @@ void test_media_player_props_roundtrip() {
   assert(decoded.playlist == orig.playlist);
 }
 
+void test_media_control_props_roundtrip() {
+  BlueZMediaControlProps orig;
+  orig.objectPath = "/org/bluez/hci0/dev_AA";
+  orig.changedMask = 0x3u;
+  orig.connected = true;
+  orig.player = "/org/bluez/hci0/dev_AA/player0";
+
+  auto buf = glz::encode(orig);
+  BlueZMediaControlProps decoded;
+  auto end = glz::decode(buf.data(), 0, decoded);
+
+  assert(end == buf.size());
+  assert(decoded.objectPath == orig.objectPath);
+  assert(decoded.changedMask == orig.changedMask);
+  assert(decoded.connected == orig.connected);
+  assert(decoded.player == orig.player);
+}
+
 void test_media_endpoint_props_roundtrip() {
   BlueZMediaEndpointProps orig;
   orig.objectPath = "/bluez_media/endpoint/a2dp_sink";
@@ -176,6 +194,7 @@ void test_method_result_roundtrips() {
 int main() {
   test_media_property_roundtrip();
   test_media_player_props_roundtrip();
+  test_media_control_props_roundtrip();
   test_media_endpoint_props_roundtrip();
   test_media_transport_props_roundtrip();
   test_media_item_props_roundtrip();
