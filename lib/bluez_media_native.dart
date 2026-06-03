@@ -2,10 +2,15 @@ import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
 
 import 'bluez_media_native_bindings_generated.dart';
+import 'src/ffi/codec.dart';
+import 'src/ffi/types.dart';
+
+export 'src/ffi/types.dart' show BlueZMediaPlayerProps, BlueZMediaProperty;
 
 class BluezMediaPlayerRegistrationConfig {
   final String adapterPath;
@@ -131,9 +136,86 @@ class BluezMediaClient {
     }
   }
 
+  void play(String playerPath) {
+    _callPlayerControl(playerPath, _bindings.bluez_media_player_play, 'play');
+  }
+
+  void pause(String playerPath) {
+    _callPlayerControl(playerPath, _bindings.bluez_media_player_pause, 'pause');
+  }
+
+  void stop(String playerPath) {
+    _callPlayerControl(playerPath, _bindings.bluez_media_player_stop, 'stop');
+  }
+
+  void next(String playerPath) {
+    _callPlayerControl(playerPath, _bindings.bluez_media_player_next, 'next');
+  }
+
+  void previous(String playerPath) {
+    _callPlayerControl(
+      playerPath,
+      _bindings.bluez_media_player_previous,
+      'previous',
+    );
+  }
+
+  BlueZMediaPlayerProps getPlayerProperties(String playerPath) {
+    _ensureOpen();
+
+    final playerPathPtr = playerPath.toNativeUtf8();
+    try {
+      final size = _bindings.bluez_media_player_get_properties(
+        _handle,
+        playerPathPtr.cast<Char>(),
+        nullptr,
+        0,
+      );
+      if (size < 0) {
+        _checkResult(size, 'get player properties size');
+      }
+
+      final out = calloc<Uint8>(size);
+      try {
+        final result = _bindings.bluez_media_player_get_properties(
+          _handle,
+          playerPathPtr.cast<Char>(),
+          out,
+          size,
+        );
+        if (result < 0) {
+          _checkResult(result, 'get player properties');
+        }
+
+        final bytes = Uint8List.fromList(out.asTypedList(result));
+        return GlazeCodec.decode<BlueZMediaPlayerProps>(bytes, 0);
+      } finally {
+        calloc.free(out);
+      }
+    } finally {
+      calloc.free(playerPathPtr);
+    }
+  }
+
   void _ensureOpen() {
     if (_handle == nullptr) {
       throw StateError('BluezMediaClient is closed.');
+    }
+  }
+
+  void _callPlayerControl(
+    String playerPath,
+    int Function(Pointer<Void>, Pointer<Char>) call,
+    String operation,
+  ) {
+    _ensureOpen();
+
+    final playerPathPtr = playerPath.toNativeUtf8();
+    try {
+      final result = call(_handle, playerPathPtr.cast<Char>());
+      _checkResult(result, '$operation player');
+    } finally {
+      calloc.free(playerPathPtr);
     }
   }
 

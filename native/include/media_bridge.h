@@ -6,12 +6,14 @@
 #pragma once
 
 #include "bluez_media_native.h"
+#include "bluez_media_types.h"
 
 #include <sdbus-c++/sdbus-c++.h>
 
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
 
 struct MediaPlayerState {
   std::string adapter_path;
@@ -44,6 +46,13 @@ public:
   int register_player(const BluezMediaPlayerRegistration &registration);
   int unregister_player(const char *adapter_path, const char *player_path);
 
+  int player_play(const char *player_path);
+  int player_pause(const char *player_path);
+  int player_stop(const char *player_path);
+  int player_next(const char *player_path);
+  int player_previous(const char *player_path);
+  std::vector<uint8_t> player_properties(const char *player_path);
+
   [[nodiscard]] bool has_player(const std::string &player_path) const;
   [[nodiscard]] size_t registered_player_count() const;
 
@@ -61,6 +70,12 @@ private:
                                       const MediaPlayerState &state);
   static std::map<std::string, sdbus::Variant>
   make_player_properties(const MediaPlayerState &state);
+  static std::string variant_to_string(const sdbus::Variant &value);
+  static std::vector<BlueZMediaProperty>
+  track_to_properties(const std::map<std::string, sdbus::Variant> &track);
+
+  [[nodiscard]] std::unique_ptr<sdbus::IProxy>
+  make_player_proxy(const char *player_path) const;
 
   sdbus::IConnection &conn_;
   std::map<std::string, MediaPlayerRegistrationRecord> players_;

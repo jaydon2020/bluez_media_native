@@ -101,6 +101,123 @@ class BluezMediaNativeBindings {
         )
       >();
 
+  /// ── org.bluez.MediaPlayer1 remote controls ─────────────────────────────────
+  int bluez_media_player_play(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+  ) {
+    return _bluez_media_player_play(handle, player_path);
+  }
+
+  late final _bluez_media_player_playPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_player_play');
+  late final _bluez_media_player_play = _bluez_media_player_playPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_player_pause(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+  ) {
+    return _bluez_media_player_pause(handle, player_path);
+  }
+
+  late final _bluez_media_player_pausePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_player_pause');
+  late final _bluez_media_player_pause = _bluez_media_player_pausePtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_player_stop(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+  ) {
+    return _bluez_media_player_stop(handle, player_path);
+  }
+
+  late final _bluez_media_player_stopPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_player_stop');
+  late final _bluez_media_player_stop = _bluez_media_player_stopPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_player_next(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+  ) {
+    return _bluez_media_player_next(handle, player_path);
+  }
+
+  late final _bluez_media_player_nextPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_player_next');
+  late final _bluez_media_player_next = _bluez_media_player_nextPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_player_previous(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+  ) {
+    return _bluez_media_player_previous(handle, player_path);
+  }
+
+  late final _bluez_media_player_previousPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_player_previous');
+  late final _bluez_media_player_previous = _bluez_media_player_previousPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_player_get_properties(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_player_get_properties(
+      handle,
+      player_path,
+      out,
+      capacity,
+    );
+  }
+
+  late final _bluez_media_player_get_propertiesPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_player_get_properties');
+  late final _bluez_media_player_get_properties =
+      _bluez_media_player_get_propertiesPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Uint8>,
+              int,
+            )
+          >();
+
   /// A very short-lived native function.
   ///
   /// For very short-lived functions, it is fine to call them on the main isolate.

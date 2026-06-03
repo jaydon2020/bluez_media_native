@@ -45,6 +45,22 @@ BLUEZ_MEDIA_EXPORT int bluez_media_unregister_player(void *handle,
                                                      const char *adapter_path,
                                                      const char *player_path);
 
+// ── org.bluez.MediaPlayer1 remote controls ─────────────────────────────────
+
+BLUEZ_MEDIA_EXPORT int bluez_media_player_play(void *handle,
+                                               const char *player_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_player_pause(void *handle,
+                                                const char *player_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_player_stop(void *handle,
+                                               const char *player_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_player_next(void *handle,
+                                               const char *player_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_player_previous(void *handle,
+                                                   const char *player_path);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_player_get_properties(void *handle, const char *player_path,
+                                  uint8_t *out, int32_t capacity);
+
 // A very short-lived native function.
 //
 // For very short-lived functions, it is fine to call them on the main isolate.
