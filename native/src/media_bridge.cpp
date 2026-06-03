@@ -13,7 +13,13 @@ bool as_bool(uint8_t value) { return value != 0; }
 
 } // namespace
 
-MediaBridge::MediaBridge(sdbus::IConnection &conn) : conn_(conn) {}
+MediaBridge::MediaBridge(sdbus::IConnection &conn) : conn_(conn) {
+  try {
+    conn_.addObjectManager(sdbus::ObjectPath{"/"});
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "MediaBridge: failed to add ObjectManager: %s\n", e.what());
+  }
+}
 
 int MediaBridge::register_player(
     const BluezMediaPlayerRegistration &registration) {
@@ -29,7 +35,6 @@ int MediaBridge::register_player(
       sdbus::createObject(conn_, sdbus::ObjectPath{state.player_path});
   add_mpris_root_vtable(*object, state);
   add_mpris_player_vtable(*object, state);
-  object->emitInterfacesAddedSignal();
 
   auto media_proxy =
       sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
@@ -63,7 +68,10 @@ int MediaBridge::unregister_player(const char *adapter_path,
       .onInterface(kMediaIface)
       .withArguments(sdbus::ObjectPath{player});
 
-  it->second.object->emitInterfacesRemovedSignal();
+  try {
+    it->second.object->emitInterfacesRemovedSignal();
+  } catch (const sdbus::Error &) {
+  }
   players_.erase(it);
   return 0;
 }

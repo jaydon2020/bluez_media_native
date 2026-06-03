@@ -9,6 +9,7 @@ import 'media_example_utils.dart';
 void main(List<String> args) {
   if (args.length < 2 || hasFlag(args, '--help')) {
     printUsage('dart run example/media_browsing.dart <path> <command>', [
+      'Player commands: play, pause, stop, next, previous, player-props',
       'Folder commands: folder-props, list, search <text>, cd <folder_path>',
       'Item commands:   item-props, play-item, add-now-playing',
       '',
@@ -26,11 +27,43 @@ void main(List<String> args) {
   final path = args[0];
   final command = args[1].toLowerCase();
   final client = createClient();
+  final player = client.player(path);
   final folder = client.folder(path);
   final item = client.item(path);
 
   try {
     switch (command) {
+      case 'play':
+        player.play();
+        print('Sent Play to player $path.');
+        break;
+      case 'pause':
+        player.pause();
+        print('Sent Pause to player $path.');
+        break;
+      case 'stop':
+        player.stop();
+        print('Sent Stop to player $path.');
+        break;
+      case 'next':
+        player.next();
+        print('Sent Next to player $path.');
+        break;
+      case 'previous':
+        player.previous();
+        print('Sent Previous to player $path.');
+        break;
+      case 'player-props':
+        player.refresh();
+        print('Player: ${player.objectPath}');
+        print('  Status:   ${player.status}');
+        print('  Position: ${player.position} ms');
+        print('  Name:     ${player.name}');
+        print('  Type:     ${player.type}');
+        print('  Device:   ${player.device}');
+        print('  Track:');
+        printProperties(player.track, indent: '    ');
+        break;
       case 'folder-props':
         folder.refresh();
         print('Folder: ${folder.objectPath}');

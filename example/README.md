@@ -90,6 +90,8 @@ for (final item in items) {
 ```
 
 ```sh
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 pause
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 player-props
 dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 folder-props
 dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 list
 dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 search Coltrane
