@@ -26,20 +26,22 @@ void main(List<String> args) {
   final path = args[0];
   final command = args[1].toLowerCase();
   final client = createClient();
+  final folder = client.folder(path);
+  final item = client.item(path);
 
   try {
     switch (command) {
       case 'folder-props':
-        final props = client.getMediaFolderProperties(path);
-        print('Folder: ${props.objectPath}');
-        print('  Name:           ${props.name}');
-        print('  NumberOfItems:  ${props.numberOfItems}');
+        folder.refresh();
+        print('Folder: ${folder.objectPath}');
+        print('  Name:           ${folder.name}');
+        print('  NumberOfItems:  ${folder.numberOfItems}');
         break;
       case 'list':
-        final result = client.listFolderItems(path);
-        print('Folder: ${result.objectPath}');
-        print('Items: ${result.items.length}');
-        for (final item in result.items) {
+        final items = folder.listItems();
+        print('Folder: ${folder.objectPath}');
+        print('Items: ${items.length}');
+        for (final item in items) {
           _printItemSummary(item);
         }
         break;
@@ -47,26 +49,26 @@ void main(List<String> args) {
         if (args.length < 3) {
           throw const FormatException('search requires a text value.');
         }
-        final result = client.searchFolder(path, args.sublist(2).join(' '));
+        final result = folder.search(args.sublist(2).join(' '));
         print('Search result folder: ${result.objectPath}');
         break;
       case 'cd':
         if (args.length < 3) {
           throw const FormatException('cd requires a target folder path.');
         }
-        client.changeFolder(path, args[2]);
+        folder.changeFolderPath(args[2]);
         print('Changed $path to folder ${args[2]}.');
         break;
       case 'item-props':
-        final props = client.getMediaItemProperties(path);
-        _printItemDetails(props);
+        item.refresh();
+        _printItemDetails(item);
         break;
       case 'play-item':
-        client.playItem(path);
+        item.play();
         print('Sent Play to item $path.');
         break;
       case 'add-now-playing':
-        client.addItemToNowPlaying(path);
+        item.addToNowPlaying();
         print('Added item $path to now playing.');
         break;
       default:
@@ -77,7 +79,7 @@ void main(List<String> args) {
   }
 }
 
-void _printItemSummary(BlueZMediaItemProps item) {
+void _printItemSummary(BluezMediaItem item) {
   final playable = item.playable ? 'playable' : 'not playable';
   print('- ${item.name} [$playable]');
   print('  Path: ${item.objectPath}');
@@ -87,9 +89,9 @@ void _printItemSummary(BlueZMediaItemProps item) {
   }
 }
 
-void _printItemDetails(BlueZMediaItemProps item) {
+void _printItemDetails(BluezMediaItem item) {
   _printItemSummary(item);
-  print('  Player: ${item.player}');
+  print('  Player: ${item.playerPath}');
   if (item.metadata.isNotEmpty) {
     print('  Metadata:');
     printProperties(item.metadata, indent: '    ');

@@ -24,44 +24,45 @@ Future<void> main(List<String> args) async {
   final controlPath = args[0];
   final command = args[1].toLowerCase();
   final client = createClient();
+  final control = client.control(controlPath);
 
   try {
     switch (command) {
       case 'play':
-        client.controlPlay(controlPath);
+        control.play();
         break;
       case 'pause':
-        client.controlPause(controlPath);
+        control.pause();
         break;
       case 'stop':
-        client.controlStop(controlPath);
+        control.stop();
         break;
       case 'next':
-        client.controlNext(controlPath);
+        control.next();
         break;
       case 'previous':
-        client.controlPrevious(controlPath);
+        control.previous();
         break;
       case 'volume-up':
-        client.volumeUp(controlPath);
+        control.volumeUp();
         break;
       case 'volume-down':
-        client.volumeDown(controlPath);
+        control.volumeDown();
         break;
       case 'fast-forward':
-        client.fastForward(controlPath);
+        control.fastForward();
         break;
       case 'rewind':
-        client.rewind(controlPath);
+        control.rewind();
         break;
       case 'props':
-        _printControlProperties(client, controlPath);
+        _printControlProperties(control);
         return;
       case 'watch':
         final seconds =
             int.tryParse(optionValue(args, '--seconds', fallback: '30')) ?? 30;
         for (var i = 0; i < seconds; i++) {
-          _printControlProperties(client, controlPath);
+          _printControlProperties(control);
           await Future<void>.delayed(const Duration(seconds: 1));
         }
         return;
@@ -74,10 +75,10 @@ Future<void> main(List<String> args) async {
   }
 }
 
-void _printControlProperties(BluezMediaClient client, String controlPath) {
-  final props = client.getMediaControlProperties(controlPath);
+void _printControlProperties(BluezMediaControl control) {
+  control.refresh();
   final timestamp = DateTime.now().toIso8601String().substring(11, 19);
-  print('[$timestamp] Control: ${props.objectPath}');
-  print('  Connected: ${props.connected}');
-  print('  Player:    ${props.player}');
+  print('[$timestamp] Control: ${control.objectPath}');
+  print('  Connected: ${control.connected}');
+  print('  Player:    ${control.playerPath}');
 }

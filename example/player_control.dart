@@ -19,34 +19,35 @@ void main(List<String> args) {
   final playerPath = args[0];
   final command = args[1].toLowerCase();
   final client = createClient();
+  final player = client.player(playerPath);
 
   try {
     switch (command) {
       case 'play':
-        client.play(playerPath);
+        player.play();
         break;
       case 'pause':
-        client.pause(playerPath);
+        player.pause();
         break;
       case 'stop':
-        client.stop(playerPath);
+        player.stop();
         break;
       case 'next':
-        client.next(playerPath);
+        player.next();
         break;
       case 'previous':
-        client.previous(playerPath);
+        player.previous();
         break;
       case 'props':
-        final props = client.getPlayerProperties(playerPath);
-        print('Player: ${props.objectPath}');
-        print('  Status:   ${props.status}');
-        print('  Position: ${props.position} ms');
-        print('  Name:     ${props.name}');
-        print('  Type:     ${props.type}');
-        print('  Device:   ${props.device}');
+        player.refresh();
+        print('Player: ${player.objectPath}');
+        print('  Status:   ${player.status}');
+        print('  Position: ${player.position} ms');
+        print('  Name:     ${player.name}');
+        print('  Type:     ${player.type}');
+        print('  Device:   ${player.device}');
         print('  Track:');
-        printProperties(props.track, indent: '    ');
+        printProperties(player.track, indent: '    ');
         return;
       default:
         throw FormatException('Unknown command: $command.');
