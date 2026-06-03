@@ -32,7 +32,7 @@ fi
 echo "Using: ${CLANG_TIDY}"
 
 # Only run on project source files -- exclude generated proxies, vendored Dart
-# API headers, and third_party/.
+# API headers, glaze_meta.h, and third_party/.
 find "${ROOT_DIR}/native/src" "${ROOT_DIR}/native/include" \
     \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) \
     ! -path '*/third_party/*' \
@@ -43,6 +43,7 @@ find "${ROOT_DIR}/native/src" "${ROOT_DIR}/native/include" \
     ! -name 'dart_api_dl.c' \
     ! -name 'dart_native_api.h' \
     ! -name 'dart_version.h' \
+    ! -name 'glaze_meta.h' \
     -print | sort | \
     xargs "${CLANG_TIDY}" -p "${BUILD_DIR}" --warnings-as-errors='*' 2>&1
 

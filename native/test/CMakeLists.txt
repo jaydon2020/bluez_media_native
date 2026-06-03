@@ -1,1 +1,4 @@
-# Native tests for bluez_media_native can be added here as the bridge grows.
+add_executable(test_media_types test_media_types.cpp)
+target_link_libraries(test_media_types PRIVATE bluez_media_native_core)
+
+add_test(NAME test_media_types COMMAND test_media_types)
