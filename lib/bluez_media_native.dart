@@ -11,7 +11,13 @@ import 'src/ffi/codec.dart';
 import 'src/ffi/types.dart';
 
 export 'src/ffi/types.dart'
-    show BlueZMediaControlProps, BlueZMediaPlayerProps, BlueZMediaProperty;
+    show
+        BlueZMediaControlProps,
+        BlueZMediaFolderItems,
+        BlueZMediaFolderProps,
+        BlueZMediaItemProps,
+        BlueZMediaPlayerProps,
+        BlueZMediaProperty;
 
 class BluezMediaPlayerRegistrationConfig {
   final String adapterPath;
@@ -303,6 +309,188 @@ class BluezMediaClient {
     }
   }
 
+  BlueZMediaFolderProps searchFolder(String folderPath, String value) {
+    _ensureOpen();
+
+    final folderPathPtr = folderPath.toNativeUtf8();
+    final valuePtr = value.toNativeUtf8();
+    try {
+      final size = _bindings.bluez_media_folder_search(
+        _handle,
+        folderPathPtr.cast<Char>(),
+        valuePtr.cast<Char>(),
+        nullptr,
+        0,
+      );
+      if (size < 0) {
+        _checkResult(size, 'search media folder size');
+      }
+
+      final out = calloc<Uint8>(size);
+      try {
+        final result = _bindings.bluez_media_folder_search(
+          _handle,
+          folderPathPtr.cast<Char>(),
+          valuePtr.cast<Char>(),
+          out,
+          size,
+        );
+        if (result < 0) {
+          _checkResult(result, 'search media folder');
+        }
+
+        final bytes = Uint8List.fromList(out.asTypedList(result));
+        return GlazeCodec.decode<BlueZMediaFolderProps>(bytes, 0);
+      } finally {
+        calloc.free(out);
+      }
+    } finally {
+      calloc.free(valuePtr);
+      calloc.free(folderPathPtr);
+    }
+  }
+
+  BlueZMediaFolderItems listFolderItems(String folderPath) {
+    _ensureOpen();
+
+    final folderPathPtr = folderPath.toNativeUtf8();
+    try {
+      final size = _bindings.bluez_media_folder_list_items(
+        _handle,
+        folderPathPtr.cast<Char>(),
+        nullptr,
+        0,
+      );
+      if (size < 0) {
+        _checkResult(size, 'list media folder items size');
+      }
+
+      final out = calloc<Uint8>(size);
+      try {
+        final result = _bindings.bluez_media_folder_list_items(
+          _handle,
+          folderPathPtr.cast<Char>(),
+          out,
+          size,
+        );
+        if (result < 0) {
+          _checkResult(result, 'list media folder items');
+        }
+
+        final bytes = Uint8List.fromList(out.asTypedList(result));
+        return GlazeCodec.decode<BlueZMediaFolderItems>(bytes, 0);
+      } finally {
+        calloc.free(out);
+      }
+    } finally {
+      calloc.free(folderPathPtr);
+    }
+  }
+
+  void changeFolder(String folderPath, String targetFolderPath) {
+    _ensureOpen();
+
+    final folderPathPtr = folderPath.toNativeUtf8();
+    final targetFolderPathPtr = targetFolderPath.toNativeUtf8();
+    try {
+      final result = _bindings.bluez_media_folder_change_folder(
+        _handle,
+        folderPathPtr.cast<Char>(),
+        targetFolderPathPtr.cast<Char>(),
+      );
+      _checkResult(result, 'change media folder');
+    } finally {
+      calloc.free(targetFolderPathPtr);
+      calloc.free(folderPathPtr);
+    }
+  }
+
+  BlueZMediaFolderProps getMediaFolderProperties(String folderPath) {
+    _ensureOpen();
+
+    final folderPathPtr = folderPath.toNativeUtf8();
+    try {
+      final size = _bindings.bluez_media_folder_get_properties(
+        _handle,
+        folderPathPtr.cast<Char>(),
+        nullptr,
+        0,
+      );
+      if (size < 0) {
+        _checkResult(size, 'get media folder properties size');
+      }
+
+      final out = calloc<Uint8>(size);
+      try {
+        final result = _bindings.bluez_media_folder_get_properties(
+          _handle,
+          folderPathPtr.cast<Char>(),
+          out,
+          size,
+        );
+        if (result < 0) {
+          _checkResult(result, 'get media folder properties');
+        }
+
+        final bytes = Uint8List.fromList(out.asTypedList(result));
+        return GlazeCodec.decode<BlueZMediaFolderProps>(bytes, 0);
+      } finally {
+        calloc.free(out);
+      }
+    } finally {
+      calloc.free(folderPathPtr);
+    }
+  }
+
+  void playItem(String itemPath) {
+    _callItem(itemPath, _bindings.bluez_media_item_play, 'play media item');
+  }
+
+  void addItemToNowPlaying(String itemPath) {
+    _callItem(
+      itemPath,
+      _bindings.bluez_media_item_add_to_now_playing,
+      'add media item to now playing',
+    );
+  }
+
+  BlueZMediaItemProps getMediaItemProperties(String itemPath) {
+    _ensureOpen();
+
+    final itemPathPtr = itemPath.toNativeUtf8();
+    try {
+      final size = _bindings.bluez_media_item_get_properties(
+        _handle,
+        itemPathPtr.cast<Char>(),
+        nullptr,
+        0,
+      );
+      if (size < 0) {
+        _checkResult(size, 'get media item properties size');
+      }
+
+      final out = calloc<Uint8>(size);
+      try {
+        final result = _bindings.bluez_media_item_get_properties(
+          _handle,
+          itemPathPtr.cast<Char>(),
+          out,
+          size,
+        );
+        if (result < 0) {
+          _checkResult(result, 'get media item properties');
+        }
+
+        final bytes = Uint8List.fromList(out.asTypedList(result));
+        return GlazeCodec.decode<BlueZMediaItemProps>(bytes, 0);
+      } finally {
+        calloc.free(out);
+      }
+    } finally {
+      calloc.free(itemPathPtr);
+    }
+  }
+
   void _ensureOpen() {
     if (_handle == nullptr) {
       throw StateError('BluezMediaClient is closed.');
@@ -338,6 +526,22 @@ class BluezMediaClient {
       _checkResult(result, operation);
     } finally {
       calloc.free(controlPathPtr);
+    }
+  }
+
+  void _callItem(
+    String itemPath,
+    int Function(Pointer<Void>, Pointer<Char>) call,
+    String operation,
+  ) {
+    _ensureOpen();
+
+    final itemPathPtr = itemPath.toNativeUtf8();
+    try {
+      final result = call(_handle, itemPathPtr.cast<Char>());
+      _checkResult(result, operation);
+    } finally {
+      calloc.free(itemPathPtr);
     }
   }
 

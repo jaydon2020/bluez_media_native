@@ -27,6 +27,8 @@ class GlazeCodec {
       return _decodeMediaFolderProps(r) as T;
     } else if (T == BlueZMediaItemProps) {
       return _decodeMediaItemProps(r) as T;
+    } else if (T == BlueZMediaFolderItems) {
+      return _decodeMediaFolderItems(r) as T;
     } else if (T == BlueZMediaAcquireResult) {
       return _decodeMediaAcquireResult(r) as T;
     } else if (T == BlueZMediaError) {
@@ -111,6 +113,13 @@ class GlazeCodec {
       folderType: r.readString(),
       playable: r.readBool(),
       metadata: r.readMediaPropertyList(),
+    );
+  }
+
+  static BlueZMediaFolderItems _decodeMediaFolderItems(_Reader r) {
+    return BlueZMediaFolderItems(
+      objectPath: r.readString(),
+      items: r.readMediaItemList(),
     );
   }
 
@@ -213,6 +222,22 @@ class _Reader {
     return List.generate(
       count,
       (_) => BlueZMediaProperty(key: readString(), value: readString()),
+    );
+  }
+
+  List<BlueZMediaItemProps> readMediaItemList() {
+    final count = readUint32();
+    return List.generate(
+      count,
+      (_) => BlueZMediaItemProps(
+        objectPath: readString(),
+        player: readString(),
+        name: readString(),
+        type: readString(),
+        folderType: readString(),
+        playable: readBool(),
+        metadata: readMediaPropertyList(),
+      ),
     );
   }
 }

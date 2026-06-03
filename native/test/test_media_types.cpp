@@ -157,6 +157,41 @@ void test_media_item_props_roundtrip() {
   assert(decoded.metadata[0].value == "Blue Train");
 }
 
+void test_media_folder_items_roundtrip() {
+  BlueZMediaFolderItems orig;
+  orig.objectPath = "/org/bluez/hci0/dev_AA/player0";
+  orig.items = {
+      BlueZMediaItemProps{.objectPath = "/org/bluez/hci0/dev_AA/player0/item0",
+                          .player = "/org/bluez/hci0/dev_AA/player0",
+                          .name = "Blue Train",
+                          .type = "audio",
+                          .folderType = "",
+                          .playable = true,
+                          .metadata = {{"Title", "Blue Train"}}},
+      BlueZMediaItemProps{.objectPath =
+                              "/org/bluez/hci0/dev_AA/player0/folder0",
+                          .player = "/org/bluez/hci0/dev_AA/player0",
+                          .name = "Albums",
+                          .type = "folder",
+                          .folderType = "album",
+                          .playable = false,
+                          .metadata = {}}};
+
+  auto buf = glz::encode(orig);
+  BlueZMediaFolderItems decoded;
+  auto end = glz::decode(buf.data(), 0, decoded);
+
+  assert(end == buf.size());
+  assert(decoded.objectPath == orig.objectPath);
+  assert(decoded.items.size() == 2u);
+  assert(decoded.items[0].objectPath == orig.items[0].objectPath);
+  assert(decoded.items[0].name == "Blue Train");
+  assert(decoded.items[0].playable);
+  assert(decoded.items[0].metadata.size() == 1u);
+  assert(decoded.items[1].type == "folder");
+  assert(decoded.items[1].folderType == "album");
+}
+
 void test_method_result_roundtrips() {
   BlueZMediaAcquireResult acquire;
   acquire.transportPath = "/org/bluez/hci0/dev_AA/fd0";
@@ -198,6 +233,7 @@ int main() {
   test_media_endpoint_props_roundtrip();
   test_media_transport_props_roundtrip();
   test_media_item_props_roundtrip();
+  test_media_folder_items_roundtrip();
   test_method_result_roundtrips();
   return 0;
 }

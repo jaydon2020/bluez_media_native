@@ -405,6 +405,211 @@ class BluezMediaNativeBindings {
             )
           >();
 
+  /// ── org.bluez.MediaFolder1 browsing ────────────────────────────────────────
+  int bluez_media_folder_search(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> folder_path,
+    ffi.Pointer<ffi.Char> value,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_folder_search(
+      handle,
+      folder_path,
+      value,
+      out,
+      capacity,
+    );
+  }
+
+  late final _bluez_media_folder_searchPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_folder_search');
+  late final _bluez_media_folder_search = _bluez_media_folder_searchPtr
+      .asFunction<
+        int Function(
+          ffi.Pointer<ffi.Void>,
+          ffi.Pointer<ffi.Char>,
+          ffi.Pointer<ffi.Char>,
+          ffi.Pointer<ffi.Uint8>,
+          int,
+        )
+      >();
+
+  int bluez_media_folder_list_items(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> folder_path,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_folder_list_items(handle, folder_path, out, capacity);
+  }
+
+  late final _bluez_media_folder_list_itemsPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_folder_list_items');
+  late final _bluez_media_folder_list_items = _bluez_media_folder_list_itemsPtr
+      .asFunction<
+        int Function(
+          ffi.Pointer<ffi.Void>,
+          ffi.Pointer<ffi.Char>,
+          ffi.Pointer<ffi.Uint8>,
+          int,
+        )
+      >();
+
+  int bluez_media_folder_change_folder(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> folder_path,
+    ffi.Pointer<ffi.Char> target_folder_path,
+  ) {
+    return _bluez_media_folder_change_folder(
+      handle,
+      folder_path,
+      target_folder_path,
+    );
+  }
+
+  late final _bluez_media_folder_change_folderPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+          )
+        >
+      >('bluez_media_folder_change_folder');
+  late final _bluez_media_folder_change_folder =
+      _bluez_media_folder_change_folderPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Char>,
+            )
+          >();
+
+  int bluez_media_folder_get_properties(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> folder_path,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_folder_get_properties(
+      handle,
+      folder_path,
+      out,
+      capacity,
+    );
+  }
+
+  late final _bluez_media_folder_get_propertiesPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_folder_get_properties');
+  late final _bluez_media_folder_get_properties =
+      _bluez_media_folder_get_propertiesPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Uint8>,
+              int,
+            )
+          >();
+
+  /// ── org.bluez.MediaItem1 browsing ──────────────────────────────────────────
+  int bluez_media_item_play(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> item_path,
+  ) {
+    return _bluez_media_item_play(handle, item_path);
+  }
+
+  late final _bluez_media_item_playPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_item_play');
+  late final _bluez_media_item_play = _bluez_media_item_playPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
+  int bluez_media_item_add_to_now_playing(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> item_path,
+  ) {
+    return _bluez_media_item_add_to_now_playing(handle, item_path);
+  }
+
+  late final _bluez_media_item_add_to_now_playingPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_item_add_to_now_playing');
+  late final _bluez_media_item_add_to_now_playing =
+      _bluez_media_item_add_to_now_playingPtr
+          .asFunction<
+            int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+          >();
+
+  int bluez_media_item_get_properties(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> item_path,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_item_get_properties(handle, item_path, out, capacity);
+  }
+
+  late final _bluez_media_item_get_propertiesPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_item_get_properties');
+  late final _bluez_media_item_get_properties =
+      _bluez_media_item_get_propertiesPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Uint8>,
+              int,
+            )
+          >();
+
   /// A very short-lived native function.
   ///
   /// For very short-lived functions, it is fine to call them on the main isolate.

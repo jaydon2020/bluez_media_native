@@ -141,6 +141,17 @@ class BlueZMediaItemProps {
   });
 }
 
+/// MediaFolder1.ListItems result from BlueZ.
+class BlueZMediaFolderItems {
+  final String objectPath;
+  final List<BlueZMediaItemProps> items;
+
+  const BlueZMediaFolderItems({
+    required this.objectPath,
+    this.items = const [],
+  });
+}
+
 /// Result from MediaTransport1.Acquire / TryAcquire.
 class BlueZMediaAcquireResult {
   final String transportPath;

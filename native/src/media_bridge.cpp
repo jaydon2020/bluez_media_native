@@ -278,6 +278,122 @@ std::vector<uint8_t> MediaBridge::control_properties(const char *control_path) {
   return glz::encode(props);
 }
 
+std::vector<uint8_t> MediaBridge::folder_search(const char *folder_path,
+                                                const char *value) {
+  const auto folder = safe_string(folder_path);
+  if (folder.empty()) {
+    return {};
+  }
+
+  auto proxy = make_folder_proxy(folder_path);
+  sdbus::ObjectPath result;
+  proxy->callMethod("Search")
+      .onInterface(kMediaFolderIface)
+      .withArguments(safe_string(value),
+                     std::map<std::string, sdbus::Variant>{})
+      .storeResultsTo(result);
+
+  BlueZMediaFolderProps props;
+  props.objectPath = result;
+  return glz::encode(props);
+}
+
+std::vector<uint8_t> MediaBridge::folder_list_items(const char *folder_path) {
+  const auto folder = safe_string(folder_path);
+  if (folder.empty()) {
+    return {};
+  }
+
+  auto proxy = make_folder_proxy(folder_path);
+  std::map<sdbus::ObjectPath, std::map<std::string, sdbus::Variant>> result;
+  proxy->callMethod("ListItems")
+      .onInterface(kMediaFolderIface)
+      .withArguments(std::map<std::string, sdbus::Variant>{})
+      .storeResultsTo(result);
+
+  BlueZMediaFolderItems items;
+  items.objectPath = folder;
+  items.items.reserve(result.size());
+  for (const auto &[path, props] : result) {
+    items.items.push_back(item_from_properties(path, props));
+  }
+  return glz::encode(items);
+}
+
+int MediaBridge::folder_change_folder(const char *folder_path,
+                                      const char *target_folder_path) {
+  const auto target = safe_string(target_folder_path);
+  if (target.empty()) {
+    return -1;
+  }
+
+  make_folder_proxy(folder_path)
+      ->callMethod("ChangeFolder")
+      .onInterface(kMediaFolderIface)
+      .withArguments(sdbus::ObjectPath{target});
+  return 0;
+}
+
+std::vector<uint8_t> MediaBridge::folder_properties(const char *folder_path) {
+  const auto folder = safe_string(folder_path);
+  if (folder.empty()) {
+    return {};
+  }
+
+  auto proxy = make_folder_proxy(folder_path);
+  BlueZMediaFolderProps props;
+  props.objectPath = folder;
+  props.numberOfItems = proxy->getProperty("NumberOfItems")
+                            .onInterface(kMediaFolderIface)
+                            .get<uint32_t>();
+  props.name = proxy->getProperty("Name")
+                   .onInterface(kMediaFolderIface)
+                   .get<std::string>();
+  return glz::encode(props);
+}
+
+int MediaBridge::item_play(const char *item_path) {
+  make_item_proxy(item_path)->callMethod("Play").onInterface(kMediaItemIface);
+  return 0;
+}
+
+int MediaBridge::item_add_to_now_playing(const char *item_path) {
+  make_item_proxy(item_path)
+      ->callMethod("AddtoNowPlaying")
+      .onInterface(kMediaItemIface);
+  return 0;
+}
+
+std::vector<uint8_t> MediaBridge::item_properties(const char *item_path) {
+  const auto item = safe_string(item_path);
+  if (item.empty()) {
+    return {};
+  }
+
+  auto proxy = make_item_proxy(item_path);
+  BlueZMediaItemProps props;
+  props.objectPath = item;
+  props.player = proxy->getProperty("Player")
+                     .onInterface(kMediaItemIface)
+                     .get<sdbus::ObjectPath>();
+  props.name = proxy->getProperty("Name")
+                   .onInterface(kMediaItemIface)
+                   .get<std::string>();
+  props.type = proxy->getProperty("Type")
+                   .onInterface(kMediaItemIface)
+                   .get<std::string>();
+  props.folderType = proxy->getProperty("FolderType")
+                         .onInterface(kMediaItemIface)
+                         .get<std::string>();
+  props.playable =
+      proxy->getProperty("Playable").onInterface(kMediaItemIface).get<bool>();
+  props.metadata =
+      track_to_properties(proxy->getProperty("Metadata")
+                              .onInterface(kMediaItemIface)
+                              .get<std::map<std::string, sdbus::Variant>>());
+  return glz::encode(props);
+}
+
 bool MediaBridge::has_player(const std::string &player_path) const {
   return players_.contains(player_path);
 }
@@ -475,6 +591,36 @@ std::vector<BlueZMediaProperty> MediaBridge::track_to_properties(
   return properties;
 }
 
+BlueZMediaItemProps MediaBridge::item_from_properties(
+    const std::string &object_path,
+    const std::map<std::string, sdbus::Variant> &props) {
+  BlueZMediaItemProps item;
+  item.objectPath = object_path;
+  if (const auto it = props.find("Player"); it != props.end()) {
+    item.player = variant_to_string(it->second);
+  }
+  if (const auto it = props.find("Name"); it != props.end()) {
+    item.name = variant_to_string(it->second);
+  }
+  if (const auto it = props.find("Type"); it != props.end()) {
+    item.type = variant_to_string(it->second);
+  }
+  if (const auto it = props.find("FolderType"); it != props.end()) {
+    item.folderType = variant_to_string(it->second);
+  }
+  if (const auto it = props.find("Playable");
+      it != props.end() && it->second.containsValueOfType<bool>()) {
+    item.playable = it->second.get<bool>();
+  }
+  if (const auto it = props.find("Metadata");
+      it != props.end() &&
+      it->second.containsValueOfType<std::map<std::string, sdbus::Variant>>()) {
+    item.metadata = track_to_properties(
+        it->second.get<std::map<std::string, sdbus::Variant>>());
+  }
+  return item;
+}
+
 std::unique_ptr<sdbus::IProxy>
 MediaBridge::make_player_proxy(const char *player_path) const {
   const auto player = safe_string(player_path);
@@ -495,4 +641,26 @@ MediaBridge::make_control_proxy(const char *control_path) const {
   }
   return sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                             sdbus::ObjectPath{control});
+}
+
+std::unique_ptr<sdbus::IProxy>
+MediaBridge::make_folder_proxy(const char *folder_path) const {
+  const auto folder = safe_string(folder_path);
+  if (folder.empty()) {
+    throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
+                       "folder_path is required"};
+  }
+  return sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
+                            sdbus::ObjectPath{folder});
+}
+
+std::unique_ptr<sdbus::IProxy>
+MediaBridge::make_item_proxy(const char *item_path) const {
+  const auto item = safe_string(item_path);
+  if (item.empty()) {
+    throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
+                       "item_path is required"};
+  }
+  return sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
+                            sdbus::ObjectPath{item});
 }

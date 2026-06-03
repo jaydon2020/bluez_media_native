@@ -309,4 +309,152 @@ int bluez_media_control_get_properties(void *handle, const char *control_path,
   }
 }
 
+int bluez_media_folder_search(void *handle, const char *folder_path,
+                              const char *value, uint8_t *out,
+                              int32_t capacity) {
+  if (handle == nullptr || capacity < 0) {
+    return -1;
+  }
+
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    const auto payload = ctx->media->folder_search(folder_path, value);
+    if (payload.empty()) {
+      return -1;
+    }
+    if (out == nullptr || capacity == 0) {
+      return static_cast<int>(payload.size());
+    }
+    if (capacity < static_cast<int32_t>(payload.size())) {
+      return -2;
+    }
+    std::memcpy(out, payload.data(), payload.size());
+    return static_cast<int>(payload.size());
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_folder_search: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_folder_list_items(void *handle, const char *folder_path,
+                                  uint8_t *out, int32_t capacity) {
+  if (handle == nullptr || capacity < 0) {
+    return -1;
+  }
+
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    const auto payload = ctx->media->folder_list_items(folder_path);
+    if (payload.empty()) {
+      return -1;
+    }
+    if (out == nullptr || capacity == 0) {
+      return static_cast<int>(payload.size());
+    }
+    if (capacity < static_cast<int32_t>(payload.size())) {
+      return -2;
+    }
+    std::memcpy(out, payload.data(), payload.size());
+    return static_cast<int>(payload.size());
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_folder_list_items: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_folder_change_folder(void *handle, const char *folder_path,
+                                     const char *target_folder_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->folder_change_folder(folder_path, target_folder_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_folder_change_folder: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_folder_get_properties(void *handle, const char *folder_path,
+                                      uint8_t *out, int32_t capacity) {
+  if (handle == nullptr || capacity < 0) {
+    return -1;
+  }
+
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    const auto payload = ctx->media->folder_properties(folder_path);
+    if (payload.empty()) {
+      return -1;
+    }
+    if (out == nullptr || capacity == 0) {
+      return static_cast<int>(payload.size());
+    }
+    if (capacity < static_cast<int32_t>(payload.size())) {
+      return -2;
+    }
+    std::memcpy(out, payload.data(), payload.size());
+    return static_cast<int>(payload.size());
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_folder_get_properties: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_item_play(void *handle, const char *item_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->item_play(item_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_item_play: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_item_add_to_now_playing(void *handle, const char *item_path) {
+  if (handle == nullptr) {
+    return -1;
+  }
+
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    return ctx->media->item_add_to_now_playing(item_path);
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_item_add_to_now_playing: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_item_get_properties(void *handle, const char *item_path,
+                                    uint8_t *out, int32_t capacity) {
+  if (handle == nullptr || capacity < 0) {
+    return -1;
+  }
+
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    const auto payload = ctx->media->item_properties(item_path);
+    if (payload.empty()) {
+      return -1;
+    }
+    if (out == nullptr || capacity == 0) {
+      return static_cast<int>(payload.size());
+    }
+    if (capacity < static_cast<int32_t>(payload.size())) {
+      return -2;
+    }
+    std::memcpy(out, payload.data(), payload.size());
+    return static_cast<int>(payload.size());
+  } catch (const sdbus::Error &e) {
+    fprintf(stderr, "bluez_media_item_get_properties: %s\n", e.what());
+    return -3;
+  }
+}
+
 } // extern "C"

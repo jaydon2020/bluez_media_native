@@ -85,6 +85,33 @@ BLUEZ_MEDIA_EXPORT int
 bluez_media_control_get_properties(void *handle, const char *control_path,
                                    uint8_t *out, int32_t capacity);
 
+// ── org.bluez.MediaFolder1 browsing ────────────────────────────────────────
+
+BLUEZ_MEDIA_EXPORT int
+bluez_media_folder_search(void *handle, const char *folder_path,
+                          const char *value, uint8_t *out, int32_t capacity);
+BLUEZ_MEDIA_EXPORT int bluez_media_folder_list_items(void *handle,
+                                                     const char *folder_path,
+                                                     uint8_t *out,
+                                                     int32_t capacity);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_folder_change_folder(void *handle, const char *folder_path,
+                                 const char *target_folder_path);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_folder_get_properties(void *handle, const char *folder_path,
+                                  uint8_t *out, int32_t capacity);
+
+// ── org.bluez.MediaItem1 browsing ──────────────────────────────────────────
+
+BLUEZ_MEDIA_EXPORT int bluez_media_item_play(void *handle,
+                                             const char *item_path);
+BLUEZ_MEDIA_EXPORT int
+bluez_media_item_add_to_now_playing(void *handle, const char *item_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_item_get_properties(void *handle,
+                                                       const char *item_path,
+                                                       uint8_t *out,
+                                                       int32_t capacity);
+
 // A very short-lived native function.
 //
 // For very short-lived functions, it is fine to call them on the main isolate.

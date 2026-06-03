@@ -49,6 +49,25 @@ void _writeMediaProperties(BytesBuilder b, Map<String, String> properties) {
   }
 }
 
+void _writeMediaItem(
+  BytesBuilder b, {
+  required String objectPath,
+  required String player,
+  required String name,
+  required String type,
+  required String folderType,
+  required bool playable,
+  required Map<String, String> metadata,
+}) {
+  _writeString(b, objectPath);
+  _writeString(b, player);
+  _writeString(b, name);
+  _writeString(b, type);
+  _writeString(b, folderType);
+  _writeBool(b, playable);
+  _writeMediaProperties(b, metadata);
+}
+
 void main() {
   group('GlazeCodec', () {
     test('decodes BlueZMediaProperty', () {
@@ -199,6 +218,43 @@ void main() {
       expect(props.metadata.length, 2);
       expect(props.metadata[0].key, 'Album');
       expect(props.metadata[1].value, 'Jazz');
+    });
+
+    test('decodes BlueZMediaFolderItems', () {
+      final b = BytesBuilder();
+      _writeString(b, '/org/bluez/hci0/dev_AA/player0');
+      _writeUint32(b, 2);
+      _writeMediaItem(
+        b,
+        objectPath: '/org/bluez/hci0/dev_AA/player0/item0',
+        player: '/org/bluez/hci0/dev_AA/player0',
+        name: 'Blue Train',
+        type: 'audio',
+        folderType: '',
+        playable: true,
+        metadata: {'Title': 'Blue Train'},
+      );
+      _writeMediaItem(
+        b,
+        objectPath: '/org/bluez/hci0/dev_AA/player0/folder0',
+        player: '/org/bluez/hci0/dev_AA/player0',
+        name: 'Albums',
+        type: 'folder',
+        folderType: 'album',
+        playable: false,
+        metadata: {},
+      );
+
+      final data = Uint8List.fromList(b.toBytes());
+      final result = GlazeCodec.decode<BlueZMediaFolderItems>(data, 0);
+
+      expect(result.objectPath, '/org/bluez/hci0/dev_AA/player0');
+      expect(result.items.length, 2);
+      expect(result.items[0].name, 'Blue Train');
+      expect(result.items[0].playable, true);
+      expect(result.items[0].metadata.single.value, 'Blue Train');
+      expect(result.items[1].type, 'folder');
+      expect(result.items[1].folderType, 'album');
     });
 
     test('decodes BlueZMediaAcquireResult', () {

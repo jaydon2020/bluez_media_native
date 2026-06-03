@@ -64,6 +64,17 @@ public:
   int control_rewind(const char *control_path);
   std::vector<uint8_t> control_properties(const char *control_path);
 
+  std::vector<uint8_t> folder_search(const char *folder_path,
+                                     const char *value);
+  std::vector<uint8_t> folder_list_items(const char *folder_path);
+  int folder_change_folder(const char *folder_path,
+                           const char *target_folder_path);
+  std::vector<uint8_t> folder_properties(const char *folder_path);
+
+  int item_play(const char *item_path);
+  int item_add_to_now_playing(const char *item_path);
+  std::vector<uint8_t> item_properties(const char *item_path);
+
   [[nodiscard]] bool has_player(const std::string &player_path) const;
   [[nodiscard]] size_t registered_player_count() const;
 
@@ -71,6 +82,8 @@ private:
   static constexpr auto kBluezService = "org.bluez";
   static constexpr auto kMediaIface = "org.bluez.Media1";
   static constexpr auto kMediaControlIface = "org.bluez.MediaControl1";
+  static constexpr auto kMediaFolderIface = "org.bluez.MediaFolder1";
+  static constexpr auto kMediaItemIface = "org.bluez.MediaItem1";
   static constexpr auto kMediaPlayerIface = "org.bluez.MediaPlayer1";
   static constexpr auto kMprisPlayerIface = "org.mpris.MediaPlayer2.Player";
   static constexpr auto kMprisRootIface = "org.mpris.MediaPlayer2";
@@ -86,11 +99,18 @@ private:
   static std::string variant_to_string(const sdbus::Variant &value);
   static std::vector<BlueZMediaProperty>
   track_to_properties(const std::map<std::string, sdbus::Variant> &track);
+  static BlueZMediaItemProps
+  item_from_properties(const std::string &object_path,
+                       const std::map<std::string, sdbus::Variant> &props);
 
   [[nodiscard]] std::unique_ptr<sdbus::IProxy>
   make_player_proxy(const char *player_path) const;
   [[nodiscard]] std::unique_ptr<sdbus::IProxy>
   make_control_proxy(const char *control_path) const;
+  [[nodiscard]] std::unique_ptr<sdbus::IProxy>
+  make_folder_proxy(const char *folder_path) const;
+  [[nodiscard]] std::unique_ptr<sdbus::IProxy>
+  make_item_proxy(const char *item_path) const;
 
   sdbus::IConnection &conn_;
   std::map<std::string, MediaPlayerRegistrationRecord> players_;

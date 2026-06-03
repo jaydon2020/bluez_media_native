@@ -169,6 +169,16 @@ template <> struct glz::meta<BlueZMediaItemProps> {
       glz::field("metadata", &BlueZMediaItemProps::metadata));
 };
 
+struct BlueZMediaFolderItems {
+  std::string objectPath;
+  std::vector<BlueZMediaItemProps> items;
+};
+template <> struct glz::meta<BlueZMediaFolderItems> {
+  static constexpr auto fields = std::make_tuple(
+      glz::field("objectPath", &BlueZMediaFolderItems::objectPath),
+      glz::field("items", &BlueZMediaFolderItems::items));
+};
+
 // ── Method results/errors ──────────────────────────────────────────────────
 
 struct BlueZMediaAcquireResult {
