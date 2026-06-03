@@ -29,7 +29,7 @@ Send standard player commands to a remote `org.bluez.MediaPlayer1` object:
 
 ```dart
 final client = BluezMediaClient.create();
-final player = client.player('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0');
+final player = client.player('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0');
 
 player.play();
 player.pause();
@@ -41,12 +41,12 @@ print(player.track);
 ```
 
 ```sh
-dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 play
-dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 pause
-dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 stop
-dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 next
-dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 previous
-dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 props
+dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 play
+dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 pause
+dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 stop
+dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 next
+dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 previous
+dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 props
 ```
 
 ## MediaControl1 Volume And Connectivity
@@ -78,7 +78,7 @@ Browse remote folders and playlist/media item trees via `MediaFolder1` and
 `MediaItem1`:
 
 ```dart
-final folder = client.folder('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0');
+final folder = client.folder('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0');
 final items = folder.listItems();
 
 for (final item in items) {
@@ -90,13 +90,13 @@ for (final item in items) {
 ```
 
 ```sh
-dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 pause
-dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 player-props
-dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 folder-props
-dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 list
-dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 search Coltrane
-dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 cd /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0/folder0
-dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0/item0 item-props
-dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0/item0 play-item
-dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0/item0 add-now-playing
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 pause
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 player-props
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 folder-props
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 list
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 search Coltrane
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 cd /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0/folder0
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0/item0 item-props
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0/item0 play-item
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0/item0 add-now-playing
 ```

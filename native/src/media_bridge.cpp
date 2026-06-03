@@ -44,7 +44,8 @@ int MediaBridge::register_player(
       .withArguments(sdbus::ObjectPath{state.player_path},
                      make_player_properties(state));
 
-  players_.emplace(state.player_path, MediaPlayerRegistrationRecord{
+  auto player_path = state.player_path;
+  players_.emplace(player_path, MediaPlayerRegistrationRecord{
                                           std::move(state), std::move(object)});
   return 0;
 }

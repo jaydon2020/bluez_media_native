@@ -11,7 +11,7 @@ void main(List<String> args) {
       '',
       'Example:',
       '  dart run example/player_control.dart '
-          '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 play',
+          '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 play',
     ]);
     return;
   }

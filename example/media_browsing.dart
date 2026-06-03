@@ -15,11 +15,11 @@ void main(List<String> args) {
       '',
       'Examples:',
       '  dart run example/media_browsing.dart '
-          '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 list',
+          '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 list',
       '  dart run example/media_browsing.dart '
-          '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0 search Coltrane',
+          '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 search Coltrane',
       '  dart run example/media_browsing.dart '
-          '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/player0/item0 play-item',
+          '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0/item0 play-item',
     ]);
     return;
   }
