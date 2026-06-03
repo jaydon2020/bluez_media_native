@@ -26,6 +26,81 @@ class BluezMediaNativeBindings {
     ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
   ) : _lookup = lookup;
 
+  /// ── Client lifecycle ────────────────────────────────────────────────────────
+  ffi.Pointer<ffi.Void> bluez_media_client_create() {
+    return _bluez_media_client_create();
+  }
+
+  late final _bluez_media_client_createPtr =
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Void> Function()>>(
+        'bluez_media_client_create',
+      );
+  late final _bluez_media_client_create = _bluez_media_client_createPtr
+      .asFunction<ffi.Pointer<ffi.Void> Function()>();
+
+  void bluez_media_client_destroy(ffi.Pointer<ffi.Void> handle) {
+    return _bluez_media_client_destroy(handle);
+  }
+
+  late final _bluez_media_client_destroyPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'bluez_media_client_destroy',
+      );
+  late final _bluez_media_client_destroy = _bluez_media_client_destroyPtr
+      .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  /// ── org.bluez.Media1 registration ──────────────────────────────────────────
+  int bluez_media_register_player(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<BluezMediaPlayerRegistration> registration,
+  ) {
+    return _bluez_media_register_player(handle, registration);
+  }
+
+  late final _bluez_media_register_playerPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<BluezMediaPlayerRegistration>,
+          )
+        >
+      >('bluez_media_register_player');
+  late final _bluez_media_register_player = _bluez_media_register_playerPtr
+      .asFunction<
+        int Function(
+          ffi.Pointer<ffi.Void>,
+          ffi.Pointer<BluezMediaPlayerRegistration>,
+        )
+      >();
+
+  int bluez_media_unregister_player(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> adapter_path,
+    ffi.Pointer<ffi.Char> player_path,
+  ) {
+    return _bluez_media_unregister_player(handle, adapter_path, player_path);
+  }
+
+  late final _bluez_media_unregister_playerPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+          )
+        >
+      >('bluez_media_unregister_player');
+  late final _bluez_media_unregister_player = _bluez_media_unregister_playerPtr
+      .asFunction<
+        int Function(
+          ffi.Pointer<ffi.Void>,
+          ffi.Pointer<ffi.Char>,
+          ffi.Pointer<ffi.Char>,
+        )
+      >();
+
   /// A very short-lived native function.
   ///
   /// For very short-lived functions, it is fine to call them on the main isolate.
@@ -53,4 +128,47 @@ class BluezMediaNativeBindings {
       );
   late final _sum_long_running = _sum_long_runningPtr
       .asFunction<int Function(int, int)>();
+}
+
+final class BluezMediaPlayerRegistration extends ffi.Struct {
+  external ffi.Pointer<ffi.Char> adapter_path;
+
+  external ffi.Pointer<ffi.Char> player_path;
+
+  external ffi.Pointer<ffi.Char> identity;
+
+  external ffi.Pointer<ffi.Char> name;
+
+  external ffi.Pointer<ffi.Char> type;
+
+  external ffi.Pointer<ffi.Char> subtype;
+
+  external ffi.Pointer<ffi.Char> status;
+
+  @ffi.Uint32()
+  external int position_ms;
+
+  @ffi.Uint8()
+  external int can_go_next;
+
+  @ffi.Uint8()
+  external int can_go_previous;
+
+  @ffi.Uint8()
+  external int can_play;
+
+  @ffi.Uint8()
+  external int can_pause;
+
+  @ffi.Uint8()
+  external int can_seek;
+
+  @ffi.Uint8()
+  external int can_control;
+
+  @ffi.Uint8()
+  external int browsable;
+
+  @ffi.Uint8()
+  external int searchable;
 }

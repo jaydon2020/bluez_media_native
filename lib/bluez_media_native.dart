@@ -3,7 +3,147 @@ import 'dart:ffi';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:ffi/ffi.dart';
+
 import 'bluez_media_native_bindings_generated.dart';
+
+class BluezMediaPlayerRegistrationConfig {
+  final String adapterPath;
+  final String playerPath;
+  final String identity;
+  final String name;
+  final String type;
+  final String subtype;
+  final String status;
+  final int positionMs;
+  final bool canGoNext;
+  final bool canGoPrevious;
+  final bool canPlay;
+  final bool canPause;
+  final bool canSeek;
+  final bool canControl;
+  final bool browsable;
+  final bool searchable;
+
+  const BluezMediaPlayerRegistrationConfig({
+    required this.adapterPath,
+    required this.playerPath,
+    this.identity = 'bluez_media_native',
+    this.name = 'bluez_media_native',
+    this.type = 'audio',
+    this.subtype = '',
+    this.status = 'stopped',
+    this.positionMs = 0,
+    this.canGoNext = false,
+    this.canGoPrevious = false,
+    this.canPlay = true,
+    this.canPause = true,
+    this.canSeek = false,
+    this.canControl = true,
+    this.browsable = false,
+    this.searchable = false,
+  });
+}
+
+class BluezMediaClient {
+  Pointer<Void> _handle;
+
+  BluezMediaClient._(this._handle);
+
+  factory BluezMediaClient.create() {
+    final handle = _bindings.bluez_media_client_create();
+    if (handle == nullptr) {
+      throw StateError('Unable to connect to BlueZ on the system bus.');
+    }
+    return BluezMediaClient._(handle);
+  }
+
+  void close() {
+    if (_handle == nullptr) {
+      return;
+    }
+    _bindings.bluez_media_client_destroy(_handle);
+    _handle = nullptr;
+  }
+
+  void registerPlayer(BluezMediaPlayerRegistrationConfig config) {
+    _ensureOpen();
+
+    final registration = calloc<BluezMediaPlayerRegistration>();
+    final strings = <Pointer<Utf8>>[];
+
+    Pointer<Char> nativeString(String value) {
+      final pointer = value.toNativeUtf8();
+      strings.add(pointer);
+      return pointer.cast<Char>();
+    }
+
+    try {
+      registration.ref
+        ..adapter_path = nativeString(config.adapterPath)
+        ..player_path = nativeString(config.playerPath)
+        ..identity = nativeString(config.identity)
+        ..name = nativeString(config.name)
+        ..type = nativeString(config.type)
+        ..subtype = nativeString(config.subtype)
+        ..status = nativeString(config.status)
+        ..position_ms = config.positionMs
+        ..can_go_next = config.canGoNext ? 1 : 0
+        ..can_go_previous = config.canGoPrevious ? 1 : 0
+        ..can_play = config.canPlay ? 1 : 0
+        ..can_pause = config.canPause ? 1 : 0
+        ..can_seek = config.canSeek ? 1 : 0
+        ..can_control = config.canControl ? 1 : 0
+        ..browsable = config.browsable ? 1 : 0
+        ..searchable = config.searchable ? 1 : 0;
+
+      final result = _bindings.bluez_media_register_player(
+        _handle,
+        registration,
+      );
+      _checkResult(result, 'register player');
+    } finally {
+      for (final pointer in strings) {
+        calloc.free(pointer);
+      }
+      calloc.free(registration);
+    }
+  }
+
+  void unregisterPlayer({
+    required String adapterPath,
+    required String playerPath,
+  }) {
+    _ensureOpen();
+
+    final adapterPathPtr = adapterPath.toNativeUtf8();
+    final playerPathPtr = playerPath.toNativeUtf8();
+    try {
+      final result = _bindings.bluez_media_unregister_player(
+        _handle,
+        adapterPathPtr.cast<Char>(),
+        playerPathPtr.cast<Char>(),
+      );
+      _checkResult(result, 'unregister player');
+    } finally {
+      calloc.free(adapterPathPtr);
+      calloc.free(playerPathPtr);
+    }
+  }
+
+  void _ensureOpen() {
+    if (_handle == nullptr) {
+      throw StateError('BluezMediaClient is closed.');
+    }
+  }
+
+  static void _checkResult(int result, String operation) {
+    if (result == 0) {
+      return;
+    }
+    throw StateError('Failed to $operation: native error $result.');
+  }
+}
 
 /// A very short-lived native function.
 ///

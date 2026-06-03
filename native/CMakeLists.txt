@@ -15,7 +15,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(third_party/sdbus-cpp EXCLUDE_FROM_ALL)
 
 add_library(bluez_media_native_core STATIC
+  src/bluez_media_client.cpp
   src/bluez_media_native.c
+  src/media_bridge.cpp
 )
 
 target_include_directories(bluez_media_native_core
@@ -36,7 +38,9 @@ set_target_properties(bluez_media_native_core PROPERTIES
 )
 
 add_library(bluez_media_native SHARED
+  src/bluez_media_client.cpp
   src/bluez_media_native.c
+  src/media_bridge.cpp
 )
 
 target_include_directories(bluez_media_native

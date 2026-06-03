@@ -12,6 +12,39 @@
 extern "C" {
 #endif
 
+typedef struct BluezMediaPlayerRegistration {
+  const char *adapter_path;
+  const char *player_path;
+  const char *identity;
+  const char *name;
+  const char *type;
+  const char *subtype;
+  const char *status;
+  uint32_t position_ms;
+  uint8_t can_go_next;
+  uint8_t can_go_previous;
+  uint8_t can_play;
+  uint8_t can_pause;
+  uint8_t can_seek;
+  uint8_t can_control;
+  uint8_t browsable;
+  uint8_t searchable;
+} BluezMediaPlayerRegistration;
+
+// ── Client lifecycle ────────────────────────────────────────────────────────
+
+BLUEZ_MEDIA_EXPORT void *bluez_media_client_create(void);
+BLUEZ_MEDIA_EXPORT void bluez_media_client_destroy(void *handle);
+
+// ── org.bluez.Media1 registration ──────────────────────────────────────────
+
+BLUEZ_MEDIA_EXPORT int
+bluez_media_register_player(void *handle,
+                            const BluezMediaPlayerRegistration *registration);
+BLUEZ_MEDIA_EXPORT int bluez_media_unregister_player(void *handle,
+                                                     const char *adapter_path,
+                                                     const char *player_path);
+
 // A very short-lived native function.
 //
 // For very short-lived functions, it is fine to call them on the main isolate.
