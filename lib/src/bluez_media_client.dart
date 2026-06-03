@@ -14,7 +14,6 @@ import 'bluez_media_transport.dart';
 import 'ffi/codec.dart';
 import 'ffi/types.dart';
 import 'internal/library_loader.dart';
-
 export 'bluez_media_control.dart';
 export 'bluez_media_folder.dart';
 export 'bluez_media_item.dart';
@@ -28,6 +27,7 @@ export 'ffi/types.dart'
         BlueZMediaFolderProps,
         BlueZMediaItemProps,
         BlueZMediaPlayerProps,
+        BlueZMediaTransportProps,
         BlueZMediaProperty;
 
 class BluezMediaPlayerRegistrationConfig {
@@ -646,7 +646,7 @@ class BluezMediaClient {
   }
 
   void transportRelease(String transportPath) {
-    _callPathControl(
+    _callTransport(
       transportPath,
       _bindings.bluez_media_transport_release,
       'release media transport',
@@ -757,6 +757,21 @@ class BluezMediaClient {
       _checkResult(result, operation);
     } finally {
       calloc.free(itemPathPtr);
+    }
+  }
+
+  void _callTransport(
+    String path,
+    int Function(Pointer<Void>, Pointer<Char>) func,
+    String operation,
+  ) {
+    _ensureOpen();
+    final pathPtr = path.toNativeUtf8();
+    try {
+      final result = func(_handle, pathPtr.cast<Char>());
+      _checkResult(result, operation);
+    } finally {
+      calloc.free(pathPtr);
     }
   }
 

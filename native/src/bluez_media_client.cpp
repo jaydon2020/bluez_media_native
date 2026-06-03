@@ -8,11 +8,15 @@
 #include <cstring>
 #include <memory>
 
-#include "media_bridge.h"
+#include "media_client.h"
+#include "media_player_proxy.h"
+#include "media_control_proxy.h"
+#include "media_browser_proxy.h"
+#include "media_transport_proxy.h"
 
 struct BluezMediaClientContext {
   std::unique_ptr<sdbus::IConnection> conn;
-  std::unique_ptr<MediaBridge> media;
+  std::unique_ptr<MediaClient> client;
 };
 
 extern "C" {
@@ -21,7 +25,7 @@ void *bluez_media_client_create(void) {
   try {
     auto ctx = std::make_unique<BluezMediaClientContext>();
     ctx->conn = sdbus::createSystemBusConnection();
-    ctx->media = std::make_unique<MediaBridge>(*ctx->conn);
+    ctx->client = std::make_unique<MediaClient>(*ctx->conn);
     ctx->conn->enterEventLoopAsync();
     return ctx.release();
   } catch (const sdbus::Error &e) {
@@ -47,7 +51,7 @@ int bluez_media_register_player(
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->register_player(*registration);
+    return ctx->client->register_player(*registration);
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_register_player: %s\n", e.what());
     return -3;
@@ -62,7 +66,7 @@ int bluez_media_unregister_player(void *handle, const char *adapter_path,
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->unregister_player(adapter_path, player_path);
+    return ctx->client->unregister_player(adapter_path, player_path);
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_unregister_player: %s\n", e.what());
     return -3;
@@ -75,7 +79,8 @@ int bluez_media_player_play(void *handle, const char *player_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->player_play(player_path);
+    MediaPlayerProxy proxy{*ctx->conn, player_path};
+    return proxy.play();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_player_play: %s\n", e.what());
     return -3;
@@ -88,7 +93,8 @@ int bluez_media_player_pause(void *handle, const char *player_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->player_pause(player_path);
+    MediaPlayerProxy proxy{*ctx->conn, player_path};
+    return proxy.pause();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_player_pause: %s\n", e.what());
     return -3;
@@ -101,7 +107,8 @@ int bluez_media_player_stop(void *handle, const char *player_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->player_stop(player_path);
+    MediaPlayerProxy proxy{*ctx->conn, player_path};
+    return proxy.stop();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_player_stop: %s\n", e.what());
     return -3;
@@ -114,7 +121,8 @@ int bluez_media_player_next(void *handle, const char *player_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->player_next(player_path);
+    MediaPlayerProxy proxy{*ctx->conn, player_path};
+    return proxy.next();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_player_next: %s\n", e.what());
     return -3;
@@ -127,7 +135,8 @@ int bluez_media_player_previous(void *handle, const char *player_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->player_previous(player_path);
+    MediaPlayerProxy proxy{*ctx->conn, player_path};
+    return proxy.previous();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_player_previous: %s\n", e.what());
     return -3;
@@ -136,16 +145,14 @@ int bluez_media_player_previous(void *handle, const char *player_path) {
 
 int bluez_media_player_get_properties(void *handle, const char *player_path,
                                       uint8_t *out, int32_t capacity) {
-  if (handle == nullptr) {
-    return -1;
-  }
-  if (capacity < 0) {
+  if (handle == nullptr || capacity < 0) {
     return -1;
   }
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    const auto payload = ctx->media->player_properties(player_path);
+    MediaPlayerProxy proxy{*ctx->conn, player_path};
+    const auto payload = proxy.properties();
     if (payload.empty()) {
       return -1;
     }
@@ -169,7 +176,8 @@ int bluez_media_control_play(void *handle, const char *control_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->control_play(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    return proxy.play();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_control_play: %s\n", e.what());
     return -3;
@@ -182,7 +190,8 @@ int bluez_media_control_pause(void *handle, const char *control_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->control_pause(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    return proxy.pause();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_control_pause: %s\n", e.what());
     return -3;
@@ -195,7 +204,8 @@ int bluez_media_control_stop(void *handle, const char *control_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->control_stop(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    return proxy.stop();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_control_stop: %s\n", e.what());
     return -3;
@@ -208,7 +218,8 @@ int bluez_media_control_next(void *handle, const char *control_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->control_next(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    return proxy.next();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_control_next: %s\n", e.what());
     return -3;
@@ -221,7 +232,8 @@ int bluez_media_control_previous(void *handle, const char *control_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->control_previous(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    return proxy.previous();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_control_previous: %s\n", e.what());
     return -3;
@@ -234,7 +246,8 @@ int bluez_media_control_volume_up(void *handle, const char *control_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->control_volume_up(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    return proxy.volume_up();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_control_volume_up: %s\n", e.what());
     return -3;
@@ -247,7 +260,8 @@ int bluez_media_control_volume_down(void *handle, const char *control_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->control_volume_down(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    return proxy.volume_down();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_control_volume_down: %s\n", e.what());
     return -3;
@@ -260,7 +274,8 @@ int bluez_media_control_fast_forward(void *handle, const char *control_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->control_fast_forward(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    return proxy.fast_forward();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_control_fast_forward: %s\n", e.what());
     return -3;
@@ -273,7 +288,8 @@ int bluez_media_control_rewind(void *handle, const char *control_path) {
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->control_rewind(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    return proxy.rewind();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_control_rewind: %s\n", e.what());
     return -3;
@@ -282,16 +298,14 @@ int bluez_media_control_rewind(void *handle, const char *control_path) {
 
 int bluez_media_control_get_properties(void *handle, const char *control_path,
                                        uint8_t *out, int32_t capacity) {
-  if (handle == nullptr) {
-    return -1;
-  }
-  if (capacity < 0) {
+  if (handle == nullptr || capacity < 0) {
     return -1;
   }
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    const auto payload = ctx->media->control_properties(control_path);
+    MediaControlProxy proxy{*ctx->conn, control_path};
+    const auto payload = proxy.properties();
     if (payload.empty()) {
       return -1;
     }
@@ -318,7 +332,8 @@ int bluez_media_folder_search(void *handle, const char *folder_path,
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    const auto payload = ctx->media->folder_search(folder_path, value);
+    MediaBrowserProxy proxy{*ctx->conn};
+    const auto payload = proxy.folder_search(folder_path, value != nullptr ? value : "");
     if (payload.empty()) {
       return -1;
     }
@@ -344,7 +359,8 @@ int bluez_media_folder_list_items(void *handle, const char *folder_path,
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    const auto payload = ctx->media->folder_list_items(folder_path);
+    MediaBrowserProxy proxy{*ctx->conn};
+    const auto payload = proxy.folder_list_items(folder_path);
     if (payload.empty()) {
       return -1;
     }
@@ -364,13 +380,14 @@ int bluez_media_folder_list_items(void *handle, const char *folder_path,
 
 int bluez_media_folder_change_folder(void *handle, const char *folder_path,
                                      const char *target_folder_path) {
-  if (handle == nullptr) {
+  if (handle == nullptr || folder_path == nullptr || target_folder_path == nullptr) {
     return -1;
   }
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->folder_change_folder(folder_path, target_folder_path);
+    MediaBrowserProxy proxy{*ctx->conn};
+    return proxy.folder_change_folder(folder_path, target_folder_path);
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_folder_change_folder: %s\n", e.what());
     return -3;
@@ -385,7 +402,8 @@ int bluez_media_folder_get_properties(void *handle, const char *folder_path,
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    const auto payload = ctx->media->folder_properties(folder_path);
+    MediaBrowserProxy proxy{*ctx->conn};
+    const auto payload = proxy.folder_properties(folder_path);
     if (payload.empty()) {
       return -1;
     }
@@ -404,13 +422,14 @@ int bluez_media_folder_get_properties(void *handle, const char *folder_path,
 }
 
 int bluez_media_item_play(void *handle, const char *item_path) {
-  if (handle == nullptr) {
+  if (handle == nullptr || item_path == nullptr) {
     return -1;
   }
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->item_play(item_path);
+    MediaBrowserProxy proxy{*ctx->conn};
+    return proxy.item_play(item_path);
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_item_play: %s\n", e.what());
     return -3;
@@ -418,13 +437,14 @@ int bluez_media_item_play(void *handle, const char *item_path) {
 }
 
 int bluez_media_item_add_to_now_playing(void *handle, const char *item_path) {
-  if (handle == nullptr) {
+  if (handle == nullptr || item_path == nullptr) {
     return -1;
   }
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->item_add_to_now_playing(item_path);
+    MediaBrowserProxy proxy{*ctx->conn};
+    return proxy.item_add_to_now_playing(item_path);
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_item_add_to_now_playing: %s\n", e.what());
     return -3;
@@ -439,7 +459,8 @@ int bluez_media_item_get_properties(void *handle, const char *item_path,
 
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    const auto payload = ctx->media->item_properties(item_path);
+    MediaBrowserProxy proxy{*ctx->conn};
+    const auto payload = proxy.item_properties(item_path);
     if (payload.empty()) {
       return -1;
     }
@@ -456,16 +477,18 @@ int bluez_media_item_get_properties(void *handle, const char *item_path,
     return -3;
   }
 }
+
 // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
 
 int bluez_media_transport_acquire(void *handle, const char *transport_path,
                                   uint8_t *out, int32_t capacity) {
-  if (handle == nullptr || capacity < 0) {
+  if (handle == nullptr || capacity < 0 || transport_path == nullptr) {
     return -1;
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    const auto payload = ctx->media->transport_acquire(transport_path);
+    MediaTransportProxy proxy{*ctx->conn, transport_path};
+    const auto payload = proxy.acquire();
     if (payload.empty()) {
       return -1;
     }
@@ -485,12 +508,13 @@ int bluez_media_transport_acquire(void *handle, const char *transport_path,
 
 int bluez_media_transport_try_acquire(void *handle, const char *transport_path,
                                       uint8_t *out, int32_t capacity) {
-  if (handle == nullptr || capacity < 0) {
+  if (handle == nullptr || capacity < 0 || transport_path == nullptr) {
     return -1;
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    const auto payload = ctx->media->transport_try_acquire(transport_path);
+    MediaTransportProxy proxy{*ctx->conn, transport_path};
+    const auto payload = proxy.try_acquire();
     if (payload.empty()) {
       return -1;
     }
@@ -509,12 +533,13 @@ int bluez_media_transport_try_acquire(void *handle, const char *transport_path,
 }
 
 int bluez_media_transport_release(void *handle, const char *transport_path) {
-  if (handle == nullptr) {
+  if (handle == nullptr || transport_path == nullptr) {
     return -1;
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->transport_release(transport_path);
+    MediaTransportProxy proxy{*ctx->conn, transport_path};
+    return proxy.release();
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_transport_release: %s\n", e.what());
     return -3;
@@ -523,12 +548,13 @@ int bluez_media_transport_release(void *handle, const char *transport_path) {
 
 int bluez_media_transport_get_properties(void *handle, const char *transport_path,
                                          uint8_t *out, int32_t capacity) {
-  if (handle == nullptr || capacity < 0) {
+  if (handle == nullptr || capacity < 0 || transport_path == nullptr) {
     return -1;
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    const auto payload = ctx->media->transport_properties(transport_path);
+    MediaTransportProxy proxy{*ctx->conn, transport_path};
+    const auto payload = proxy.properties();
     if (payload.empty()) {
       return -1;
     }
@@ -548,12 +574,13 @@ int bluez_media_transport_get_properties(void *handle, const char *transport_pat
 
 int bluez_media_transport_set_volume(void *handle, const char *transport_path,
                                      uint16_t volume) {
-  if (handle == nullptr) {
+  if (handle == nullptr || transport_path == nullptr) {
     return -1;
   }
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
-    return ctx->media->transport_set_volume(transport_path, volume);
+    MediaTransportProxy proxy{*ctx->conn, transport_path};
+    return proxy.set_volume(volume);
   } catch (const sdbus::Error &e) {
     fprintf(stderr, "bluez_media_transport_set_volume: %s\n", e.what());
     return -3;
