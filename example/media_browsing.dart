@@ -7,13 +7,32 @@ import 'package:bluez_media_native/bluez_media_native.dart';
 import 'media_example_utils.dart';
 
 void main(List<String> args) {
+  if (isListCommand(args)) {
+    final client = createClient();
+    try {
+      printManagedMediaObjects(
+        client,
+        interfaces: {
+          'org.bluez.MediaPlayer1',
+          'org.bluez.MediaFolder1',
+          'org.bluez.MediaItem1',
+        },
+      );
+    } finally {
+      client.close();
+    }
+    return;
+  }
+
   if (args.length < 2 || hasFlag(args, '--help')) {
     printUsage('dart run example/media_browsing.dart <path> <command>', [
       'Player commands: play, pause, stop, next, previous, player-props',
       'Folder commands: folder-props, list, search <text>, cd <folder_path>',
       'Item commands:   item-props, play-item, add-now-playing',
+      'Discovery:       list',
       '',
       'Examples:',
+      '  dart run example/media_browsing.dart list',
       '  dart run example/media_browsing.dart '
           '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 list',
       '  dart run example/media_browsing.dart '

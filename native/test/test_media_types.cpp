@@ -224,6 +224,41 @@ void test_method_result_roundtrips() {
   assert(decoded_error.message == error.message);
 }
 
+void test_object_manager_roundtrips() {
+  BlueZMediaManagedObjects objects;
+  objects.media = {"/org/bluez/hci0"};
+  objects.players = {"/org/bluez/hci0/dev_AA/player0"};
+  objects.controls = {"/org/bluez/hci0/dev_AA"};
+  objects.transports = {"/org/bluez/hci0/dev_AA/sep1/fd0",
+                        "/org/bluez/hci0/dev_BB/sep2/fd0"};
+  objects.folders = {"/org/bluez/hci0/dev_AA/player0"};
+  objects.items = {"/org/bluez/hci0/dev_AA/player0/item0"};
+
+  auto objects_buf = glz::encode(objects);
+  BlueZMediaManagedObjects decoded_objects;
+  auto objects_end = glz::decode(objects_buf.data(), 0, decoded_objects);
+
+  assert(objects_end == objects_buf.size());
+  assert(decoded_objects.media == objects.media);
+  assert(decoded_objects.players == objects.players);
+  assert(decoded_objects.controls == objects.controls);
+  assert(decoded_objects.transports == objects.transports);
+  assert(decoded_objects.folders == objects.folders);
+  assert(decoded_objects.items == objects.items);
+
+  BlueZMediaObjectRemoved removed;
+  removed.objectPath = "/org/bluez/hci0/dev_AA/sep1/fd0";
+  removed.interfaceName = "org.bluez.MediaTransport1";
+
+  auto removed_buf = glz::encode(removed);
+  BlueZMediaObjectRemoved decoded_removed;
+  auto removed_end = glz::decode(removed_buf.data(), 0, decoded_removed);
+
+  assert(removed_end == removed_buf.size());
+  assert(decoded_removed.objectPath == removed.objectPath);
+  assert(decoded_removed.interfaceName == removed.interfaceName);
+}
+
 }  // namespace
 
 int main() {
@@ -235,5 +270,6 @@ int main() {
   test_media_item_props_roundtrip();
   test_media_folder_items_roundtrip();
   test_method_result_roundtrips();
+  test_object_manager_roundtrips();
   return 0;
 }

@@ -1,9 +1,8 @@
 // local_player.h
 #pragma once
 
-#include <sdbus-c++/sdbus-c++.h>
 #include <map>
-#include <memory>
+#include <sdbus-c++/sdbus-c++.h>
 #include <string>
 
 #include "bluez_media_native.h"
@@ -29,7 +28,8 @@ struct MediaPlayerState {
 
 class LocalPlayer {
 public:
-  LocalPlayer(sdbus::IConnection &conn, const BluezMediaPlayerRegistration &registration);
+  LocalPlayer(sdbus::IConnection &conn,
+              const BluezMediaPlayerRegistration &registration);
   ~LocalPlayer();
 
 private:
@@ -40,5 +40,4 @@ private:
 
   sdbus::IConnection &conn_;
   MediaPlayerState state_;
-  std::unique_ptr<sdbus::IObject> object_;
 };

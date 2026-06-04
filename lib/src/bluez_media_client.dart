@@ -26,6 +26,8 @@ export 'ffi/types.dart'
         BlueZMediaFolderItems,
         BlueZMediaFolderProps,
         BlueZMediaItemProps,
+        BlueZMediaManagedObjects,
+        BlueZMediaObjectRemoved,
         BlueZMediaPlayerProps,
         BlueZMediaTransportProps,
         BlueZMediaProperty;
@@ -75,15 +77,27 @@ class BluezMediaClient {
   final _folders = <String, BluezMediaFolder>{};
   final _items = <String, BluezMediaItem>{};
   final _transports = <String, BluezMediaTransport>{};
+  final _transportAddedCtrl = StreamController<BluezMediaTransport>.broadcast();
+  final _transportRemovedCtrl =
+      StreamController<BluezMediaTransport>.broadcast();
+  final _ready = Completer<void>();
+  ReceivePort? _eventsPort;
 
-  BluezMediaClient._(this._handle);
+  BluezMediaClient._(this._handle, this._eventsPort) {
+    _eventsPort!.listen(_onEvent);
+  }
 
   factory BluezMediaClient.create() {
-    final handle = _bindings.bluez_media_client_create();
+    _initializeNativeApi();
+    final eventsPort = ReceivePort('bluez_media.events');
+    final handle = _bindings.bluez_media_client_create(
+      eventsPort.sendPort.nativePort,
+    );
     if (handle == nullptr) {
+      eventsPort.close();
       throw StateError('Unable to connect to BlueZ on the system bus.');
     }
-    return BluezMediaClient._(handle);
+    return BluezMediaClient._(handle, eventsPort);
   }
 
   void close() {
@@ -92,6 +106,9 @@ class BluezMediaClient {
     }
     _bindings.bluez_media_client_destroy(_handle);
     _handle = nullptr;
+    if (!_ready.isCompleted) _ready.complete();
+    _eventsPort?.close();
+    _eventsPort = null;
     for (final player in _players.values) {
       player.dispose();
     }
@@ -104,11 +121,31 @@ class BluezMediaClient {
     for (final item in _items.values) {
       item.dispose();
     }
+    for (final transport in _transports.values) {
+      transport.dispose();
+    }
     _players.clear();
     _controls.clear();
     _folders.clear();
     _items.clear();
+    _transports.clear();
+    _transportAddedCtrl.close();
+    _transportRemovedCtrl.close();
   }
+
+  List<BluezMediaPlayer> get players => List.unmodifiable(_players.values);
+  List<BluezMediaControl> get controls => List.unmodifiable(_controls.values);
+  List<BluezMediaFolder> get folders => List.unmodifiable(_folders.values);
+  List<BluezMediaItem> get items => List.unmodifiable(_items.values);
+  List<BluezMediaTransport> get transports =>
+      List.unmodifiable(_transports.values);
+
+  /// Completes after the initial BlueZ ObjectManager snapshot is cached.
+  Future<void> get ready => _ready.future;
+
+  Stream<BluezMediaTransport> get transportAdded => _transportAddedCtrl.stream;
+  Stream<BluezMediaTransport> get transportRemoved =>
+      _transportRemovedCtrl.stream;
 
   /// Return a cached proxy for a remote `org.bluez.MediaPlayer1` object.
   BluezMediaPlayer player(String objectPath) {
@@ -704,6 +741,90 @@ class BluezMediaClient {
     }
   }
 
+  BlueZMediaManagedObjects getManagedObjects() {
+    _ensureOpen();
+    final size = _bindings.bluez_media_get_managed_objects(_handle, nullptr, 0);
+    if (size < 0) {
+      _checkResult(size, 'get managed media objects size');
+    }
+
+    final out = calloc<Uint8>(size);
+    try {
+      final result = _bindings.bluez_media_get_managed_objects(
+        _handle,
+        out,
+        size,
+      );
+      if (result < 0) {
+        _checkResult(result, 'get managed media objects');
+      }
+
+      final bytes = Uint8List.fromList(out.asTypedList(result));
+      return GlazeCodec.decode<BlueZMediaManagedObjects>(bytes, 0);
+    } finally {
+      calloc.free(out);
+    }
+  }
+
+  List<BluezMediaTransport> refreshTransports() {
+    return getManagedObjects().transports
+        .map(transport)
+        .toList(growable: false);
+  }
+
+  void closeFileDescriptor(int fd) {
+    final result = _bindings.bluez_media_close_fd(fd);
+    _checkResult(result, 'close acquired media transport file descriptor');
+  }
+
+  void _onEvent(dynamic message) {
+    if (message is! Uint8List || message.isEmpty || _handle == nullptr) return;
+    switch (message[0]) {
+      case 0x00:
+        if (!_ready.isCompleted) _ready.complete();
+        return;
+      case 0x01:
+        final props = GlazeCodec.decode<BlueZMediaPlayerProps>(message, 1);
+        player(props.objectPath).updateProps(props);
+      case 0x02:
+        final props = GlazeCodec.decode<BlueZMediaControlProps>(message, 1);
+        control(props.objectPath).updateProps(props);
+      case 0x04:
+        final props = GlazeCodec.decode<BlueZMediaTransportProps>(message, 1);
+        final existing = _transports[props.objectPath];
+        final proxy = transport(props.objectPath);
+        proxy.updateProps(props);
+        if (existing == null) _transportAddedCtrl.add(proxy);
+      case 0x05:
+        final props = GlazeCodec.decode<BlueZMediaFolderProps>(message, 1);
+        folder(props.objectPath).updateProps(props);
+      case 0x06:
+        final props = GlazeCodec.decode<BlueZMediaItemProps>(message, 1);
+        item(props.objectPath).updateProps(props);
+      case 0x7E:
+        _removeObject(GlazeCodec.decode<BlueZMediaObjectRemoved>(message, 1));
+    }
+  }
+
+  void _removeObject(BlueZMediaObjectRemoved removed) {
+    switch (removed.interfaceName) {
+      case 'org.bluez.MediaPlayer1':
+        _players.remove(removed.objectPath)?.dispose();
+      case 'org.bluez.MediaControl1':
+        _controls.remove(removed.objectPath)?.dispose();
+      case 'org.bluez.MediaFolder1':
+        _folders.remove(removed.objectPath)?.dispose();
+      case 'org.bluez.MediaItem1':
+        _items.remove(removed.objectPath)?.dispose();
+      case 'org.bluez.MediaTransport1':
+        final proxy = _transports.remove(removed.objectPath);
+        if (proxy != null) {
+          _transportRemovedCtrl.add(proxy);
+          proxy.dispose();
+        }
+    }
+  }
+
   // ── Error handling ─────────────────────────────────────────────────────────
 
   void _ensureOpen() {
@@ -815,6 +936,13 @@ final DynamicLibrary _dylib = loadBluezMediaNative();
 
 /// The bindings to the native functions in [_dylib].
 final BluezMediaNativeBindings _bindings = BluezMediaNativeBindings(_dylib);
+bool _nativeApiInitialized = false;
+
+void _initializeNativeApi() {
+  if (_nativeApiInitialized) return;
+  _bindings.bluez_media_init(NativeApi.initializeApiDLData);
+  _nativeApiInitialized = true;
+}
 
 /// A request to compute `sum`.
 ///

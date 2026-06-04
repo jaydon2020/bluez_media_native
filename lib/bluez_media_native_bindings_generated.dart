@@ -27,16 +27,27 @@ class BluezMediaNativeBindings {
   ) : _lookup = lookup;
 
   /// ── Client lifecycle ────────────────────────────────────────────────────────
-  ffi.Pointer<ffi.Void> bluez_media_client_create() {
-    return _bluez_media_client_create();
+  void bluez_media_init(ffi.Pointer<ffi.Void> dart_api_dl_data) {
+    return _bluez_media_init(dart_api_dl_data);
+  }
+
+  late final _bluez_media_initPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'bluez_media_init',
+      );
+  late final _bluez_media_init = _bluez_media_initPtr
+      .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  ffi.Pointer<ffi.Void> bluez_media_client_create(int events_port) {
+    return _bluez_media_client_create(events_port);
   }
 
   late final _bluez_media_client_createPtr =
-      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Void> Function()>>(
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Void> Function(ffi.Int64)>>(
         'bluez_media_client_create',
       );
   late final _bluez_media_client_create = _bluez_media_client_createPtr
-      .asFunction<ffi.Pointer<ffi.Void> Function()>();
+      .asFunction<ffi.Pointer<ffi.Void> Function(int)>();
 
   void bluez_media_client_destroy(ffi.Pointer<ffi.Void> handle) {
     return _bluez_media_client_destroy(handle);
@@ -756,6 +767,42 @@ class BluezMediaNativeBindings {
       _bluez_media_transport_set_volumePtr
           .asFunction<
             int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, int)
+          >();
+
+  int bluez_media_close_fd(int fd) {
+    return _bluez_media_close_fd(fd);
+  }
+
+  late final _bluez_media_close_fdPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Int32)>>(
+        'bluez_media_close_fd',
+      );
+  late final _bluez_media_close_fd = _bluez_media_close_fdPtr
+      .asFunction<int Function(int)>();
+
+  /// ── ObjectManager queries ──────────────────────────────────────────────────
+  int bluez_media_get_managed_objects(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Uint8> out,
+    int capacity,
+  ) {
+    return _bluez_media_get_managed_objects(handle, out, capacity);
+  }
+
+  late final _bluez_media_get_managed_objectsPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Uint8>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_get_managed_objects');
+  late final _bluez_media_get_managed_objects =
+      _bluez_media_get_managed_objectsPtr
+          .asFunction<
+            int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int)
           >();
 
   /// A very short-lived native function.

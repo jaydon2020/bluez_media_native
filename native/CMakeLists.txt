@@ -16,8 +16,10 @@ add_subdirectory(third_party/sdbus-cpp EXCLUDE_FROM_ALL)
 
 add_library(bluez_media_native_core STATIC
   src/bluez_media_client.cpp
+  src/dart_api_dl.c
   src/bluez_media_native.c
   src/media_client.cpp
+  src/media_object_manager.cpp
   src/local_player.cpp
   src/media_player_proxy.cpp
   src/media_control_proxy.cpp
@@ -45,8 +47,10 @@ set_target_properties(bluez_media_native_core PROPERTIES
 
 add_library(bluez_media_native SHARED
   src/bluez_media_client.cpp
+  src/dart_api_dl.c
   src/bluez_media_native.c
   src/media_client.cpp
+  src/media_object_manager.cpp
   src/local_player.cpp
   src/media_player_proxy.cpp
   src/media_control_proxy.cpp

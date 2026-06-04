@@ -5,11 +5,22 @@
 import 'media_example_utils.dart';
 
 void main(List<String> args) {
+  if (isListCommand(args)) {
+    final client = createClient();
+    try {
+      printManagedMediaObjects(client, interfaces: {'org.bluez.MediaPlayer1'});
+    } finally {
+      client.close();
+    }
+    return;
+  }
+
   if (args.length < 2 || hasFlag(args, '--help')) {
     printUsage('dart run example/player_control.dart <player_path> <command>', [
-      'Commands: play, pause, stop, next, previous, props',
+      'Commands: list, play, pause, stop, next, previous, props',
       '',
       'Example:',
+      '  dart run example/player_control.dart list',
       '  dart run example/player_control.dart '
           '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 play',
     ]);

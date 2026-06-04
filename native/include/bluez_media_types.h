@@ -7,6 +7,7 @@
 //   0x04 = BlueZMediaTransportProps  (transport PropertiesChanged or snapshot)
 //   0x05 = BlueZMediaFolderProps     (folder PropertiesChanged or snapshot)
 //   0x06 = BlueZMediaItemProps       (media item PropertiesChanged or snapshot)
+//   0x7E = BlueZMediaObjectRemoved   (ObjectManager InterfacesRemoved)
 //   0x10 = BlueZMediaAcquireResult   (Acquire / TryAcquire result)
 //   0x20 = BlueZMediaError           (method call failed)
 //   0xFF = sentinel (stream done)
@@ -205,4 +206,32 @@ template <> struct glz::meta<BlueZMediaError> {
       std::make_tuple(glz::field("objectPath", &BlueZMediaError::objectPath),
                       glz::field("name", &BlueZMediaError::name),
                       glz::field("message", &BlueZMediaError::message));
+};
+
+struct BlueZMediaManagedObjects {
+  std::vector<std::string> media;
+  std::vector<std::string> players;
+  std::vector<std::string> controls;
+  std::vector<std::string> transports;
+  std::vector<std::string> folders;
+  std::vector<std::string> items;
+};
+template <> struct glz::meta<BlueZMediaManagedObjects> {
+  static constexpr auto fields = std::make_tuple(
+      glz::field("media", &BlueZMediaManagedObjects::media),
+      glz::field("players", &BlueZMediaManagedObjects::players),
+      glz::field("controls", &BlueZMediaManagedObjects::controls),
+      glz::field("transports", &BlueZMediaManagedObjects::transports),
+      glz::field("folders", &BlueZMediaManagedObjects::folders),
+      glz::field("items", &BlueZMediaManagedObjects::items));
+};
+
+struct BlueZMediaObjectRemoved {
+  std::string objectPath;
+  std::string interfaceName;
+};
+template <> struct glz::meta<BlueZMediaObjectRemoved> {
+  static constexpr auto fields = std::make_tuple(
+      glz::field("objectPath", &BlueZMediaObjectRemoved::objectPath),
+      glz::field("interfaceName", &BlueZMediaObjectRemoved::interfaceName));
 };

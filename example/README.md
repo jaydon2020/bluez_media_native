@@ -15,6 +15,8 @@ For CLI runs, the package resolves the native library in this order:
 Register this process as a local media player object:
 
 ```sh
+dart run example/register_player.dart list
+
 dart run example/register_player.dart \
   --adapter /org/bluez/hci0 \
   --player /bluez_media/player0 \
@@ -41,6 +43,7 @@ print(player.track);
 ```
 
 ```sh
+dart run example/player_control.dart list
 dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 play
 dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 pause
 dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 stop
@@ -66,6 +69,7 @@ print(control.playerPath);
 ```
 
 ```sh
+dart run example/media_control.dart list
 dart run example/media_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF volume-up
 dart run example/media_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF volume-down
 dart run example/media_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF props
@@ -90,6 +94,7 @@ for (final item in items) {
 ```
 
 ```sh
+dart run example/media_browsing.dart list
 dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 pause
 dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 player-props
 dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 folder-props
@@ -111,15 +116,19 @@ final transport = client.transport('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0');
 transport.volume = 64; // Set volume directly
 
 final result = transport.acquire();
-print(result.fd);
-
-transport.release();
+try {
+  print(result.fd);
+} finally {
+  result.close(); // Close the duplicated file descriptor.
+  transport.release();
+}
 ```
 
 ```sh
-dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 props
-dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 set_volume 64
-dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 acquire
-dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 try_acquire
-dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 release
+dart run example/transport_control.dart list
+dart run example/transport_control.dart props /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/sep4/fd0
+dart run example/transport_control.dart set_volume /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/sep4/fd0 64
+dart run example/transport_control.dart acquire /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/sep4/fd0
+dart run example/transport_control.dart try_acquire /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/sep4/fd0
+dart run example/transport_control.dart release /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/sep4/fd0
 ```

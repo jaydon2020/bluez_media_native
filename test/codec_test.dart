@@ -288,6 +288,52 @@ void main() {
       expect(err.message, 'Transport is not available');
     });
 
+    test('decodes BlueZMediaManagedObjects', () {
+      final b = BytesBuilder();
+      _writeUint32(b, 1);
+      _writeString(b, '/org/bluez/hci0');
+      _writeUint32(b, 1);
+      _writeString(b, '/org/bluez/hci0/dev_AA/player0');
+      _writeUint32(b, 1);
+      _writeString(b, '/org/bluez/hci0/dev_AA');
+      _writeUint32(b, 2);
+      _writeString(b, '/org/bluez/hci0/dev_AA/sep1/fd0');
+      _writeString(b, '/org/bluez/hci0/dev_BB/sep2/fd0');
+      _writeUint32(b, 1);
+      _writeString(b, '/org/bluez/hci0/dev_AA/player0');
+      _writeUint32(b, 1);
+      _writeString(b, '/org/bluez/hci0/dev_AA/player0/item0');
+
+      final result = GlazeCodec.decode<BlueZMediaManagedObjects>(
+        Uint8List.fromList(b.toBytes()),
+        0,
+      );
+
+      expect(result.media, ['/org/bluez/hci0']);
+      expect(result.players, ['/org/bluez/hci0/dev_AA/player0']);
+      expect(result.controls, ['/org/bluez/hci0/dev_AA']);
+      expect(result.transports, [
+        '/org/bluez/hci0/dev_AA/sep1/fd0',
+        '/org/bluez/hci0/dev_BB/sep2/fd0',
+      ]);
+      expect(result.folders, ['/org/bluez/hci0/dev_AA/player0']);
+      expect(result.items, ['/org/bluez/hci0/dev_AA/player0/item0']);
+    });
+
+    test('decodes BlueZMediaObjectRemoved', () {
+      final b = BytesBuilder();
+      _writeString(b, '/org/bluez/hci0/dev_AA/sep1/fd0');
+      _writeString(b, 'org.bluez.MediaTransport1');
+
+      final result = GlazeCodec.decode<BlueZMediaObjectRemoved>(
+        Uint8List.fromList(b.toBytes()),
+        0,
+      );
+
+      expect(result.objectPath, '/org/bluez/hci0/dev_AA/sep1/fd0');
+      expect(result.interfaceName, 'org.bluez.MediaTransport1');
+    });
+
     test('throws on unknown type', () {
       final data = Uint8List(0);
       expect(() => GlazeCodec.decode<int>(data, 0), throwsArgumentError);

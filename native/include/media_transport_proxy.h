@@ -1,15 +1,16 @@
 // media_transport_proxy.h
 #pragma once
 
-#include <sdbus-c++/sdbus-c++.h>
-#include <vector>
 #include <cstdint>
 #include <memory>
+#include <sdbus-c++/sdbus-c++.h>
 #include <string>
+#include <vector>
 
 class MediaTransportProxy {
 public:
-  MediaTransportProxy(sdbus::IConnection &conn, const std::string &transport_path);
+  MediaTransportProxy(sdbus::IConnection &conn,
+                      const std::string &transport_path);
 
   std::vector<uint8_t> acquire() const;
   std::vector<uint8_t> try_acquire() const;

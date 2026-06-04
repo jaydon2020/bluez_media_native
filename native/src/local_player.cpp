@@ -8,7 +8,8 @@ std::string safe_string(const char *value) {
 bool as_bool(uint8_t value) { return value != 0; }
 } // namespace
 
-LocalPlayer::LocalPlayer(sdbus::IConnection &conn, const BluezMediaPlayerRegistration &registration)
+LocalPlayer::LocalPlayer(sdbus::IConnection &conn,
+                         const BluezMediaPlayerRegistration &registration)
     : conn_(conn) {
   state_.adapter_path = safe_string(registration.adapter_path);
   state_.player_path = safe_string(registration.player_path);
@@ -27,35 +28,38 @@ LocalPlayer::LocalPlayer(sdbus::IConnection &conn, const BluezMediaPlayerRegistr
   state_.browsable = as_bool(registration.browsable);
   state_.searchable = as_bool(registration.searchable);
 
-  if (state_.identity.empty()) state_.identity = "bluez_media_native";
-  if (state_.name.empty()) state_.name = state_.identity;
-  if (state_.type.empty()) state_.type = "audio";
-  if (state_.status.empty()) state_.status = "stopped";
+  if (state_.identity.empty())
+    state_.identity = "bluez_media_native";
+  if (state_.name.empty())
+    state_.name = state_.identity;
+  if (state_.type.empty())
+    state_.type = "audio";
+  if (state_.status.empty())
+    state_.status = "stopped";
 
-  object_ = sdbus::createObject(conn_, sdbus::ObjectPath{state_.player_path});
-
-  auto media_proxy = sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
-                                        sdbus::ObjectPath{state_.adapter_path});
+  auto media_proxy =
+      sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
+                         sdbus::ObjectPath{state_.adapter_path});
   media_proxy->callMethod("RegisterPlayer")
       .onInterface(kMediaIface)
-      .withArguments(sdbus::ObjectPath{state_.player_path}, make_player_properties());
+      .withArguments(sdbus::ObjectPath{state_.player_path},
+                     make_player_properties());
 }
 
 LocalPlayer::~LocalPlayer() {
   try {
-    auto media_proxy = sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
-                                          sdbus::ObjectPath{state_.adapter_path});
+    auto media_proxy =
+        sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
+                           sdbus::ObjectPath{state_.adapter_path});
     media_proxy->callMethod("UnregisterPlayer")
         .onInterface(kMediaIface)
         .withArguments(sdbus::ObjectPath{state_.player_path});
-  } catch (const sdbus::Error &) {}
-  
-  try {
-    object_->emitInterfacesRemovedSignal();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
 }
 
-std::map<std::string, sdbus::Variant> LocalPlayer::make_player_properties() const {
+std::map<std::string, sdbus::Variant>
+LocalPlayer::make_player_properties() const {
   std::map<std::string, sdbus::Variant> properties;
   properties["Name"] = sdbus::Variant{state_.name};
   properties["Type"] = sdbus::Variant{state_.type};

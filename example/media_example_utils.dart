@@ -52,3 +52,33 @@ void printProperties(
     print('$indent${property.key}: ${property.value}');
   }
 }
+
+bool isListCommand(List<String> args) =>
+    args.length == 1 && args.single.toLowerCase() == 'list';
+
+void printManagedMediaObjects(
+  BluezMediaClient client, {
+  required Set<String> interfaces,
+}) {
+  final objects = client.getManagedObjects();
+  final pathsByInterface = <String, List<String>>{
+    'org.bluez.Media1': objects.media,
+    'org.bluez.MediaPlayer1': objects.players,
+    'org.bluez.MediaControl1': objects.controls,
+    'org.bluez.MediaTransport1': objects.transports,
+    'org.bluez.MediaFolder1': objects.folders,
+    'org.bluez.MediaItem1': objects.items,
+  };
+
+  for (final entry in pathsByInterface.entries) {
+    if (!interfaces.contains(entry.key)) continue;
+    print('${entry.key}:');
+    if (entry.value.isEmpty) {
+      print('  (none)');
+      continue;
+    }
+    for (final path in entry.value) {
+      print('  $path');
+    }
+  }
+}

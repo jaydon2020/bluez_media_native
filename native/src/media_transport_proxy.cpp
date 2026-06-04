@@ -1,9 +1,13 @@
 // media_transport_proxy.cpp
 #include "media_transport_proxy.h"
 #include "bluez_media_types.h"
+
+#include <cerrno>
+#include <system_error>
 #include <unistd.h>
 
-MediaTransportProxy::MediaTransportProxy(sdbus::IConnection &conn, const std::string &transport_path)
+MediaTransportProxy::MediaTransportProxy(sdbus::IConnection &conn,
+                                         const std::string &transport_path)
     : transport_path_(transport_path) {
   if (transport_path_.empty()) {
     throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
@@ -21,9 +25,15 @@ std::vector<uint8_t> MediaTransportProxy::acquire() const {
       .onInterface(kMediaTransportIface)
       .storeResultsTo(fd, read_mtu, write_mtu);
 
+  const int duplicated_fd = dup(fd.get());
+  if (duplicated_fd < 0) {
+    throw std::system_error(errno, std::generic_category(),
+                            "Failed to duplicate transport file descriptor");
+  }
+
   BlueZMediaAcquireResult result;
   result.transportPath = transport_path_;
-  result.fd = static_cast<uint64_t>(dup(fd.get()));
+  result.fd = static_cast<uint64_t>(duplicated_fd);
   result.readMtu = read_mtu;
   result.writeMtu = write_mtu;
   return glz::encode(result);
@@ -37,9 +47,15 @@ std::vector<uint8_t> MediaTransportProxy::try_acquire() const {
       .onInterface(kMediaTransportIface)
       .storeResultsTo(fd, read_mtu, write_mtu);
 
+  const int duplicated_fd = dup(fd.get());
+  if (duplicated_fd < 0) {
+    throw std::system_error(errno, std::generic_category(),
+                            "Failed to duplicate transport file descriptor");
+  }
+
   BlueZMediaAcquireResult result;
   result.transportPath = transport_path_;
-  result.fd = static_cast<uint64_t>(dup(fd.get()));
+  result.fd = static_cast<uint64_t>(duplicated_fd);
   result.readMtu = read_mtu;
   result.writeMtu = write_mtu;
   return glz::encode(result);
@@ -57,42 +73,50 @@ std::vector<uint8_t> MediaTransportProxy::properties() const {
     props.device = proxy_->getProperty("Device")
                        .onInterface(kMediaTransportIface)
                        .get<sdbus::ObjectPath>();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
   try {
     props.uuid = proxy_->getProperty("UUID")
                      .onInterface(kMediaTransportIface)
                      .get<std::string>();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
   try {
     props.codec = proxy_->getProperty("Codec")
                       .onInterface(kMediaTransportIface)
                       .get<uint8_t>();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
   try {
     props.configuration = proxy_->getProperty("Configuration")
                               .onInterface(kMediaTransportIface)
                               .get<std::vector<uint8_t>>();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
   try {
     props.state = proxy_->getProperty("State")
                       .onInterface(kMediaTransportIface)
                       .get<std::string>();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
   try {
     props.delay = proxy_->getProperty("Delay")
                       .onInterface(kMediaTransportIface)
                       .get<uint16_t>();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
   try {
     props.volume = proxy_->getProperty("Volume")
                        .onInterface(kMediaTransportIface)
                        .get<uint16_t>();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
   try {
     props.endpoint = proxy_->getProperty("Endpoint")
                          .onInterface(kMediaTransportIface)
                          .get<sdbus::ObjectPath>();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
   return glz::encode(props);
 }
 

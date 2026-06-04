@@ -4,7 +4,8 @@
 
 MediaBrowserProxy::MediaBrowserProxy(sdbus::IConnection &conn) : conn_(conn) {}
 
-std::unique_ptr<sdbus::IProxy> MediaBrowserProxy::make_folder_proxy(const std::string &folder_path) const {
+std::unique_ptr<sdbus::IProxy>
+MediaBrowserProxy::make_folder_proxy(const std::string &folder_path) const {
   if (folder_path.empty()) {
     throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
                        "folder_path is required"};
@@ -13,7 +14,8 @@ std::unique_ptr<sdbus::IProxy> MediaBrowserProxy::make_folder_proxy(const std::s
                             sdbus::ObjectPath{folder_path});
 }
 
-std::unique_ptr<sdbus::IProxy> MediaBrowserProxy::make_item_proxy(const std::string &item_path) const {
+std::unique_ptr<sdbus::IProxy>
+MediaBrowserProxy::make_item_proxy(const std::string &item_path) const {
   if (item_path.empty()) {
     throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
                        "item_path is required"};
@@ -52,7 +54,9 @@ BlueZMediaItemProps MediaBrowserProxy::item_from_properties(
   return item;
 }
 
-std::vector<uint8_t> MediaBrowserProxy::folder_search(const std::string &folder_path, const std::string &value) const {
+std::vector<uint8_t>
+MediaBrowserProxy::folder_search(const std::string &folder_path,
+                                 const std::string &value) const {
   auto proxy = make_folder_proxy(folder_path);
   sdbus::ObjectPath result;
   proxy->callMethod("Search")
@@ -65,7 +69,8 @@ std::vector<uint8_t> MediaBrowserProxy::folder_search(const std::string &folder_
   return glz::encode(props);
 }
 
-std::vector<uint8_t> MediaBrowserProxy::folder_list_items(const std::string &folder_path) const {
+std::vector<uint8_t>
+MediaBrowserProxy::folder_list_items(const std::string &folder_path) const {
   auto proxy = make_folder_proxy(folder_path);
   std::map<sdbus::ObjectPath, std::map<std::string, sdbus::Variant>> result;
   proxy->callMethod("ListItems")
@@ -82,7 +87,9 @@ std::vector<uint8_t> MediaBrowserProxy::folder_list_items(const std::string &fol
   return glz::encode(items);
 }
 
-int MediaBrowserProxy::folder_change_folder(const std::string &folder_path, const std::string &target_folder_path) const {
+int MediaBrowserProxy::folder_change_folder(
+    const std::string &folder_path,
+    const std::string &target_folder_path) const {
   make_folder_proxy(folder_path)
       ->callMethod("ChangeFolder")
       .onInterface(kMediaFolderIface)
@@ -90,7 +97,8 @@ int MediaBrowserProxy::folder_change_folder(const std::string &folder_path, cons
   return 0;
 }
 
-std::vector<uint8_t> MediaBrowserProxy::folder_properties(const std::string &folder_path) const {
+std::vector<uint8_t>
+MediaBrowserProxy::folder_properties(const std::string &folder_path) const {
   auto proxy = make_folder_proxy(folder_path);
   BlueZMediaFolderProps props;
   props.objectPath = folder_path;
@@ -108,14 +116,16 @@ int MediaBrowserProxy::item_play(const std::string &item_path) const {
   return 0;
 }
 
-int MediaBrowserProxy::item_add_to_now_playing(const std::string &item_path) const {
+int MediaBrowserProxy::item_add_to_now_playing(
+    const std::string &item_path) const {
   make_item_proxy(item_path)
       ->callMethod("AddtoNowPlaying")
       .onInterface(kMediaItemIface);
   return 0;
 }
 
-std::vector<uint8_t> MediaBrowserProxy::item_properties(const std::string &item_path) const {
+std::vector<uint8_t>
+MediaBrowserProxy::item_properties(const std::string &item_path) const {
   auto proxy = make_item_proxy(item_path);
   BlueZMediaItemProps props;
   props.objectPath = item_path;

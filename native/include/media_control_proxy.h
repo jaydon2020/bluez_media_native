@@ -1,11 +1,11 @@
 // media_control_proxy.h
 #pragma once
 
-#include <sdbus-c++/sdbus-c++.h>
-#include <vector>
 #include <cstdint>
 #include <memory>
+#include <sdbus-c++/sdbus-c++.h>
 #include <string>
+#include <vector>
 
 class MediaControlProxy {
 public:

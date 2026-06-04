@@ -2,7 +2,8 @@
 #include "media_control_proxy.h"
 #include "bluez_media_types.h"
 
-MediaControlProxy::MediaControlProxy(sdbus::IConnection &conn, const std::string &control_path)
+MediaControlProxy::MediaControlProxy(sdbus::IConnection &conn,
+                                     const std::string &control_path)
     : control_path_(control_path) {
   if (control_path_.empty()) {
     throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
@@ -67,7 +68,8 @@ std::vector<uint8_t> MediaControlProxy::properties() const {
     props.player = proxy_->getProperty("Player")
                        .onInterface(kMediaControlIface)
                        .get<sdbus::ObjectPath>();
-  } catch (const sdbus::Error &) {}
+  } catch (const sdbus::Error &) {
+  }
 
   return glz::encode(props);
 }

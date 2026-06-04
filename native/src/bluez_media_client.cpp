@@ -7,25 +7,35 @@
 #include <cstdio>
 #include <cstring>
 #include <memory>
+#include <unistd.h>
 
-#include "media_client.h"
-#include "media_player_proxy.h"
-#include "media_control_proxy.h"
 #include "media_browser_proxy.h"
+#include "media_client.h"
+#include "media_control_proxy.h"
+#include "media_object_manager.h"
+#include "media_player_proxy.h"
 #include "media_transport_proxy.h"
 
 struct BluezMediaClientContext {
   std::unique_ptr<sdbus::IConnection> conn;
   std::unique_ptr<MediaClient> client;
+  std::unique_ptr<MediaObjectManager> object_manager;
 };
 
 extern "C" {
 
-void *bluez_media_client_create(void) {
+void bluez_media_init(void *dart_api_dl_data) {
+  Dart_InitializeApiDL(dart_api_dl_data);
+}
+
+void *bluez_media_client_create(int64_t events_port) {
   try {
     auto ctx = std::make_unique<BluezMediaClientContext>();
     ctx->conn = sdbus::createSystemBusConnection();
     ctx->client = std::make_unique<MediaClient>(*ctx->conn);
+    ctx->object_manager =
+        std::make_unique<MediaObjectManager>(*ctx->conn, events_port);
+    ctx->object_manager->get_managed_objects();
     ctx->conn->enterEventLoopAsync();
     return ctx.release();
   } catch (const sdbus::Error &e) {
@@ -333,7 +343,8 @@ int bluez_media_folder_search(void *handle, const char *folder_path,
   try {
     auto *ctx = static_cast<BluezMediaClientContext *>(handle);
     MediaBrowserProxy proxy{*ctx->conn};
-    const auto payload = proxy.folder_search(folder_path, value != nullptr ? value : "");
+    const auto payload =
+        proxy.folder_search(folder_path, value != nullptr ? value : "");
     if (payload.empty()) {
       return -1;
     }
@@ -380,7 +391,8 @@ int bluez_media_folder_list_items(void *handle, const char *folder_path,
 
 int bluez_media_folder_change_folder(void *handle, const char *folder_path,
                                      const char *target_folder_path) {
-  if (handle == nullptr || folder_path == nullptr || target_folder_path == nullptr) {
+  if (handle == nullptr || folder_path == nullptr ||
+      target_folder_path == nullptr) {
     return -1;
   }
 
@@ -546,7 +558,8 @@ int bluez_media_transport_release(void *handle, const char *transport_path) {
   }
 }
 
-int bluez_media_transport_get_properties(void *handle, const char *transport_path,
+int bluez_media_transport_get_properties(void *handle,
+                                         const char *transport_path,
                                          uint8_t *out, int32_t capacity) {
   if (handle == nullptr || capacity < 0 || transport_path == nullptr) {
     return -1;
@@ -585,6 +598,37 @@ int bluez_media_transport_set_volume(void *handle, const char *transport_path,
     fprintf(stderr, "bluez_media_transport_set_volume: %s\n", e.what());
     return -3;
   }
+}
+
+int bluez_media_get_managed_objects(void *handle, uint8_t *out,
+                                    int32_t capacity) {
+  if (handle == nullptr || capacity < 0)
+    return -1;
+  try {
+    auto *ctx = static_cast<BluezMediaClientContext *>(handle);
+    std::vector<uint8_t> result = ctx->client->get_managed_objects();
+    if (result.empty()) {
+      return -1;
+    }
+    if (out == nullptr || capacity == 0) {
+      return static_cast<int>(result.size());
+    }
+    if (capacity < static_cast<int32_t>(result.size())) {
+      return -2;
+    }
+    std::memcpy(out, result.data(), result.size());
+    return static_cast<int>(result.size());
+  } catch (const std::exception &e) {
+    fprintf(stderr, "bluez_media_get_managed_objects: %s\n", e.what());
+    return -3;
+  }
+}
+
+int bluez_media_close_fd(int32_t fd) {
+  if (fd < 0) {
+    return -1;
+  }
+  return close(fd) == 0 ? 0 : -3;
 }
 
 } // extern "C"

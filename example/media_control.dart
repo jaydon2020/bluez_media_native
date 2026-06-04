@@ -9,12 +9,23 @@ import 'package:bluez_media_native/bluez_media_native.dart';
 import 'media_example_utils.dart';
 
 Future<void> main(List<String> args) async {
+  if (isListCommand(args)) {
+    final client = createClient();
+    try {
+      printManagedMediaObjects(client, interfaces: {'org.bluez.MediaControl1'});
+    } finally {
+      client.close();
+    }
+    return;
+  }
+
   if (args.length < 2 || hasFlag(args, '--help')) {
     printUsage('dart run example/media_control.dart <control_path> <command>', [
-      'Commands: play, pause, stop, next, previous, volume-up, volume-down,',
+      'Commands: list, play, pause, stop, next, previous, volume-up, volume-down,',
       '          fast-forward, rewind, props, watch',
       '',
       'Example:',
+      '  dart run example/media_control.dart list',
       '  dart run example/media_control.dart '
           '/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF volume-up',
     ]);

@@ -52,8 +52,8 @@ std::string variant_to_string(const sdbus::Variant &value) {
   return value.dumpToString();
 }
 
-std::vector<BlueZMediaProperty> track_to_properties(
-    const std::map<std::string, sdbus::Variant> &track) {
+std::vector<BlueZMediaProperty>
+track_to_properties(const std::map<std::string, sdbus::Variant> &track) {
   std::vector<BlueZMediaProperty> properties;
   properties.reserve(track.size());
   for (const auto &[key, value] : track) {

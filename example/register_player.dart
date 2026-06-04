@@ -9,8 +9,19 @@ import 'package:bluez_media_native/bluez_media_native.dart';
 import 'media_example_utils.dart';
 
 Future<void> main(List<String> args) async {
+  if (isListCommand(args)) {
+    final client = createClient();
+    try {
+      printManagedMediaObjects(client, interfaces: {'org.bluez.Media1'});
+    } finally {
+      client.close();
+    }
+    return;
+  }
+
   if (hasFlag(args, '--help')) {
-    printUsage('dart run example/register_player.dart [options]', [
+    printUsage('dart run example/register_player.dart list | [options]', [
+      'list                   List adapters exposing org.bluez.Media1',
       '--adapter <path>       BlueZ adapter path, default $kDefaultAdapterPath',
       '--player <path>        Local object path, default $kDefaultLocalPlayerPath',
       '--name <name>          Player name shown to BlueZ',

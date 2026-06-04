@@ -33,7 +33,8 @@ typedef struct BluezMediaPlayerRegistration {
 
 // ── Client lifecycle ────────────────────────────────────────────────────────
 
-BLUEZ_MEDIA_EXPORT void *bluez_media_client_create(void);
+BLUEZ_MEDIA_EXPORT void bluez_media_init(void *dart_api_dl_data);
+BLUEZ_MEDIA_EXPORT void *bluez_media_client_create(int64_t events_port);
 BLUEZ_MEDIA_EXPORT void bluez_media_client_destroy(void *handle);
 
 // ── org.bluez.Media1 registration ──────────────────────────────────────────
@@ -114,9 +115,10 @@ BLUEZ_MEDIA_EXPORT int bluez_media_item_get_properties(void *handle,
 
 // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
 
-BLUEZ_MEDIA_EXPORT int
-bluez_media_transport_acquire(void *handle, const char *transport_path,
-                              uint8_t *out, int32_t capacity);
+BLUEZ_MEDIA_EXPORT int bluez_media_transport_acquire(void *handle,
+                                                     const char *transport_path,
+                                                     uint8_t *out,
+                                                     int32_t capacity);
 BLUEZ_MEDIA_EXPORT int
 bluez_media_transport_try_acquire(void *handle, const char *transport_path,
                                   uint8_t *out, int32_t capacity);
@@ -128,6 +130,12 @@ bluez_media_transport_get_properties(void *handle, const char *transport_path,
 BLUEZ_MEDIA_EXPORT int
 bluez_media_transport_set_volume(void *handle, const char *transport_path,
                                  uint16_t volume);
+BLUEZ_MEDIA_EXPORT int bluez_media_close_fd(int32_t fd);
+
+// ── ObjectManager queries ──────────────────────────────────────────────────
+
+BLUEZ_MEDIA_EXPORT int
+bluez_media_get_managed_objects(void *handle, uint8_t *out, int32_t capacity);
 
 // A very short-lived native function.
 //

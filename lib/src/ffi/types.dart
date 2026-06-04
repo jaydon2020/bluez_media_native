@@ -179,3 +179,33 @@ class BlueZMediaError {
     required this.message,
   });
 }
+
+/// Result of ObjectManager queries.
+class BlueZMediaManagedObjects {
+  final List<String> media;
+  final List<String> players;
+  final List<String> controls;
+  final List<String> transports;
+  final List<String> folders;
+  final List<String> items;
+
+  const BlueZMediaManagedObjects({
+    this.media = const [],
+    this.players = const [],
+    this.controls = const [],
+    this.transports = const [],
+    this.folders = const [],
+    this.items = const [],
+  });
+}
+
+/// A media interface removed from the BlueZ object tree.
+class BlueZMediaObjectRemoved {
+  final String objectPath;
+  final String interfaceName;
+
+  const BlueZMediaObjectRemoved({
+    required this.objectPath,
+    required this.interfaceName,
+  });
+}

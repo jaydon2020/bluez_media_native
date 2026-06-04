@@ -33,6 +33,10 @@ class GlazeCodec {
       return _decodeMediaAcquireResult(r) as T;
     } else if (T == BlueZMediaError) {
       return _decodeMediaError(r) as T;
+    } else if (T == BlueZMediaManagedObjects) {
+      return _decodeMediaManagedObjects(r) as T;
+    } else if (T == BlueZMediaObjectRemoved) {
+      return _decodeMediaObjectRemoved(r) as T;
     }
     throw ArgumentError('Unknown type: $T');
   }
@@ -139,6 +143,24 @@ class GlazeCodec {
       message: r.readString(),
     );
   }
+
+  static BlueZMediaManagedObjects _decodeMediaManagedObjects(_Reader r) {
+    return BlueZMediaManagedObjects(
+      media: r.readStringList(),
+      players: r.readStringList(),
+      controls: r.readStringList(),
+      transports: r.readStringList(),
+      folders: r.readStringList(),
+      items: r.readStringList(),
+    );
+  }
+
+  static BlueZMediaObjectRemoved _decodeMediaObjectRemoved(_Reader r) {
+    return BlueZMediaObjectRemoved(
+      objectPath: r.readString(),
+      interfaceName: r.readString(),
+    );
+  }
 }
 
 class _Reader {
@@ -239,5 +261,10 @@ class _Reader {
         metadata: readMediaPropertyList(),
       ),
     );
+  }
+
+  List<String> readStringList() {
+    final count = readUint32();
+    return List.generate(count, (_) => readString());
   }
 }
