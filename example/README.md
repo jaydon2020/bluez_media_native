@@ -100,3 +100,26 @@ dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp
 dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0/item0 play-item
 dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0/item0 add-now-playing
 ```
+
+## MediaTransport1 Control
+
+Acquire an active audio stream transport or set the absolute stream volume:
+
+```dart
+final transport = client.transport('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0');
+
+transport.volume = 64; // Set volume directly
+
+final result = transport.acquire();
+print(result.fd);
+
+transport.release();
+```
+
+```sh
+dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 props
+dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 set_volume 64
+dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 acquire
+dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 try_acquire
+dart run example/transport_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0 release
+```
