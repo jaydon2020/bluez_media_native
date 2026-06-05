@@ -13,18 +13,20 @@ For CLI runs, the package resolves the native library in this order:
 ## Flutter BLE Audio
 
 The dedicated `flutter_ble_audio` Flutter Linux app discovers BlueZ media
-objects and exposes a small audio control surface for `org.bluez.MediaPlayer1`
-and `org.bluez.MediaControl1`.
+objects and groups them by Bluetooth device. Select one device at the top of
+the UI, then use whichever media surfaces BlueZ exposes for it:
+`org.bluez.MediaPlayer1`, `org.bluez.MediaControl1`, and
+`org.bluez.MediaTransport1`.
 
 ```sh
 cd example/flutter_ble_audio
 flutter run -d linux
 ```
 
-The app lets you select a discovered player/controller object, refresh the
-current playback snapshot, send Play/Pause/Stop/Next/Previous, adjust volume,
-swap to the next discovered media object pair, set `MediaPlayer1.Repeat` and
-`MediaPlayer1.Shuffle`, and inspect track metadata.
+The app lets you select a discovered device, see which media interfaces it
+supports, refresh the current snapshots, send playback commands, adjust
+controller or transport volume, set `MediaPlayer1.Repeat` and
+`MediaPlayer1.Shuffle`, and inspect track and transport metadata.
 
 ## Local Player Registration
 

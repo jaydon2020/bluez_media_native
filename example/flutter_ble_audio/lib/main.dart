@@ -15,35 +15,52 @@ class BluezMediaExample extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xff1f7a6f),
+          seedColor: const Color(0xff0f766e),
           brightness: Brightness.light,
         ),
         useMaterial3: true,
         visualDensity: VisualDensity.compact,
       ),
-      home: const MediaControlPage(),
+      home: const MediaProxyDashboard(),
     );
   }
 }
 
-class MediaControlPage extends StatefulWidget {
-  const MediaControlPage({super.key});
+class MediaProxyDashboard extends StatefulWidget {
+  const MediaProxyDashboard({super.key});
 
   @override
-  State<MediaControlPage> createState() => _MediaControlPageState();
+  State<MediaProxyDashboard> createState() => _MediaProxyDashboardState();
 }
 
-class _MediaControlPageState extends State<MediaControlPage> {
+class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   late final BluezMediaClient _client;
   final _subscriptions = <StreamSubscription<List<String>>>[];
   final _messages = <String>[];
 
   var _loading = true;
   String? _error;
+
   List<BluezMediaPlayer> _players = const [];
   List<BluezMediaControl> _controls = const [];
-  BluezMediaPlayer? _selectedPlayer;
-  BluezMediaControl? _selectedControl;
+  List<BluezMediaTransport> _transports = const [];
+
+  String? _selectedDevicePath;
+  double? _transportVolumeDraft;
+
+  List<_MediaDevice> get _devices =>
+      _mediaDevices(_players, _controls, _transports);
+
+  _MediaDevice? get _selectedDevice {
+    final devices = _devices;
+    if (devices.isEmpty) return null;
+    final selectedPath = _selectedDevicePath;
+    if (selectedPath == null) return devices.first;
+    return devices
+            .where((device) => device.devicePath == selectedPath)
+            .firstOrNull ??
+        devices.first;
+  }
 
   @override
   void initState() {
@@ -72,6 +89,7 @@ class _MediaControlPageState extends State<MediaControlPage> {
       final objects = _client.getManagedObjects();
       final players = objects.players.map(_client.player).toList();
       final controls = objects.controls.map(_client.control).toList();
+      final transports = objects.transports.map(_client.transport).toList();
 
       for (final subscription in _subscriptions) {
         await subscription.cancel();
@@ -80,36 +98,22 @@ class _MediaControlPageState extends State<MediaControlPage> {
         ..clear()
         ..addAll([
           for (final player in players)
-            player.propertiesChanged.listen((_) {
-              if (mounted) setState(() {});
-            }),
+            player.propertiesChanged.listen((_) => _refreshView()),
           for (final control in controls)
-            control.propertiesChanged.listen((_) {
-              if (mounted) setState(() {});
-            }),
+            control.propertiesChanged.listen((_) => _refreshView()),
+          for (final transport in transports)
+            transport.propertiesChanged.listen((_) => _refreshView()),
         ]);
-
-      final selectedPlayer = _selectedPlayer == null
-          ? players.firstOrNull
-          : players
-                .where(
-                  (player) => player.objectPath == _selectedPlayer!.objectPath,
-                )
-                .firstOrNull;
-      final selectedControl = _selectedControl == null
-          ? controls.firstOrNull
-          : controls
-                .where(
-                  (control) =>
-                      control.objectPath == _selectedControl!.objectPath,
-                )
-                .firstOrNull;
 
       setState(() {
         _players = players;
         _controls = controls;
-        _selectedPlayer = selectedPlayer ?? players.firstOrNull;
-        _selectedControl = selectedControl ?? controls.firstOrNull;
+        _transports = transports;
+        _selectedDevicePath = _keepDeviceSelection(
+          _devices,
+          _selectedDevicePath,
+        );
+        _transportVolumeDraft = null;
         _loading = false;
       });
 
@@ -123,12 +127,21 @@ class _MediaControlPageState extends State<MediaControlPage> {
     }
   }
 
+  void _refreshView() {
+    if (mounted) setState(() {});
+  }
+
   Future<void> _refreshSelected() async {
+    final device = _selectedDevice;
     try {
-      _selectedPlayer?.refresh();
-      _selectedControl?.refresh();
-      _pushMessage('Refreshed');
-      if (mounted) setState(() {});
+      device?.player?.refresh();
+      device?.control?.refresh();
+      for (final transport
+          in device?.transports ?? const <BluezMediaTransport>[]) {
+        transport.refresh();
+      }
+      _pushMessage('Refreshed selected device');
+      _refreshView();
     } catch (error) {
       _pushMessage('$error');
     }
@@ -138,88 +151,54 @@ class _MediaControlPageState extends State<MediaControlPage> {
     try {
       command();
       _pushMessage(label);
+      _refreshView();
     } catch (error) {
       _pushMessage('$error');
     }
-  }
-
-  void _swapSelection() {
-    if (_players.isEmpty && _controls.isEmpty) return;
-
-    final player = _nextValue(_players, _selectedPlayer);
-    final control = _nextValue(_controls, _selectedControl);
-    setState(() {
-      _selectedPlayer = player;
-      _selectedControl = control;
-    });
-    _pushMessage('Swapped selection');
-    unawaited(_refreshSelected());
   }
 
   void _setRepeatMode(String repeat) {
-    try {
-      final player = _resolveSelectedPlayer();
-      if (player == null) {
-        _pushMessage('No MediaPlayer1 object selected');
-        return;
-      }
-
+    final player = _selectedDevice?.player;
+    if (player == null) {
+      _pushMessage('Selected device has no MediaPlayer1 support');
+      return;
+    }
+    _runCommand('MediaPlayer1 Repeat: $repeat', () {
       player.setRepeat(repeat);
       player.refresh();
-      _pushMessage('Repeat: $repeat');
-      if (mounted) setState(() {});
-    } catch (error) {
-      _pushMessage('$error');
-    }
+    });
   }
 
   void _setShuffleMode(String shuffle) {
-    try {
-      final player = _resolveSelectedPlayer();
-      if (player == null) {
-        _pushMessage('No MediaPlayer1 object selected');
-        return;
-      }
-
+    final player = _selectedDevice?.player;
+    if (player == null) {
+      _pushMessage('Selected device has no MediaPlayer1 support');
+      return;
+    }
+    _runCommand('MediaPlayer1 Shuffle: $shuffle', () {
       player.setShuffle(shuffle);
       player.refresh();
-      _pushMessage('Shuffle: $shuffle');
-      if (mounted) setState(() {});
-    } catch (error) {
-      _pushMessage('$error');
-    }
+    });
   }
 
-  BluezMediaPlayer? _resolveSelectedPlayer() {
-    final selectedPlayer = _selectedPlayer;
-    if (selectedPlayer != null) return selectedPlayer;
+  void _setTransportVolume(double value) {
+    final transport = _selectedDevice?.transport;
+    if (transport == null) return;
+    _runCommand('MediaTransport1 Volume: ${value.round()}', () {
+      transport.volume = value.round().clamp(0, 127);
+    });
+    setState(() => _transportVolumeDraft = null);
+  }
 
-    final selectedControl = _selectedControl;
-    if (selectedControl == null) return null;
-
-    selectedControl.refresh();
-    final playerPath = selectedControl.playerPath;
-    if (playerPath.isEmpty) return null;
-
-    final player = _client.player(playerPath);
-    if (!_players.any(
-      (cachedPlayer) => cachedPlayer.objectPath == playerPath,
-    )) {
-      _players = [..._players, player];
-    }
-    if (mounted) {
-      setState(() => _selectedPlayer = player);
-    } else {
-      _selectedPlayer = player;
-    }
-    return player;
+  void _previewTransportVolume(double value) {
+    setState(() => _transportVolumeDraft = value);
   }
 
   void _pushMessage(String message) {
     if (!mounted) return;
     setState(() {
       _messages.insert(0, message);
-      if (_messages.length > 5) {
+      if (_messages.length > 6) {
         _messages.removeLast();
       }
     });
@@ -229,10 +208,10 @@ class _MediaControlPageState extends State<MediaControlPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('BlueZ Media'),
+        title: const Text('BlueZ Media Devices'),
         actions: [
           Tooltip(
-            message: 'Refresh',
+            message: 'Refresh objects',
             child: IconButton(
               onPressed: _loading ? null : _loadObjects,
               icon: const Icon(Icons.refresh),
@@ -255,68 +234,56 @@ class _MediaControlPageState extends State<MediaControlPage> {
         subtitle: _error!,
       );
     }
-    if (_players.isEmpty && _controls.isEmpty) {
+    if (_players.isEmpty && _controls.isEmpty && _transports.isEmpty) {
       return const _EmptyState(
         icon: Icons.bluetooth_disabled,
-        title: 'No BlueZ media objects',
+        title: 'No BlueZ media devices',
         subtitle: 'Pair and connect an AVRCP-capable audio device.',
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 760;
-        final content = [
-          _ObjectPicker(
-            players: _players,
-            controls: _controls,
-            selectedPlayer: _selectedPlayer,
-            selectedControl: _selectedControl,
-            canSwap: _players.length > 1 || _controls.length > 1,
-            onSwap: _swapSelection,
-            onPlayerChanged: (player) {
-              setState(() => _selectedPlayer = player);
-              unawaited(_refreshSelected());
-            },
-            onControlChanged: (control) {
-              setState(() => _selectedControl = control);
-              unawaited(_refreshSelected());
-            },
-          ),
-          _NowPlayingPanel(
-            player: _selectedPlayer,
-            control: _selectedControl,
-            messages: _messages,
-            onRefresh: _refreshSelected,
-            onRepeatChanged: _setRepeatMode,
-            onShuffleChanged: _setShuffleMode,
-            onPlayerCommand: _runCommand,
-            onControlCommand: _runCommand,
-          ),
-        ];
+        final selectedDevice = _selectedDevice;
+        final maxWidth = constraints.maxWidth >= 1040
+            ? 1000.0
+            : double.infinity;
+        final dashboard = _ProxyPanels(
+          device: selectedDevice,
+          messages: _messages,
+          onRefresh: _refreshSelected,
+          onRepeatChanged: _setRepeatMode,
+          onShuffleChanged: _setShuffleMode,
+          transportVolumeDraft: _transportVolumeDraft,
+          onTransportVolumePreview: _previewTransportVolume,
+          onTransportVolumeChanged: _setTransportVolume,
+          onCommand: _runCommand,
+        );
 
-        if (narrow) {
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [content[0], const SizedBox(height: 16), content[1]],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        return ListView(
+          padding: const EdgeInsets.all(16),
           children: [
-            SizedBox(
-              width: 360,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: content[0],
-              ),
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: content[1],
+            Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxWidth),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _DevicePicker(
+                      devices: _devices,
+                      value: selectedDevice,
+                      onChanged: (device) {
+                        setState(() {
+                          _selectedDevicePath = device?.devicePath;
+                          _transportVolumeDraft = null;
+                        });
+                        unawaited(_refreshSelected());
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    dashboard,
+                  ],
+                ),
               ),
             ),
           ],
@@ -326,29 +293,175 @@ class _MediaControlPageState extends State<MediaControlPage> {
   }
 }
 
-class _ObjectPicker extends StatelessWidget {
-  final List<BluezMediaPlayer> players;
-  final List<BluezMediaControl> controls;
-  final BluezMediaPlayer? selectedPlayer;
-  final BluezMediaControl? selectedControl;
-  final bool canSwap;
-  final VoidCallback onSwap;
-  final ValueChanged<BluezMediaPlayer?> onPlayerChanged;
-  final ValueChanged<BluezMediaControl?> onControlChanged;
+class _DevicePicker extends StatelessWidget {
+  final List<_MediaDevice> devices;
+  final _MediaDevice? value;
+  final ValueChanged<_MediaDevice?> onChanged;
 
-  const _ObjectPicker({
-    required this.players,
-    required this.controls,
-    required this.selectedPlayer,
-    required this.selectedControl,
-    required this.canSwap,
-    required this.onSwap,
-    required this.onPlayerChanged,
-    required this.onControlChanged,
+  const _DevicePicker({
+    required this.devices,
+    required this.value,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
+    return _SectionPanel(
+      icon: Icons.bluetooth_connected,
+      title: 'Device',
+      trailing: Text('${devices.length}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<_MediaDevice>(
+            initialValue: value,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+            ),
+            hint: const Text('No device'),
+            items: [
+              for (final device in devices)
+                DropdownMenuItem<_MediaDevice>(
+                  value: device,
+                  child: Row(
+                    children: [
+                      Icon(
+                        device.connected
+                            ? Icons.bluetooth_connected
+                            : Icons.bluetooth_disabled,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '${_deviceLabel(device)} - ${_connectionLabel(device)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+            onChanged: devices.isEmpty ? null : onChanged,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _SupportChip(
+                icon: value?.connected ?? false
+                    ? Icons.bluetooth_connected
+                    : Icons.bluetooth_disabled,
+                label: _connectionLabel(value),
+                supported: value?.connected ?? false,
+              ),
+              _SupportChip(
+                icon: Icons.queue_music,
+                label: 'MediaPlayer1',
+                supported: value?.player != null,
+              ),
+              _SupportChip(
+                icon: Icons.settings_remote,
+                label: 'MediaControl1',
+                supported: value?.control != null,
+              ),
+              _SupportChip(
+                icon: Icons.graphic_eq,
+                label: 'MediaTransport1',
+                supported: value?.transports.isNotEmpty ?? false,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value?.devicePath ?? 'No device selected',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SupportChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool supported;
+
+  const _SupportChip({
+    required this.icon,
+    required this.label,
+    required this.supported,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: supported ? colors.secondaryContainer : colors.surface,
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Text(label),
+            const SizedBox(width: 8),
+            Icon(
+              supported ? Icons.check_circle : Icons.cancel_outlined,
+              size: 18,
+              color: supported ? colors.primary : colors.outline,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProxyPanels extends StatelessWidget {
+  final _MediaDevice? device;
+  final List<String> messages;
+  final Future<void> Function() onRefresh;
+  final ValueChanged<String> onRepeatChanged;
+  final ValueChanged<String> onShuffleChanged;
+  final double? transportVolumeDraft;
+  final ValueChanged<double> onTransportVolumePreview;
+  final ValueChanged<double> onTransportVolumeChanged;
+  final void Function(String label, VoidCallback command) onCommand;
+
+  const _ProxyPanels({
+    required this.device,
+    required this.messages,
+    required this.onRefresh,
+    required this.onRepeatChanged,
+    required this.onShuffleChanged,
+    required this.transportVolumeDraft,
+    required this.onTransportVolumePreview,
+    required this.onTransportVolumeChanged,
+    required this.onCommand,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final player = device?.player;
+    final control = device?.control;
+    final transport = device?.transport;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -356,99 +469,57 @@ class _ObjectPicker extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Objects',
-                style: Theme.of(context).textTheme.titleLarge,
+                'Device controls',
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
             ),
             Tooltip(
-              message: 'Swap',
+              message: 'Refresh selected device',
               child: IconButton.filledTonal(
-                onPressed: canSwap ? onSwap : null,
-                icon: const Icon(Icons.swap_horiz),
+                onPressed: device == null ? null : onRefresh,
+                icon: const Icon(Icons.refresh),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        _PathDropdown<BluezMediaPlayer>(
-          label: 'MediaPlayer1',
-          value: selectedPlayer,
-          values: players,
-          pathFor: (player) => player.objectPath,
-          onChanged: onPlayerChanged,
+        const SizedBox(height: 16),
+        _PlayerProxyPanel(
+          player: player,
+          onRepeatChanged: onRepeatChanged,
+          onShuffleChanged: onShuffleChanged,
+          onCommand: onCommand,
         ),
-        const SizedBox(height: 12),
-        _PathDropdown<BluezMediaControl>(
-          label: 'MediaControl1',
-          value: selectedControl,
-          values: controls,
-          pathFor: (control) => control.objectPath,
-          onChanged: onControlChanged,
+        const SizedBox(height: 16),
+        _ControlProxyPanel(control: control, onCommand: onCommand),
+        const SizedBox(height: 16),
+        _TransportProxyPanel(
+          transport: transport,
+          transportCount: device?.transports.length ?? 0,
+          volumeDraft: transportVolumeDraft,
+          onVolumePreview: onTransportVolumePreview,
+          onVolumeChanged: onTransportVolumeChanged,
+          onCommand: onCommand,
         ),
+        if (messages.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _EventPanel(messages: messages),
+        ],
       ],
     );
   }
 }
 
-class _PathDropdown<T> extends StatelessWidget {
-  final String label;
-  final T? value;
-  final List<T> values;
-  final String Function(T value) pathFor;
-  final ValueChanged<T?> onChanged;
-
-  const _PathDropdown({
-    required this.label,
-    required this.value,
-    required this.values,
-    required this.pathFor,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<T>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
-      items: [
-        for (final item in values)
-          DropdownMenuItem<T>(
-            value: item,
-            child: Text(
-              pathFor(item),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-      ],
-      onChanged: values.isEmpty ? null : onChanged,
-    );
-  }
-}
-
-class _NowPlayingPanel extends StatelessWidget {
+class _PlayerProxyPanel extends StatelessWidget {
   final BluezMediaPlayer? player;
-  final BluezMediaControl? control;
-  final List<String> messages;
-  final Future<void> Function() onRefresh;
   final ValueChanged<String> onRepeatChanged;
   final ValueChanged<String> onShuffleChanged;
-  final void Function(String label, VoidCallback command) onPlayerCommand;
-  final void Function(String label, VoidCallback command) onControlCommand;
+  final void Function(String label, VoidCallback command) onCommand;
 
-  const _NowPlayingPanel({
+  const _PlayerProxyPanel({
     required this.player,
-    required this.control,
-    required this.messages,
-    required this.onRefresh,
     required this.onRepeatChanged,
     required this.onShuffleChanged,
-    required this.onPlayerCommand,
-    required this.onControlCommand,
+    required this.onCommand,
   });
 
   @override
@@ -456,95 +527,401 @@ class _NowPlayingPanel extends StatelessWidget {
     final title = _trackValue(player, const ['Title', 'xesam:title']);
     final artist = _trackValue(player, const ['Artist', 'xesam:artist']);
     final album = _trackValue(player, const ['Album', 'xesam:album']);
-    final duration = _trackValue(player, const ['Duration', 'mpris:length']);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title.isEmpty ? 'No track title' : title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    artist.isEmpty ? 'Unknown artist' : artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
+    return _SectionPanel(
+      icon: Icons.queue_music,
+      title: 'MediaPlayer1',
+      subtitle: player?.objectPath ?? 'No player support for selected device',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            title.isEmpty ? 'No track title' : title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            artist.isEmpty ? 'Unknown artist' : artist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _MetricTile(
+                icon: Icons.play_circle_outline,
+                label: 'Status',
+                value: _display(player?.status),
               ),
-            ),
-            Tooltip(
-              message: 'Refresh',
-              child: IconButton.filledTonal(
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh),
+              _MetricTile(
+                icon: Icons.timer_outlined,
+                label: 'Position',
+                value: _formatMilliseconds(player?.position ?? 0),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            _InfoChip(
-              icon: Icons.play_circle_outline,
-              label: 'Status',
-              value: player?.status.isEmpty ?? true
-                  ? 'unknown'
-                  : player!.status,
-            ),
-            _InfoChip(
-              icon: Icons.timer_outlined,
-              label: 'Position',
-              value: _formatMilliseconds(player?.position ?? 0),
-            ),
-            _InfoChip(
-              icon: Icons.album_outlined,
-              label: 'Album',
-              value: album.isEmpty ? 'unknown' : album,
-            ),
-            _InfoChip(
-              icon: Icons.hourglass_empty,
-              label: 'Duration',
-              value: duration.isEmpty ? 'unknown' : duration,
-            ),
-            _InfoChip(
-              icon: control?.connected ?? false
-                  ? Icons.bluetooth_connected
-                  : Icons.bluetooth,
-              label: 'Connected',
-              value: control?.connected ?? false ? 'yes' : 'no',
-            ),
-          ],
-        ),
-        const SizedBox(height: 28),
-        _TransportButtons(
-          player: player,
-          control: control,
-          onRepeatChanged: onRepeatChanged,
-          onShuffleChanged: onShuffleChanged,
-          onPlayerCommand: onPlayerCommand,
-          onControlCommand: onControlCommand,
-        ),
-        const SizedBox(height: 28),
-        Text('Track Metadata', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        _MetadataTable(properties: player?.track ?? const []),
-        if (messages.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          Text('Recent Events', style: Theme.of(context).textTheme.titleMedium),
+              _MetricTile(
+                icon: Icons.album_outlined,
+                label: 'Album',
+                value: _display(album),
+              ),
+              _MetricTile(
+                icon: Icons.devices,
+                label: 'Device',
+                value: _display(player?.device),
+              ),
+              _MetricTile(
+                icon: Icons.folder_open,
+                label: 'Browsable',
+                value: player?.browsable ?? false ? 'yes' : 'no',
+              ),
+              _MetricTile(
+                icon: Icons.search,
+                label: 'Searchable',
+                value: player?.searchable ?? false ? 'yes' : 'no',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _CommandButton(
+                tooltip: 'Previous',
+                icon: Icons.skip_previous,
+                onPressed: player == null
+                    ? null
+                    : () =>
+                          onCommand('MediaPlayer1 Previous', player!.previous),
+              ),
+              _CommandButton(
+                tooltip: 'Play',
+                icon: Icons.play_arrow,
+                onPressed: player == null
+                    ? null
+                    : () => onCommand('MediaPlayer1 Play', player!.play),
+              ),
+              _CommandButton(
+                tooltip: 'Pause',
+                icon: Icons.pause,
+                onPressed: player == null
+                    ? null
+                    : () => onCommand('MediaPlayer1 Pause', player!.pause),
+              ),
+              _CommandButton(
+                tooltip: 'Stop',
+                icon: Icons.stop,
+                onPressed: player == null
+                    ? null
+                    : () => onCommand('MediaPlayer1 Stop', player!.stop),
+              ),
+              _CommandButton(
+                tooltip: 'Next',
+                icon: Icons.skip_next,
+                onPressed: player == null
+                    ? null
+                    : () => onCommand('MediaPlayer1 Next', player!.next),
+              ),
+              _RepeatModeControl(
+                repeat: player?.repeat ?? 'off',
+                onChanged: player == null ? null : onRepeatChanged,
+              ),
+              _ShuffleModeControl(
+                shuffle: player?.shuffle ?? 'off',
+                onChanged: player == null ? null : onShuffleChanged,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Track metadata',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           const SizedBox(height: 8),
+          _MetadataTable(properties: player?.track ?? const []),
+        ],
+      ),
+    );
+  }
+}
+
+class _ControlProxyPanel extends StatelessWidget {
+  final BluezMediaControl? control;
+  final void Function(String label, VoidCallback command) onCommand;
+
+  const _ControlProxyPanel({required this.control, required this.onCommand});
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionPanel(
+      icon: Icons.settings_remote,
+      title: 'MediaControl1',
+      subtitle:
+          control?.objectPath ?? 'No controller support for selected device',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _MetricTile(
+                icon: control?.connected ?? false
+                    ? Icons.bluetooth_connected
+                    : Icons.bluetooth,
+                label: 'Connected',
+                value: control?.connected ?? false ? 'yes' : 'no',
+              ),
+              _MetricTile(
+                icon: Icons.queue_music,
+                label: 'Active player',
+                value: _display(control?.playerPath),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _CommandButton(
+                tooltip: 'Previous',
+                icon: Icons.skip_previous,
+                onPressed: control == null
+                    ? null
+                    : () => onCommand(
+                        'MediaControl1 Previous',
+                        control!.previous,
+                      ),
+              ),
+              _CommandButton(
+                tooltip: 'Play',
+                icon: Icons.play_arrow,
+                onPressed: control == null
+                    ? null
+                    : () => onCommand('MediaControl1 Play', control!.play),
+              ),
+              _CommandButton(
+                tooltip: 'Pause',
+                icon: Icons.pause,
+                onPressed: control == null
+                    ? null
+                    : () => onCommand('MediaControl1 Pause', control!.pause),
+              ),
+              _CommandButton(
+                tooltip: 'Stop',
+                icon: Icons.stop,
+                onPressed: control == null
+                    ? null
+                    : () => onCommand('MediaControl1 Stop', control!.stop),
+              ),
+              _CommandButton(
+                tooltip: 'Next',
+                icon: Icons.skip_next,
+                onPressed: control == null
+                    ? null
+                    : () => onCommand('MediaControl1 Next', control!.next),
+              ),
+              _CommandButton(
+                tooltip: 'Rewind',
+                icon: Icons.fast_rewind,
+                onPressed: control == null
+                    ? null
+                    : () => onCommand('MediaControl1 Rewind', control!.rewind),
+              ),
+              _CommandButton(
+                tooltip: 'Fast Forward',
+                icon: Icons.fast_forward,
+                onPressed: control == null
+                    ? null
+                    : () => onCommand(
+                        'MediaControl1 Fast forward',
+                        control!.fastForward,
+                      ),
+              ),
+              _CommandButton(
+                tooltip: 'Volume Down',
+                icon: Icons.volume_down,
+                onPressed: control == null
+                    ? null
+                    : () => onCommand(
+                        'MediaControl1 Volume down',
+                        control!.volumeDown,
+                      ),
+              ),
+              _CommandButton(
+                tooltip: 'Volume Up',
+                icon: Icons.volume_up,
+                onPressed: control == null
+                    ? null
+                    : () => onCommand(
+                        'MediaControl1 Volume up',
+                        control!.volumeUp,
+                      ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TransportProxyPanel extends StatelessWidget {
+  final BluezMediaTransport? transport;
+  final int transportCount;
+  final double? volumeDraft;
+  final ValueChanged<double> onVolumePreview;
+  final ValueChanged<double> onVolumeChanged;
+  final void Function(String label, VoidCallback command) onCommand;
+
+  const _TransportProxyPanel({
+    required this.transport,
+    required this.transportCount,
+    required this.volumeDraft,
+    required this.onVolumePreview,
+    required this.onVolumeChanged,
+    required this.onCommand,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final volume = (volumeDraft ?? transport?.volume ?? 0)
+        .clamp(0, 127)
+        .toDouble();
+
+    return _SectionPanel(
+      icon: Icons.graphic_eq,
+      title: 'MediaTransport1',
+      subtitle: transport == null
+          ? 'No transport support for selected device'
+          : '$transportCount transport${transportCount == 1 ? '' : 's'} available',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _MetricTile(
+                icon: Icons.radio_button_checked,
+                label: 'State',
+                value: _display(transport?.state),
+              ),
+              _MetricTile(
+                icon: Icons.memory,
+                label: 'Codec',
+                value: '${transport?.codec ?? 0}',
+              ),
+              _MetricTile(
+                icon: Icons.timer_outlined,
+                label: 'Delay',
+                value: '${transport?.delay ?? 0}',
+              ),
+              _MetricTile(
+                icon: Icons.devices,
+                label: 'Device',
+                value: _display(transport?.device),
+              ),
+              _MetricTile(
+                icon: Icons.link,
+                label: 'UUID',
+                value: _display(transport?.uuid),
+              ),
+              _MetricTile(
+                icon: Icons.output,
+                label: 'Endpoint',
+                value: _display(transport?.endpoint),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Icon(Icons.volume_up),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Slider(
+                  value: volume,
+                  min: 0,
+                  max: 127,
+                  divisions: 127,
+                  label: '${volume.round()}',
+                  onChanged: transport == null ? null : onVolumePreview,
+                  onChangeEnd: transport == null ? null : onVolumeChanged,
+                ),
+              ),
+              SizedBox(
+                width: 44,
+                child: Text(
+                  '${volume.round()}',
+                  textAlign: TextAlign.end,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _CommandButton(
+                tooltip: 'Refresh transport',
+                icon: Icons.sync,
+                onPressed: transport == null
+                    ? null
+                    : () => onCommand(
+                        'MediaTransport1 Refresh',
+                        transport!.refresh,
+                      ),
+              ),
+              _CommandButton(
+                tooltip: 'Try acquire and close',
+                icon: Icons.output,
+                onPressed: transport == null
+                    ? null
+                    : () => onCommand('MediaTransport1 TryAcquire', () {
+                        final acquired = transport!.tryAcquire();
+                        acquired.close();
+                      }),
+              ),
+              _CommandButton(
+                tooltip: 'Release transport',
+                icon: Icons.close,
+                onPressed: transport == null
+                    ? null
+                    : () => onCommand(
+                        'MediaTransport1 Release',
+                        transport!.release,
+                      ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EventPanel extends StatelessWidget {
+  final List<String> messages;
+
+  const _EventPanel({required this.messages});
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionPanel(
+      icon: Icons.history,
+      title: 'Events',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           for (final message in messages)
             Padding(
               padding: const EdgeInsets.only(bottom: 6),
@@ -555,115 +932,120 @@ class _NowPlayingPanel extends StatelessWidget {
               ),
             ),
         ],
-      ],
+      ),
     );
   }
 }
 
-class _TransportButtons extends StatelessWidget {
-  final BluezMediaPlayer? player;
-  final BluezMediaControl? control;
-  final ValueChanged<String> onRepeatChanged;
-  final ValueChanged<String> onShuffleChanged;
-  final void Function(String label, VoidCallback command) onPlayerCommand;
-  final void Function(String label, VoidCallback command) onControlCommand;
+class _SectionPanel extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final Widget child;
 
-  const _TransportButtons({
-    required this.player,
-    required this.control,
-    required this.onRepeatChanged,
-    required this.onShuffleChanged,
-    required this.onPlayerCommand,
-    required this.onControlCommand,
+  const _SectionPanel({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        _CommandButton(
-          tooltip: 'Previous',
-          icon: Icons.skip_previous,
-          onPressed: player == null
-              ? null
-              : () => onPlayerCommand('Previous', player!.previous),
+    final colors = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              ?trailing,
+            ],
+          ),
+          const SizedBox(height: 14),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _MetricTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 188,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          borderRadius: BorderRadius.circular(8),
         ),
-        _CommandButton(
-          tooltip: 'Play',
-          icon: Icons.play_arrow,
-          onPressed: player == null
-              ? null
-              : () => onPlayerCommand('Play', player!.play),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: Theme.of(context).textTheme.labelMedium),
+                    Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        _CommandButton(
-          tooltip: 'Pause',
-          icon: Icons.pause,
-          onPressed: player == null
-              ? null
-              : () => onPlayerCommand('Pause', player!.pause),
-        ),
-        _CommandButton(
-          tooltip: 'Stop',
-          icon: Icons.stop,
-          onPressed: player == null
-              ? null
-              : () => onPlayerCommand('Stop', player!.stop),
-        ),
-        _CommandButton(
-          tooltip: 'Next',
-          icon: Icons.skip_next,
-          onPressed: player == null
-              ? null
-              : () => onPlayerCommand('Next', player!.next),
-        ),
-        const SizedBox(width: 8),
-        _CommandButton(
-          tooltip: 'Rewind',
-          icon: Icons.fast_rewind,
-          onPressed: control == null
-              ? null
-              : () => onControlCommand('Rewind', control!.rewind),
-        ),
-        _CommandButton(
-          tooltip: 'Fast Forward',
-          icon: Icons.fast_forward,
-          onPressed: control == null
-              ? null
-              : () => onControlCommand('Fast forward', control!.fastForward),
-        ),
-        _CommandButton(
-          tooltip: 'Volume Down',
-          icon: Icons.volume_down,
-          onPressed: control == null
-              ? null
-              : () => onControlCommand('Volume down', control!.volumeDown),
-        ),
-        _CommandButton(
-          tooltip: 'Volume Up',
-          icon: Icons.volume_up,
-          onPressed: control == null
-              ? null
-              : () => onControlCommand('Volume up', control!.volumeUp),
-        ),
-        _RepeatModeControl(
-          repeat: player?.repeat ?? 'off',
-          onChanged: onRepeatChanged,
-        ),
-        _ShuffleModeControl(
-          shuffle: player?.shuffle ?? 'off',
-          onChanged: onShuffleChanged,
-        ),
-      ],
+      ),
     );
   }
 }
 
 class _RepeatModeControl extends StatelessWidget {
   final String repeat;
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onChanged;
 
   const _RepeatModeControl({required this.repeat, required this.onChanged});
 
@@ -671,18 +1053,20 @@ class _RepeatModeControl extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = repeat == 'singletrack';
 
-    return _MusicToggleButton(
+    return _ToggleCommandButton(
       tooltip: enabled ? 'Repeat off' : 'Repeat single track',
       icon: enabled ? Icons.repeat_one : Icons.repeat,
       selected: enabled,
-      onPressed: () => onChanged(enabled ? 'off' : 'singletrack'),
+      onPressed: onChanged == null
+          ? null
+          : () => onChanged!(enabled ? 'off' : 'singletrack'),
     );
   }
 }
 
 class _ShuffleModeControl extends StatelessWidget {
   final String shuffle;
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onChanged;
 
   const _ShuffleModeControl({required this.shuffle, required this.onChanged});
 
@@ -690,22 +1074,24 @@ class _ShuffleModeControl extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = shuffle == 'alltracks';
 
-    return _MusicToggleButton(
+    return _ToggleCommandButton(
       tooltip: enabled ? 'Shuffle off' : 'Shuffle all',
       icon: Icons.shuffle,
       selected: enabled,
-      onPressed: () => onChanged(enabled ? 'off' : 'alltracks'),
+      onPressed: onChanged == null
+          ? null
+          : () => onChanged!(enabled ? 'off' : 'alltracks'),
     );
   }
 }
 
-class _MusicToggleButton extends StatelessWidget {
+class _ToggleCommandButton extends StatelessWidget {
   final String tooltip;
   final IconData icon;
   final bool selected;
   final VoidCallback? onPressed;
 
-  const _MusicToggleButton({
+  const _ToggleCommandButton({
     required this.tooltip,
     required this.icon,
     required this.selected,
@@ -718,16 +1104,10 @@ class _MusicToggleButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: SizedBox.square(
-        dimension: 40,
-        child: IconButton(
-          padding: EdgeInsets.zero,
-          visualDensity: VisualDensity.compact,
+        dimension: 48,
+        child: IconButton.filledTonal(
           onPressed: onPressed,
-          icon: Icon(
-            icon,
-            size: 24,
-            color: selected ? colors.primary : colors.onSurfaceVariant,
-          ),
+          icon: Icon(icon, color: selected ? colors.primary : null),
         ),
       ),
     );
@@ -752,50 +1132,6 @@ class _CommandButton extends StatelessWidget {
       child: SizedBox.square(
         dimension: 48,
         child: IconButton.filledTonal(onPressed: onPressed, icon: Icon(icon)),
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 180,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: Theme.of(context).textTheme.labelMedium),
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -878,6 +1214,103 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+class _MediaDevice {
+  final String devicePath;
+  final BluezMediaPlayer? player;
+  final BluezMediaControl? control;
+  final List<BluezMediaTransport> transports;
+
+  const _MediaDevice({
+    required this.devicePath,
+    required this.player,
+    required this.control,
+    required this.transports,
+  });
+
+  BluezMediaTransport? get transport => transports.firstOrNull;
+  bool get connected => control?.connected ?? false;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _MediaDevice && other.devicePath == devicePath;
+
+  @override
+  int get hashCode => devicePath.hashCode;
+}
+
+List<_MediaDevice> _mediaDevices(
+  List<BluezMediaPlayer> players,
+  List<BluezMediaControl> controls,
+  List<BluezMediaTransport> transports,
+) {
+  final devicePaths = <String>{};
+  for (final player in players) {
+    devicePaths.add(_devicePathForPlayer(player));
+  }
+  for (final control in controls) {
+    devicePaths.add(control.objectPath);
+  }
+  for (final transport in transports) {
+    devicePaths.add(_devicePathForTransport(transport));
+  }
+
+  return [
+    for (final devicePath in devicePaths.where((path) => path.isNotEmpty))
+      _MediaDevice(
+        devicePath: devicePath,
+        player: players
+            .where((player) => _devicePathForPlayer(player) == devicePath)
+            .firstOrNull,
+        control: controls
+            .where((control) => control.objectPath == devicePath)
+            .firstOrNull,
+        transports: transports
+            .where(
+              (transport) => _devicePathForTransport(transport) == devicePath,
+            )
+            .toList(),
+      ),
+  ]..sort((left, right) => left.devicePath.compareTo(right.devicePath));
+}
+
+String? _keepDeviceSelection(List<_MediaDevice> devices, String? selectedPath) {
+  if (devices.isEmpty) return null;
+  if (selectedPath == null) return devices.first.devicePath;
+  return devices
+          .where((device) => device.devicePath == selectedPath)
+          .firstOrNull
+          ?.devicePath ??
+      devices.first.devicePath;
+}
+
+String _devicePathForPlayer(BluezMediaPlayer player) {
+  if (player.device.isNotEmpty) return player.device;
+  return _devicePathFromObjectPath(player.objectPath);
+}
+
+String _devicePathForTransport(BluezMediaTransport transport) {
+  if (transport.device.isNotEmpty) return transport.device;
+  return _devicePathFromObjectPath(transport.objectPath);
+}
+
+String _devicePathFromObjectPath(String objectPath) {
+  final marker = objectPath.indexOf('/dev_');
+  if (marker < 0) return objectPath;
+  final nextSlash = objectPath.indexOf('/', marker + 1);
+  if (nextSlash < 0) return objectPath;
+  return objectPath.substring(0, nextSlash);
+}
+
+String _deviceLabel(_MediaDevice device) {
+  return device.devicePath.split('/').last.replaceAll('_', ':');
+}
+
+String _connectionLabel(_MediaDevice? device) {
+  if (device == null) return 'Not connected';
+  if (device.control == null) return 'Connection unknown';
+  return device.connected ? 'Connected' : 'Not connected';
+}
+
 String _trackValue(BluezMediaPlayer? player, List<String> keys) {
   if (player == null) return '';
   for (final key in keys) {
@@ -888,12 +1321,9 @@ String _trackValue(BluezMediaPlayer? player, List<String> keys) {
   return '';
 }
 
-T? _nextValue<T>(List<T> values, T? selected) {
-  if (values.isEmpty) return null;
-  if (selected == null) return values.first;
-  final index = values.indexOf(selected);
-  if (index < 0) return values.first;
-  return values[(index + 1) % values.length];
+String _display(String? value) {
+  if (value == null || value.isEmpty) return 'unknown';
+  return value;
 }
 
 String _formatMilliseconds(int milliseconds) {

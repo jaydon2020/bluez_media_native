@@ -259,6 +259,7 @@ class BluezMediaClient {
 
   void setRepeat(String playerPath, String repeat) {
     _ensureOpen();
+    _checkMediaPlayerMode(repeat, _repeatModes, 'Repeat');
 
     final playerPathPtr = playerPath.toNativeUtf8();
     final repeatPtr = repeat.toNativeUtf8();
@@ -268,7 +269,7 @@ class BluezMediaClient {
         playerPathPtr.cast<Char>(),
         repeatPtr.cast<Char>(),
       );
-      _checkResult(result, 'set player repeat');
+      _checkMediaPlayerSettingResult(result, 'Repeat', repeat);
     } finally {
       calloc.free(repeatPtr);
       calloc.free(playerPathPtr);
@@ -277,6 +278,7 @@ class BluezMediaClient {
 
   void setShuffle(String playerPath, String shuffle) {
     _ensureOpen();
+    _checkMediaPlayerMode(shuffle, _shuffleModes, 'Shuffle');
 
     final playerPathPtr = playerPath.toNativeUtf8();
     final shufflePtr = shuffle.toNativeUtf8();
@@ -286,7 +288,7 @@ class BluezMediaClient {
         playerPathPtr.cast<Char>(),
         shufflePtr.cast<Char>(),
       );
-      _checkResult(result, 'set player shuffle');
+      _checkMediaPlayerSettingResult(result, 'Shuffle', shuffle);
     } finally {
       calloc.free(shufflePtr);
       calloc.free(playerPathPtr);
@@ -905,6 +907,35 @@ class BluezMediaClient {
     }
     throw StateError('Failed to $operation: native error $result.');
   }
+
+  static void _checkMediaPlayerMode(
+    String value,
+    Set<String> allowedValues,
+    String property,
+  ) {
+    if (allowedValues.contains(value)) {
+      return;
+    }
+    throw ArgumentError.value(
+      value,
+      property,
+      'Expected one of: ${allowedValues.join(', ')}',
+    );
+  }
+
+  static void _checkMediaPlayerSettingResult(
+    int result,
+    String property,
+    String value,
+  ) {
+    if (result == -4) {
+      throw UnsupportedError(
+        'BlueZ rejected MediaPlayer1.$property "$value". '
+        'The remote player may not support changing this setting.',
+      );
+    }
+    _checkResult(result, 'set player ${property.toLowerCase()}');
+  }
 }
 
 /// The dynamic library in which the symbols for [BluezMediaNativeBindings] can be found.
@@ -913,6 +944,9 @@ final DynamicLibrary _dylib = loadBluezMediaNative();
 /// The bindings to the native functions in [_dylib].
 final BluezMediaNativeBindings _bindings = BluezMediaNativeBindings(_dylib);
 bool _nativeApiInitialized = false;
+
+const _repeatModes = {'off', 'singletrack', 'alltracks', 'group'};
+const _shuffleModes = {'off', 'alltracks', 'group'};
 
 void _initializeNativeApi() {
   if (_nativeApiInitialized) return;

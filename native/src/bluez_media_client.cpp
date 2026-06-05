@@ -16,6 +16,15 @@
 #include "media_player_proxy.h"
 #include "media_transport_proxy.h"
 
+namespace {
+
+bool is_invalid_media_player_parameter(const sdbus::Error &error) {
+  return error.getName() == "org.bluez.Error.Failed" &&
+         error.getMessage().find("Invalid Parameter") != std::string::npos;
+}
+
+} // namespace
+
 struct BluezMediaClientContext {
   std::unique_ptr<sdbus::IConnection> conn;
   std::unique_ptr<MediaClient> client;
@@ -163,6 +172,9 @@ int bluez_media_player_set_repeat(void *handle, const char *player_path,
     MediaPlayerProxy proxy{*ctx->conn, player_path};
     return proxy.set_repeat(repeat);
   } catch (const sdbus::Error &e) {
+    if (is_invalid_media_player_parameter(e)) {
+      return -4;
+    }
     fprintf(stderr, "bluez_media_player_set_repeat: %s\n", e.what());
     return -3;
   }
@@ -178,6 +190,9 @@ int bluez_media_player_set_shuffle(void *handle, const char *player_path,
     MediaPlayerProxy proxy{*ctx->conn, player_path};
     return proxy.set_shuffle(shuffle);
   } catch (const sdbus::Error &e) {
+    if (is_invalid_media_player_parameter(e)) {
+      return -4;
+    }
     fprintf(stderr, "bluez_media_player_set_shuffle: %s\n", e.what());
     return -3;
   }
