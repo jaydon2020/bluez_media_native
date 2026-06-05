@@ -10,18 +10,9 @@
 struct MediaPlayerState {
   std::string adapter_path;
   std::string player_path;
-  std::string identity;
   std::string name;
   std::string type;
   std::string subtype;
-  std::string status;
-  uint32_t position_ms{};
-  bool can_go_next{};
-  bool can_go_previous{};
-  bool can_play{};
-  bool can_pause{};
-  bool can_seek{};
-  bool can_control{};
   bool browsable{};
   bool searchable{};
 };

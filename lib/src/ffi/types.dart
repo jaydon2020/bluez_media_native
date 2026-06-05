@@ -12,7 +12,6 @@ class BlueZMediaProperty {
 /// MediaPlayer1 properties from BlueZ.
 class BlueZMediaPlayerProps {
   final String objectPath;
-  final int changedMask;
   final String equalizer;
   final String repeat;
   final String shuffle;
@@ -30,7 +29,6 @@ class BlueZMediaPlayerProps {
 
   const BlueZMediaPlayerProps({
     required this.objectPath,
-    this.changedMask = 0,
     this.equalizer = '',
     this.repeat = '',
     this.shuffle = '',
@@ -51,34 +49,13 @@ class BlueZMediaPlayerProps {
 /// MediaControl1 properties from BlueZ.
 class BlueZMediaControlProps {
   final String objectPath;
-  final int changedMask;
   final bool connected;
   final String player;
 
   const BlueZMediaControlProps({
     required this.objectPath,
-    this.changedMask = 0,
     this.connected = false,
     this.player = '',
-  });
-}
-
-/// MediaEndpoint1 properties and configuration from BlueZ.
-class BlueZMediaEndpointProps {
-  final String objectPath;
-  final String uuid;
-  final int codec;
-  final List<int> capabilities;
-  final String device;
-  final bool delayReporting;
-
-  const BlueZMediaEndpointProps({
-    required this.objectPath,
-    this.uuid = '',
-    this.codec = 0,
-    this.capabilities = const [],
-    this.device = '',
-    this.delayReporting = false,
   });
 }
 
@@ -164,19 +141,6 @@ class BlueZMediaAcquireResult {
     required this.fd,
     required this.readMtu,
     required this.writeMtu,
-  });
-}
-
-/// D-Bus error from a failed BlueZ Media method call.
-class BlueZMediaError {
-  final String objectPath;
-  final String name;
-  final String message;
-
-  const BlueZMediaError({
-    required this.objectPath,
-    required this.name,
-    required this.message,
   });
 }
 

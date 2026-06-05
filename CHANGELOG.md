@@ -1,3 +1,3 @@
 ## 0.0.1
 
-* TODO: Describe initial release.
+* Initial BlueZ media registration, control, browsing, and transport APIs.

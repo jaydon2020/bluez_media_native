@@ -17,7 +17,6 @@ add_subdirectory(third_party/sdbus-cpp EXCLUDE_FROM_ALL)
 add_library(bluez_media_native_core STATIC
   src/bluez_media_client.cpp
   src/dart_api_dl.c
-  src/bluez_media_native.c
   src/media_client.cpp
   src/media_object_manager.cpp
   src/local_player.cpp
@@ -48,7 +47,6 @@ set_target_properties(bluez_media_native_core PROPERTIES
 add_library(bluez_media_native SHARED
   src/bluez_media_client.cpp
   src/dart_api_dl.c
-  src/bluez_media_native.c
   src/media_client.cpp
   src/media_object_manager.cpp
   src/local_player.cpp
@@ -72,11 +70,17 @@ target_link_libraries(bluez_media_native
 )
 
 set_target_properties(bluez_media_native PROPERTIES
+  C_VISIBILITY_PRESET hidden
   CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN YES
   LINKER_LANGUAGE CXX
   PUBLIC_HEADER include/bluez_media_native.h
   OUTPUT_NAME "bluez_media_native"
 )
+
+if(UNIX AND NOT APPLE)
+  target_link_options(bluez_media_native PRIVATE "-Wl,--exclude-libs,ALL")
+endif()
 
 if(ANDROID)
   # Support Android 15 16k page size.

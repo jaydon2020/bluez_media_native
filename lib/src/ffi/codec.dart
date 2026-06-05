@@ -19,8 +19,6 @@ class GlazeCodec {
       return _decodeMediaPlayerProps(r) as T;
     } else if (T == BlueZMediaControlProps) {
       return _decodeMediaControlProps(r) as T;
-    } else if (T == BlueZMediaEndpointProps) {
-      return _decodeMediaEndpointProps(r) as T;
     } else if (T == BlueZMediaTransportProps) {
       return _decodeMediaTransportProps(r) as T;
     } else if (T == BlueZMediaFolderProps) {
@@ -31,8 +29,6 @@ class GlazeCodec {
       return _decodeMediaFolderItems(r) as T;
     } else if (T == BlueZMediaAcquireResult) {
       return _decodeMediaAcquireResult(r) as T;
-    } else if (T == BlueZMediaError) {
-      return _decodeMediaError(r) as T;
     } else if (T == BlueZMediaManagedObjects) {
       return _decodeMediaManagedObjects(r) as T;
     } else if (T == BlueZMediaObjectRemoved) {
@@ -48,7 +44,6 @@ class GlazeCodec {
   static BlueZMediaPlayerProps _decodeMediaPlayerProps(_Reader r) {
     return BlueZMediaPlayerProps(
       objectPath: r.readString(),
-      changedMask: r.readUint32(),
       equalizer: r.readString(),
       repeat: r.readString(),
       shuffle: r.readString(),
@@ -69,20 +64,8 @@ class GlazeCodec {
   static BlueZMediaControlProps _decodeMediaControlProps(_Reader r) {
     return BlueZMediaControlProps(
       objectPath: r.readString(),
-      changedMask: r.readUint32(),
       connected: r.readBool(),
       player: r.readString(),
-    );
-  }
-
-  static BlueZMediaEndpointProps _decodeMediaEndpointProps(_Reader r) {
-    return BlueZMediaEndpointProps(
-      objectPath: r.readString(),
-      uuid: r.readString(),
-      codec: r.readUint8(),
-      capabilities: r.readByteList(),
-      device: r.readString(),
-      delayReporting: r.readBool(),
     );
   }
 
@@ -133,14 +116,6 @@ class GlazeCodec {
       fd: r.readUint64(),
       readMtu: r.readUint16(),
       writeMtu: r.readUint16(),
-    );
-  }
-
-  static BlueZMediaError _decodeMediaError(_Reader r) {
-    return BlueZMediaError(
-      objectPath: r.readString(),
-      name: r.readString(),
-      message: r.readString(),
     );
   }
 

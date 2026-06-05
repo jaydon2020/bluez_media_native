@@ -24,7 +24,6 @@ void test_media_property_roundtrip() {
 void test_media_player_props_roundtrip() {
   BlueZMediaPlayerProps orig;
   orig.objectPath = "/org/bluez/hci0/dev_AA/player0";
-  orig.changedMask = 0xFFFFFFFFu;
   orig.repeat = "off";
   orig.shuffle = "alltracks";
   orig.status = "playing";
@@ -44,7 +43,6 @@ void test_media_player_props_roundtrip() {
 
   assert(end == buf.size());
   assert(decoded.objectPath == orig.objectPath);
-  assert(decoded.changedMask == orig.changedMask);
   assert(decoded.repeat == orig.repeat);
   assert(decoded.shuffle == orig.shuffle);
   assert(decoded.status == orig.status);
@@ -66,7 +64,6 @@ void test_media_player_props_roundtrip() {
 void test_media_control_props_roundtrip() {
   BlueZMediaControlProps orig;
   orig.objectPath = "/org/bluez/hci0/dev_AA";
-  orig.changedMask = 0x3u;
   orig.connected = true;
   orig.player = "/org/bluez/hci0/dev_AA/player0";
 
@@ -76,31 +73,8 @@ void test_media_control_props_roundtrip() {
 
   assert(end == buf.size());
   assert(decoded.objectPath == orig.objectPath);
-  assert(decoded.changedMask == orig.changedMask);
   assert(decoded.connected == orig.connected);
   assert(decoded.player == orig.player);
-}
-
-void test_media_endpoint_props_roundtrip() {
-  BlueZMediaEndpointProps orig;
-  orig.objectPath = "/bluez_media/endpoint/a2dp_sink";
-  orig.uuid = "0000110b-0000-1000-8000-00805f9b34fb";
-  orig.codec = 0x00;
-  orig.capabilities = {0x3f, 0xff, 0x02, 0x35};
-  orig.device = "/org/bluez/hci0/dev_AA";
-  orig.delayReporting = true;
-
-  auto buf = glz::encode(orig);
-  BlueZMediaEndpointProps decoded;
-  auto end = glz::decode(buf.data(), 0, decoded);
-
-  assert(end == buf.size());
-  assert(decoded.objectPath == orig.objectPath);
-  assert(decoded.uuid == orig.uuid);
-  assert(decoded.codec == orig.codec);
-  assert(decoded.capabilities == orig.capabilities);
-  assert(decoded.device == orig.device);
-  assert(decoded.delayReporting == orig.delayReporting);
 }
 
 void test_media_transport_props_roundtrip() {
@@ -209,19 +183,6 @@ void test_method_result_roundtrips() {
   assert(decoded_acquire.readMtu == acquire.readMtu);
   assert(decoded_acquire.writeMtu == acquire.writeMtu);
 
-  BlueZMediaError error;
-  error.objectPath = "/org/bluez/hci0/dev_AA/fd0";
-  error.name = "org.bluez.Error.NotAvailable";
-  error.message = "Transport is not available";
-
-  auto error_buf = glz::encode(error);
-  BlueZMediaError decoded_error;
-  auto error_end = glz::decode(error_buf.data(), 0, decoded_error);
-
-  assert(error_end == error_buf.size());
-  assert(decoded_error.objectPath == error.objectPath);
-  assert(decoded_error.name == error.name);
-  assert(decoded_error.message == error.message);
 }
 
 void test_object_manager_roundtrips() {
@@ -265,7 +226,6 @@ int main() {
   test_media_property_roundtrip();
   test_media_player_props_roundtrip();
   test_media_control_props_roundtrip();
-  test_media_endpoint_props_roundtrip();
   test_media_transport_props_roundtrip();
   test_media_item_props_roundtrip();
   test_media_folder_items_roundtrip();

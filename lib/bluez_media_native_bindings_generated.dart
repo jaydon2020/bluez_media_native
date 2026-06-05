@@ -804,34 +804,6 @@ class BluezMediaNativeBindings {
           .asFunction<
             int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int)
           >();
-
-  /// A very short-lived native function.
-  ///
-  /// For very short-lived functions, it is fine to call them on the main isolate.
-  /// They block Dart execution while running, so only use this pattern for work
-  /// that is guaranteed to complete quickly.
-  int sum(int a, int b) {
-    return _sum(a, b);
-  }
-
-  late final _sumPtr =
-      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Int, ffi.Int)>>('sum');
-  late final _sum = _sumPtr.asFunction<int Function(int, int)>();
-
-  /// A longer-lived native function that occupies the calling thread.
-  ///
-  /// Do not call this kind of function on the main isolate in Flutter apps. Use a
-  /// helper isolate for blocking native work.
-  int sum_long_running(int a, int b) {
-    return _sum_long_running(a, b);
-  }
-
-  late final _sum_long_runningPtr =
-      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Int, ffi.Int)>>(
-        'sum_long_running',
-      );
-  late final _sum_long_running = _sum_long_runningPtr
-      .asFunction<int Function(int, int)>();
 }
 
 final class BluezMediaPlayerRegistration extends ffi.Struct {
@@ -839,36 +811,11 @@ final class BluezMediaPlayerRegistration extends ffi.Struct {
 
   external ffi.Pointer<ffi.Char> player_path;
 
-  external ffi.Pointer<ffi.Char> identity;
-
   external ffi.Pointer<ffi.Char> name;
 
   external ffi.Pointer<ffi.Char> type;
 
   external ffi.Pointer<ffi.Char> subtype;
-
-  external ffi.Pointer<ffi.Char> status;
-
-  @ffi.Uint32()
-  external int position_ms;
-
-  @ffi.Uint8()
-  external int can_go_next;
-
-  @ffi.Uint8()
-  external int can_go_previous;
-
-  @ffi.Uint8()
-  external int can_play;
-
-  @ffi.Uint8()
-  external int can_pause;
-
-  @ffi.Uint8()
-  external int can_seek;
-
-  @ffi.Uint8()
-  external int can_control;
 
   @ffi.Uint8()
   external int browsable;

@@ -21,7 +21,6 @@ dart run example/register_player.dart \
   --adapter /org/bluez/hci0 \
   --player /bluez_media/player0 \
   --name bluez_media_native \
-  --status stopped \
   --hold 30
 ```
 

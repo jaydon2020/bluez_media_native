@@ -85,7 +85,6 @@ void main() {
     test('decodes BlueZMediaPlayerProps', () {
       final b = BytesBuilder();
       _writeString(b, '/org/bluez/hci0/dev_AA/player0');
-      _writeUint32(b, 0xFFFFFFFF);
       _writeString(b, 'off'); // equalizer
       _writeString(b, 'singletrack'); // repeat
       _writeString(b, 'alltracks'); // shuffle
@@ -105,7 +104,6 @@ void main() {
       final props = GlazeCodec.decode<BlueZMediaPlayerProps>(data, 0);
 
       expect(props.objectPath, '/org/bluez/hci0/dev_AA/player0');
-      expect(props.changedMask, 0xFFFFFFFF);
       expect(props.repeat, 'singletrack');
       expect(props.shuffle, 'alltracks');
       expect(props.status, 'playing');
@@ -124,7 +122,6 @@ void main() {
     test('decodes BlueZMediaControlProps', () {
       final b = BytesBuilder();
       _writeString(b, '/org/bluez/hci0/dev_AA');
-      _writeUint32(b, 0x3);
       _writeBool(b, true);
       _writeString(b, '/org/bluez/hci0/dev_AA/player0');
 
@@ -132,29 +129,8 @@ void main() {
       final props = GlazeCodec.decode<BlueZMediaControlProps>(data, 0);
 
       expect(props.objectPath, '/org/bluez/hci0/dev_AA');
-      expect(props.changedMask, 0x3);
       expect(props.connected, true);
       expect(props.player, '/org/bluez/hci0/dev_AA/player0');
-    });
-
-    test('decodes BlueZMediaEndpointProps', () {
-      final b = BytesBuilder();
-      _writeString(b, '/bluez_media/endpoint/a2dp_sink');
-      _writeString(b, '0000110b-0000-1000-8000-00805f9b34fb');
-      _writeUint8(b, 0x00);
-      _writeByteList(b, [0x3f, 0xff, 0x02, 0x35]);
-      _writeString(b, '/org/bluez/hci0/dev_AA');
-      _writeBool(b, true);
-
-      final data = Uint8List.fromList(b.toBytes());
-      final props = GlazeCodec.decode<BlueZMediaEndpointProps>(data, 0);
-
-      expect(props.objectPath, '/bluez_media/endpoint/a2dp_sink');
-      expect(props.uuid, '0000110b-0000-1000-8000-00805f9b34fb');
-      expect(props.codec, 0);
-      expect(props.capabilities, [0x3f, 0xff, 0x02, 0x35]);
-      expect(props.device, '/org/bluez/hci0/dev_AA');
-      expect(props.delayReporting, true);
     });
 
     test('decodes BlueZMediaTransportProps', () {
@@ -271,21 +247,6 @@ void main() {
       expect(result.fd, 42);
       expect(result.readMtu, 672);
       expect(result.writeMtu, 672);
-    });
-
-    test('decodes BlueZMediaError with offset', () {
-      final b = BytesBuilder();
-      b.addByte(0x20); // discriminator
-      _writeString(b, '/org/bluez/hci0/dev_AA/fd0');
-      _writeString(b, 'org.bluez.Error.NotAvailable');
-      _writeString(b, 'Transport is not available');
-
-      final data = Uint8List.fromList(b.toBytes());
-      final err = GlazeCodec.decode<BlueZMediaError>(data, 1);
-
-      expect(err.objectPath, '/org/bluez/hci0/dev_AA/fd0');
-      expect(err.name, 'org.bluez.Error.NotAvailable');
-      expect(err.message, 'Transport is not available');
     });
 
     test('decodes BlueZMediaManagedObjects', () {

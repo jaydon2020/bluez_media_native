@@ -3,13 +3,11 @@
 // Message discriminator byte at offset 0 in kExternalTypedData:
 //   0x01 = BlueZMediaPlayerProps     (player PropertiesChanged or snapshot)
 //   0x02 = BlueZMediaControlProps    (control PropertiesChanged or snapshot)
-//   0x03 = BlueZMediaEndpointProps   (endpoint configuration)
 //   0x04 = BlueZMediaTransportProps  (transport PropertiesChanged or snapshot)
 //   0x05 = BlueZMediaFolderProps     (folder PropertiesChanged or snapshot)
 //   0x06 = BlueZMediaItemProps       (media item PropertiesChanged or snapshot)
 //   0x7E = BlueZMediaObjectRemoved   (ObjectManager InterfacesRemoved)
 //   0x10 = BlueZMediaAcquireResult   (Acquire / TryAcquire result)
-//   0x20 = BlueZMediaError           (method call failed)
 //   0xFF = sentinel (stream done)
 
 #pragma once
@@ -36,7 +34,6 @@ template <> struct glz::meta<BlueZMediaProperty> {
 
 struct BlueZMediaPlayerProps {
   std::string objectPath;
-  uint32_t changedMask{};
   std::string equalizer;
   std::string repeat;
   std::string shuffle;
@@ -55,7 +52,6 @@ struct BlueZMediaPlayerProps {
 template <> struct glz::meta<BlueZMediaPlayerProps> {
   static constexpr auto fields = std::make_tuple(
       glz::field("objectPath", &BlueZMediaPlayerProps::objectPath),
-      glz::field("changedMask", &BlueZMediaPlayerProps::changedMask),
       glz::field("equalizer", &BlueZMediaPlayerProps::equalizer),
       glz::field("repeat", &BlueZMediaPlayerProps::repeat),
       glz::field("shuffle", &BlueZMediaPlayerProps::shuffle),
@@ -76,36 +72,14 @@ template <> struct glz::meta<BlueZMediaPlayerProps> {
 
 struct BlueZMediaControlProps {
   std::string objectPath;
-  uint32_t changedMask{};
   bool connected{};
   std::string player;
 };
 template <> struct glz::meta<BlueZMediaControlProps> {
   static constexpr auto fields = std::make_tuple(
       glz::field("objectPath", &BlueZMediaControlProps::objectPath),
-      glz::field("changedMask", &BlueZMediaControlProps::changedMask),
       glz::field("connected", &BlueZMediaControlProps::connected),
       glz::field("player", &BlueZMediaControlProps::player));
-};
-
-// ── MediaEndpoint1 properties/configuration ────────────────────────────────
-
-struct BlueZMediaEndpointProps {
-  std::string objectPath;
-  std::string uuid;
-  uint8_t codec{};
-  std::vector<uint8_t> capabilities;
-  std::string device;
-  bool delayReporting{};
-};
-template <> struct glz::meta<BlueZMediaEndpointProps> {
-  static constexpr auto fields = std::make_tuple(
-      glz::field("objectPath", &BlueZMediaEndpointProps::objectPath),
-      glz::field("uuid", &BlueZMediaEndpointProps::uuid),
-      glz::field("codec", &BlueZMediaEndpointProps::codec),
-      glz::field("capabilities", &BlueZMediaEndpointProps::capabilities),
-      glz::field("device", &BlueZMediaEndpointProps::device),
-      glz::field("delayReporting", &BlueZMediaEndpointProps::delayReporting));
 };
 
 // ── MediaTransport1 properties ─────────────────────────────────────────────
@@ -194,18 +168,6 @@ template <> struct glz::meta<BlueZMediaAcquireResult> {
       glz::field("fd", &BlueZMediaAcquireResult::fd),
       glz::field("readMtu", &BlueZMediaAcquireResult::readMtu),
       glz::field("writeMtu", &BlueZMediaAcquireResult::writeMtu));
-};
-
-struct BlueZMediaError {
-  std::string objectPath;
-  std::string name;
-  std::string message;
-};
-template <> struct glz::meta<BlueZMediaError> {
-  static constexpr auto fields =
-      std::make_tuple(glz::field("objectPath", &BlueZMediaError::objectPath),
-                      glz::field("name", &BlueZMediaError::name),
-                      glz::field("message", &BlueZMediaError::message));
 };
 
 struct BlueZMediaManagedObjects {

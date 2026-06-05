@@ -1,5 +1,5 @@
 name: bluez_media_native
-description: "A new Flutter FFI plugin project."
+description: Native Dart bindings for BlueZ media control, browsing, registration, and transports.
 version: 0.0.1
 homepage: https://github.com/jaydon2020/bluez_media_native
 repository: https://github.com/jaydon2020/bluez_media_native
@@ -14,7 +14,6 @@ dependencies:
   ffi: ^2.1.3
   flutter:
     sdk: flutter
-  plugin_platform_interface: ^2.0.2
 
 dev_dependencies:
   ffigen: ^13.0.0

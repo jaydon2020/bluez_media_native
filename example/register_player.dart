@@ -25,7 +25,6 @@ Future<void> main(List<String> args) async {
       '--adapter <path>       BlueZ adapter path, default $kDefaultAdapterPath',
       '--player <path>        Local object path, default $kDefaultLocalPlayerPath',
       '--name <name>          Player name shown to BlueZ',
-      '--status <status>      stopped, playing, or paused',
       '--hold <seconds>       Keep registration alive, default 30',
     ]);
     return;
@@ -42,7 +41,6 @@ Future<void> main(List<String> args) async {
     fallback: kDefaultLocalPlayerPath,
   );
   final name = optionValue(args, '--name', fallback: 'bluez_media_native');
-  final status = optionValue(args, '--status', fallback: 'stopped');
   final holdSeconds =
       int.tryParse(optionValue(args, '--hold', fallback: '30')) ?? 30;
 
@@ -52,14 +50,7 @@ Future<void> main(List<String> args) async {
       BluezMediaPlayerRegistrationConfig(
         adapterPath: adapterPath,
         playerPath: playerPath,
-        identity: name,
         name: name,
-        status: status,
-        canGoNext: true,
-        canGoPrevious: true,
-        canPlay: true,
-        canPause: true,
-        canControl: true,
         browsable: true,
         searchable: true,
       ),

@@ -13,9 +13,6 @@ class BluezMediaItem {
   BluezMediaItem.internal(this._client, String objectPath)
     : _props = BlueZMediaItemProps(objectPath: objectPath);
 
-  BluezMediaItem.fromProps(this._client, BlueZMediaItemProps props)
-    : _props = props;
-
   /// D-Bus object path.
   String get objectPath => _props.objectPath;
 

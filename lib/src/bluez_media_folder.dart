@@ -14,9 +14,6 @@ class BluezMediaFolder {
   BluezMediaFolder.internal(this._client, String objectPath)
     : _props = BlueZMediaFolderProps(objectPath: objectPath);
 
-  BluezMediaFolder.fromProps(this._client, BlueZMediaFolderProps props)
-    : _props = props;
-
   /// D-Bus object path.
   String get objectPath => _props.objectPath;
 
