@@ -49,6 +49,12 @@ BLUEZ_MEDIA_EXPORT int bluez_media_player_next(void *handle,
                                                const char *player_path);
 BLUEZ_MEDIA_EXPORT int bluez_media_player_previous(void *handle,
                                                    const char *player_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_player_set_repeat(void *handle,
+                                                     const char *player_path,
+                                                     const char *repeat);
+BLUEZ_MEDIA_EXPORT int bluez_media_player_set_shuffle(void *handle,
+                                                      const char *player_path,
+                                                      const char *shuffle);
 BLUEZ_MEDIA_EXPORT int
 bluez_media_player_get_properties(void *handle, const char *player_path,
                                   uint8_t *out, int32_t capacity);

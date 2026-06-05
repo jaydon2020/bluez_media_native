@@ -193,6 +193,61 @@ class BluezMediaNativeBindings {
   late final _bluez_media_player_previous = _bluez_media_player_previousPtr
       .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
 
+  int bluez_media_player_set_repeat(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+    ffi.Pointer<ffi.Char> repeat,
+  ) {
+    return _bluez_media_player_set_repeat(handle, player_path, repeat);
+  }
+
+  late final _bluez_media_player_set_repeatPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+          )
+        >
+      >('bluez_media_player_set_repeat');
+  late final _bluez_media_player_set_repeat = _bluez_media_player_set_repeatPtr
+      .asFunction<
+        int Function(
+          ffi.Pointer<ffi.Void>,
+          ffi.Pointer<ffi.Char>,
+          ffi.Pointer<ffi.Char>,
+        )
+      >();
+
+  int bluez_media_player_set_shuffle(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+    ffi.Pointer<ffi.Char> shuffle,
+  ) {
+    return _bluez_media_player_set_shuffle(handle, player_path, shuffle);
+  }
+
+  late final _bluez_media_player_set_shufflePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+          )
+        >
+      >('bluez_media_player_set_shuffle');
+  late final _bluez_media_player_set_shuffle =
+      _bluez_media_player_set_shufflePtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Char>,
+            )
+          >();
+
   int bluez_media_player_get_properties(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> player_path,

@@ -39,6 +39,18 @@ int MediaPlayerProxy::previous() const {
   return 0;
 }
 
+int MediaPlayerProxy::set_repeat(const std::string &repeat) const {
+  proxy_->setProperty("Repeat").onInterface(kMediaPlayerIface).toValue(repeat);
+  return 0;
+}
+
+int MediaPlayerProxy::set_shuffle(const std::string &shuffle) const {
+  proxy_->setProperty("Shuffle")
+      .onInterface(kMediaPlayerIface)
+      .toValue(shuffle);
+  return 0;
+}
+
 std::vector<uint8_t> MediaPlayerProxy::properties() const {
   BlueZMediaPlayerProps props;
   props.objectPath = player_path_;

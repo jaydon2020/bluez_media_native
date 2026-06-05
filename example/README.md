@@ -23,7 +23,8 @@ flutter run -d linux
 
 The app lets you select a discovered player/controller object, refresh the
 current playback snapshot, send Play/Pause/Stop/Next/Previous, adjust volume,
-and inspect track metadata.
+swap to the next discovered media object pair, set `MediaPlayer1.Repeat` and
+`MediaPlayer1.Shuffle`, and inspect track metadata.
 
 ## Local Player Registration
 

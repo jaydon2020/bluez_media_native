@@ -29,6 +29,8 @@ class BluezMediaPlayer {
   String get type => _props.type;
   String get subtype => _props.subtype;
   String get device => _props.device;
+  String get repeat => _props.repeat;
+  String get shuffle => _props.shuffle;
   bool get browsable => _props.browsable;
   bool get searchable => _props.searchable;
   String get playlist => _props.playlist;
@@ -41,6 +43,8 @@ class BluezMediaPlayer {
   void stop() => _client.stop(objectPath);
   void next() => _client.next(objectPath);
   void previous() => _client.previous(objectPath);
+  void setRepeat(String repeat) => _client.setRepeat(objectPath, repeat);
+  void setShuffle(String shuffle) => _client.setShuffle(objectPath, shuffle);
 
   /// Fetch the latest player snapshot from BlueZ.
   BlueZMediaPlayerProps refresh() {
@@ -53,6 +57,8 @@ class BluezMediaPlayer {
     if (props.status != _props.status) changed.add('Status');
     if (props.position != _props.position) changed.add('Position');
     if (!_sameProperties(props.track, _props.track)) changed.add('Track');
+    if (props.repeat != _props.repeat) changed.add('Repeat');
+    if (props.shuffle != _props.shuffle) changed.add('Shuffle');
     if (props.name != _props.name) changed.add('Name');
     if (props.device != _props.device) changed.add('Device');
 

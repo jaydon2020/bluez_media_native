@@ -143,6 +143,78 @@ class _MediaControlPageState extends State<MediaControlPage> {
     }
   }
 
+  void _swapSelection() {
+    if (_players.isEmpty && _controls.isEmpty) return;
+
+    final player = _nextValue(_players, _selectedPlayer);
+    final control = _nextValue(_controls, _selectedControl);
+    setState(() {
+      _selectedPlayer = player;
+      _selectedControl = control;
+    });
+    _pushMessage('Swapped selection');
+    unawaited(_refreshSelected());
+  }
+
+  void _setRepeatMode(String repeat) {
+    try {
+      final player = _resolveSelectedPlayer();
+      if (player == null) {
+        _pushMessage('No MediaPlayer1 object selected');
+        return;
+      }
+
+      player.setRepeat(repeat);
+      player.refresh();
+      _pushMessage('Repeat: $repeat');
+      if (mounted) setState(() {});
+    } catch (error) {
+      _pushMessage('$error');
+    }
+  }
+
+  void _setShuffleMode(String shuffle) {
+    try {
+      final player = _resolveSelectedPlayer();
+      if (player == null) {
+        _pushMessage('No MediaPlayer1 object selected');
+        return;
+      }
+
+      player.setShuffle(shuffle);
+      player.refresh();
+      _pushMessage('Shuffle: $shuffle');
+      if (mounted) setState(() {});
+    } catch (error) {
+      _pushMessage('$error');
+    }
+  }
+
+  BluezMediaPlayer? _resolveSelectedPlayer() {
+    final selectedPlayer = _selectedPlayer;
+    if (selectedPlayer != null) return selectedPlayer;
+
+    final selectedControl = _selectedControl;
+    if (selectedControl == null) return null;
+
+    selectedControl.refresh();
+    final playerPath = selectedControl.playerPath;
+    if (playerPath.isEmpty) return null;
+
+    final player = _client.player(playerPath);
+    if (!_players.any(
+      (cachedPlayer) => cachedPlayer.objectPath == playerPath,
+    )) {
+      _players = [..._players, player];
+    }
+    if (mounted) {
+      setState(() => _selectedPlayer = player);
+    } else {
+      _selectedPlayer = player;
+    }
+    return player;
+  }
+
   void _pushMessage(String message) {
     if (!mounted) return;
     setState(() {
@@ -200,6 +272,8 @@ class _MediaControlPageState extends State<MediaControlPage> {
             controls: _controls,
             selectedPlayer: _selectedPlayer,
             selectedControl: _selectedControl,
+            canSwap: _players.length > 1 || _controls.length > 1,
+            onSwap: _swapSelection,
             onPlayerChanged: (player) {
               setState(() => _selectedPlayer = player);
               unawaited(_refreshSelected());
@@ -214,6 +288,8 @@ class _MediaControlPageState extends State<MediaControlPage> {
             control: _selectedControl,
             messages: _messages,
             onRefresh: _refreshSelected,
+            onRepeatChanged: _setRepeatMode,
+            onShuffleChanged: _setShuffleMode,
             onPlayerCommand: _runCommand,
             onControlCommand: _runCommand,
           ),
@@ -255,6 +331,8 @@ class _ObjectPicker extends StatelessWidget {
   final List<BluezMediaControl> controls;
   final BluezMediaPlayer? selectedPlayer;
   final BluezMediaControl? selectedControl;
+  final bool canSwap;
+  final VoidCallback onSwap;
   final ValueChanged<BluezMediaPlayer?> onPlayerChanged;
   final ValueChanged<BluezMediaControl?> onControlChanged;
 
@@ -263,6 +341,8 @@ class _ObjectPicker extends StatelessWidget {
     required this.controls,
     required this.selectedPlayer,
     required this.selectedControl,
+    required this.canSwap,
+    required this.onSwap,
     required this.onPlayerChanged,
     required this.onControlChanged,
   });
@@ -272,7 +352,23 @@ class _ObjectPicker extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Objects', style: Theme.of(context).textTheme.titleLarge),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Objects',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+            ),
+            Tooltip(
+              message: 'Swap',
+              child: IconButton.filledTonal(
+                onPressed: canSwap ? onSwap : null,
+                icon: const Icon(Icons.swap_horiz),
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
         _PathDropdown<BluezMediaPlayer>(
           label: 'MediaPlayer1',
@@ -339,6 +435,8 @@ class _NowPlayingPanel extends StatelessWidget {
   final BluezMediaControl? control;
   final List<String> messages;
   final Future<void> Function() onRefresh;
+  final ValueChanged<String> onRepeatChanged;
+  final ValueChanged<String> onShuffleChanged;
   final void Function(String label, VoidCallback command) onPlayerCommand;
   final void Function(String label, VoidCallback command) onControlCommand;
 
@@ -347,6 +445,8 @@ class _NowPlayingPanel extends StatelessWidget {
     required this.control,
     required this.messages,
     required this.onRefresh,
+    required this.onRepeatChanged,
+    required this.onShuffleChanged,
     required this.onPlayerCommand,
     required this.onControlCommand,
   });
@@ -432,6 +532,8 @@ class _NowPlayingPanel extends StatelessWidget {
         _TransportButtons(
           player: player,
           control: control,
+          onRepeatChanged: onRepeatChanged,
+          onShuffleChanged: onShuffleChanged,
           onPlayerCommand: onPlayerCommand,
           onControlCommand: onControlCommand,
         ),
@@ -461,12 +563,16 @@ class _NowPlayingPanel extends StatelessWidget {
 class _TransportButtons extends StatelessWidget {
   final BluezMediaPlayer? player;
   final BluezMediaControl? control;
+  final ValueChanged<String> onRepeatChanged;
+  final ValueChanged<String> onShuffleChanged;
   final void Function(String label, VoidCallback command) onPlayerCommand;
   final void Function(String label, VoidCallback command) onControlCommand;
 
   const _TransportButtons({
     required this.player,
     required this.control,
+    required this.onRepeatChanged,
+    required this.onShuffleChanged,
     required this.onPlayerCommand,
     required this.onControlCommand,
   });
@@ -542,7 +648,88 @@ class _TransportButtons extends StatelessWidget {
               ? null
               : () => onControlCommand('Volume up', control!.volumeUp),
         ),
+        _RepeatModeControl(
+          repeat: player?.repeat ?? 'off',
+          onChanged: onRepeatChanged,
+        ),
+        _ShuffleModeControl(
+          shuffle: player?.shuffle ?? 'off',
+          onChanged: onShuffleChanged,
+        ),
       ],
+    );
+  }
+}
+
+class _RepeatModeControl extends StatelessWidget {
+  final String repeat;
+  final ValueChanged<String> onChanged;
+
+  const _RepeatModeControl({required this.repeat, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = repeat == 'singletrack';
+
+    return _MusicToggleButton(
+      tooltip: enabled ? 'Repeat off' : 'Repeat single track',
+      icon: enabled ? Icons.repeat_one : Icons.repeat,
+      selected: enabled,
+      onPressed: () => onChanged(enabled ? 'off' : 'singletrack'),
+    );
+  }
+}
+
+class _ShuffleModeControl extends StatelessWidget {
+  final String shuffle;
+  final ValueChanged<String> onChanged;
+
+  const _ShuffleModeControl({required this.shuffle, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = shuffle == 'alltracks';
+
+    return _MusicToggleButton(
+      tooltip: enabled ? 'Shuffle off' : 'Shuffle all',
+      icon: Icons.shuffle,
+      selected: enabled,
+      onPressed: () => onChanged(enabled ? 'off' : 'alltracks'),
+    );
+  }
+}
+
+class _MusicToggleButton extends StatelessWidget {
+  final String tooltip;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback? onPressed;
+
+  const _MusicToggleButton({
+    required this.tooltip,
+    required this.icon,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox.square(
+        dimension: 40,
+        child: IconButton(
+          padding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          onPressed: onPressed,
+          icon: Icon(
+            icon,
+            size: 24,
+            color: selected ? colors.primary : colors.onSurfaceVariant,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -699,6 +886,14 @@ String _trackValue(BluezMediaPlayer? player, List<String> keys) {
     }
   }
   return '';
+}
+
+T? _nextValue<T>(List<T> values, T? selected) {
+  if (values.isEmpty) return null;
+  if (selected == null) return values.first;
+  final index = values.indexOf(selected);
+  if (index < 0) return values.first;
+  return values[(index + 1) % values.length];
 }
 
 String _formatMilliseconds(int milliseconds) {

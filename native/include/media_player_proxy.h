@@ -16,6 +16,8 @@ public:
   int stop() const;
   int next() const;
   int previous() const;
+  int set_repeat(const std::string &repeat) const;
+  int set_shuffle(const std::string &shuffle) const;
   std::vector<uint8_t> properties() const;
 
 private:

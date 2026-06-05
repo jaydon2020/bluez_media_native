@@ -257,6 +257,42 @@ class BluezMediaClient {
     );
   }
 
+  void setRepeat(String playerPath, String repeat) {
+    _ensureOpen();
+
+    final playerPathPtr = playerPath.toNativeUtf8();
+    final repeatPtr = repeat.toNativeUtf8();
+    try {
+      final result = _bindings.bluez_media_player_set_repeat(
+        _handle,
+        playerPathPtr.cast<Char>(),
+        repeatPtr.cast<Char>(),
+      );
+      _checkResult(result, 'set player repeat');
+    } finally {
+      calloc.free(repeatPtr);
+      calloc.free(playerPathPtr);
+    }
+  }
+
+  void setShuffle(String playerPath, String shuffle) {
+    _ensureOpen();
+
+    final playerPathPtr = playerPath.toNativeUtf8();
+    final shufflePtr = shuffle.toNativeUtf8();
+    try {
+      final result = _bindings.bluez_media_player_set_shuffle(
+        _handle,
+        playerPathPtr.cast<Char>(),
+        shufflePtr.cast<Char>(),
+      );
+      _checkResult(result, 'set player shuffle');
+    } finally {
+      calloc.free(shufflePtr);
+      calloc.free(playerPathPtr);
+    }
+  }
+
   BlueZMediaPlayerProps getPlayerProperties(String playerPath) {
     _ensureOpen();
 
