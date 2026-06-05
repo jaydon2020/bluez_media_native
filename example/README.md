@@ -10,6 +10,21 @@ For CLI runs, the package resolves the native library in this order:
 3. local build outputs such as `build/native/libbluez_media_native.so`
 4. the system loader path, `libbluez_media_native.so`
 
+## Flutter BLE Audio
+
+The dedicated `flutter_ble_audio` Flutter Linux app discovers BlueZ media
+objects and exposes a small audio control surface for `org.bluez.MediaPlayer1`
+and `org.bluez.MediaControl1`.
+
+```sh
+cd example/flutter_ble_audio
+flutter run -d linux
+```
+
+The app lets you select a discovered player/controller object, refresh the
+current playback snapshot, send Play/Pause/Stop/Next/Previous, adjust volume,
+and inspect track metadata.
+
 ## Local Player Registration
 
 Register this process as a local media player object:
