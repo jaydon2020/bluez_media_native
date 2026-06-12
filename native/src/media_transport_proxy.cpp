@@ -1,5 +1,6 @@
 // media_transport_proxy.cpp
 #include "media_transport_proxy.h"
+#include "bluez_media_native.h"
 #include "bluez_media_types.h"
 
 #include <cerrno>
@@ -63,7 +64,7 @@ std::vector<uint8_t> MediaTransportProxy::try_acquire() const {
 
 int MediaTransportProxy::release() const {
   proxy_->callMethod("Release").onInterface(kMediaTransportIface);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 std::vector<uint8_t> MediaTransportProxy::properties() const {
@@ -124,5 +125,5 @@ int MediaTransportProxy::set_volume(uint16_t volume) const {
   proxy_->setProperty("Volume")
       .onInterface(kMediaTransportIface)
       .toValue(volume);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }

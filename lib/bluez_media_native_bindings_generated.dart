@@ -878,3 +878,27 @@ final class BluezMediaPlayerRegistration extends ffi.Struct {
   @ffi.Uint8()
   external int searchable;
 }
+
+enum BluezMediaStatusCode {
+  BLUEZ_MEDIA_SUCCESS(0),
+  BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT(-1),
+  BLUEZ_MEDIA_ERROR_BUFFER_TOO_SMALL(-2),
+  BLUEZ_MEDIA_ERROR_OPERATION_FAILED(-3),
+  BLUEZ_MEDIA_ERROR_UNSUPPORTED_SETTING(-4),
+  BLUEZ_MEDIA_ERROR_ALREADY_EXISTS(-5),
+  BLUEZ_MEDIA_ERROR_NOT_FOUND(-6);
+
+  final int value;
+  const BluezMediaStatusCode(this.value);
+
+  static BluezMediaStatusCode fromValue(int value) => switch (value) {
+    0 => BLUEZ_MEDIA_SUCCESS,
+    -1 => BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT,
+    -2 => BLUEZ_MEDIA_ERROR_BUFFER_TOO_SMALL,
+    -3 => BLUEZ_MEDIA_ERROR_OPERATION_FAILED,
+    -4 => BLUEZ_MEDIA_ERROR_UNSUPPORTED_SETTING,
+    -5 => BLUEZ_MEDIA_ERROR_ALREADY_EXISTS,
+    -6 => BLUEZ_MEDIA_ERROR_NOT_FOUND,
+    _ => throw ArgumentError("Unknown value for BluezMediaStatusCode: $value"),
+  };
+}

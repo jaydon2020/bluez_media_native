@@ -1,5 +1,6 @@
 // media_player_proxy.cpp
 #include "media_player_proxy.h"
+#include "bluez_media_native.h"
 #include "bluez_media_types.h"
 #include "media_utils.h"
 
@@ -16,39 +17,39 @@ MediaPlayerProxy::MediaPlayerProxy(sdbus::IConnection &conn,
 
 int MediaPlayerProxy::play() const {
   proxy_->callMethod("Play").onInterface(kMediaPlayerIface);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::pause() const {
   proxy_->callMethod("Pause").onInterface(kMediaPlayerIface);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::stop() const {
   proxy_->callMethod("Stop").onInterface(kMediaPlayerIface);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::next() const {
   proxy_->callMethod("Next").onInterface(kMediaPlayerIface);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::previous() const {
   proxy_->callMethod("Previous").onInterface(kMediaPlayerIface);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::set_repeat(const std::string &repeat) const {
   proxy_->setProperty("Repeat").onInterface(kMediaPlayerIface).toValue(repeat);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::set_shuffle(const std::string &shuffle) const {
   proxy_->setProperty("Shuffle")
       .onInterface(kMediaPlayerIface)
       .toValue(shuffle);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 std::vector<uint8_t> MediaPlayerProxy::properties() const {
@@ -78,16 +79,25 @@ std::vector<uint8_t> MediaPlayerProxy::properties() const {
                      .get<std::string>();
   } catch (const sdbus::Error &) {
   }
-  props.status = proxy_->getProperty("Status")
-                     .onInterface(kMediaPlayerIface)
-                     .get<std::string>();
-  props.position = proxy_->getProperty("Position")
+  try {
+    props.status = proxy_->getProperty("Status")
                        .onInterface(kMediaPlayerIface)
-                       .get<uint32_t>();
-  props.track =
-      track_to_properties(proxy_->getProperty("Track")
-                              .onInterface(kMediaPlayerIface)
-                              .get<std::map<std::string, sdbus::Variant>>());
+                       .get<std::string>();
+  } catch (const sdbus::Error &) {
+  }
+  try {
+    props.position = proxy_->getProperty("Position")
+                         .onInterface(kMediaPlayerIface)
+                         .get<uint32_t>();
+  } catch (const sdbus::Error &) {
+  }
+  try {
+    props.track =
+        track_to_properties(proxy_->getProperty("Track")
+                                .onInterface(kMediaPlayerIface)
+                                .get<std::map<std::string, sdbus::Variant>>());
+  } catch (const sdbus::Error &) {
+  }
 
   try {
     props.device = proxy_->getProperty("Device")

@@ -17,34 +17,34 @@ int MediaClient::register_player(
     const BluezMediaPlayerRegistration &registration) {
   if (registration.adapter_path == nullptr ||
       registration.player_path == nullptr) {
-    return -1;
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
   std::string player_path{registration.player_path};
   if (players_.contains(player_path)) {
-    return -2;
+    return BLUEZ_MEDIA_ERROR_ALREADY_EXISTS;
   }
 
   try {
     players_.emplace(player_path,
                      std::make_unique<LocalPlayer>(conn_, registration));
-    return 0;
+    return BLUEZ_MEDIA_SUCCESS;
   } catch (const std::exception &) {
-    return -3;
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
 int MediaClient::unregister_player(const char *adapter_path,
                                    const char *player_path) {
   if (adapter_path == nullptr || player_path == nullptr) {
-    return -1;
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
   std::string player{player_path};
   auto it = players_.find(player);
   if (it == players_.end()) {
-    return -2;
+    return BLUEZ_MEDIA_ERROR_NOT_FOUND;
   }
   players_.erase(it);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 std::vector<uint8_t> MediaClient::get_managed_objects() const {

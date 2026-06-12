@@ -22,6 +22,16 @@ typedef struct BluezMediaPlayerRegistration {
   uint8_t searchable;
 } BluezMediaPlayerRegistration;
 
+typedef enum BluezMediaStatusCode {
+  BLUEZ_MEDIA_SUCCESS = 0,
+  BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT = -1,
+  BLUEZ_MEDIA_ERROR_BUFFER_TOO_SMALL = -2,
+  BLUEZ_MEDIA_ERROR_OPERATION_FAILED = -3,
+  BLUEZ_MEDIA_ERROR_UNSUPPORTED_SETTING = -4,
+  BLUEZ_MEDIA_ERROR_ALREADY_EXISTS = -5,
+  BLUEZ_MEDIA_ERROR_NOT_FOUND = -6,
+} BluezMediaStatusCode;
+
 // ── Client lifecycle ────────────────────────────────────────────────────────
 
 BLUEZ_MEDIA_EXPORT void bluez_media_init(void *dart_api_dl_data);

@@ -1,5 +1,6 @@
 // media_browser_proxy.cpp
 #include "media_browser_proxy.h"
+#include "bluez_media_native.h"
 #include "media_utils.h"
 
 MediaBrowserProxy::MediaBrowserProxy(sdbus::IConnection &conn) : conn_(conn) {}
@@ -94,7 +95,7 @@ int MediaBrowserProxy::folder_change_folder(
       ->callMethod("ChangeFolder")
       .onInterface(kMediaFolderIface)
       .withArguments(sdbus::ObjectPath{target_folder_path});
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 std::vector<uint8_t>
@@ -102,18 +103,24 @@ MediaBrowserProxy::folder_properties(const std::string &folder_path) const {
   auto proxy = make_folder_proxy(folder_path);
   BlueZMediaFolderProps props;
   props.objectPath = folder_path;
-  props.numberOfItems = proxy->getProperty("NumberOfItems")
-                            .onInterface(kMediaFolderIface)
-                            .get<uint32_t>();
-  props.name = proxy->getProperty("Name")
-                   .onInterface(kMediaFolderIface)
-                   .get<std::string>();
+  try {
+    props.numberOfItems = proxy->getProperty("NumberOfItems")
+                              .onInterface(kMediaFolderIface)
+                              .get<uint32_t>();
+  } catch (const sdbus::Error &) {
+  }
+  try {
+    props.name = proxy->getProperty("Name")
+                     .onInterface(kMediaFolderIface)
+                     .get<std::string>();
+  } catch (const sdbus::Error &) {
+  }
   return glz::encode(props);
 }
 
 int MediaBrowserProxy::item_play(const std::string &item_path) const {
   make_item_proxy(item_path)->callMethod("Play").onInterface(kMediaItemIface);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaBrowserProxy::item_add_to_now_playing(
@@ -121,7 +128,7 @@ int MediaBrowserProxy::item_add_to_now_playing(
   make_item_proxy(item_path)
       ->callMethod("AddtoNowPlaying")
       .onInterface(kMediaItemIface);
-  return 0;
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 std::vector<uint8_t>
@@ -129,23 +136,41 @@ MediaBrowserProxy::item_properties(const std::string &item_path) const {
   auto proxy = make_item_proxy(item_path);
   BlueZMediaItemProps props;
   props.objectPath = item_path;
-  props.player = proxy->getProperty("Player")
+  try {
+    props.player = proxy->getProperty("Player")
+                       .onInterface(kMediaItemIface)
+                       .get<sdbus::ObjectPath>();
+  } catch (const sdbus::Error &) {
+  }
+  try {
+    props.name = proxy->getProperty("Name")
                      .onInterface(kMediaItemIface)
-                     .get<sdbus::ObjectPath>();
-  props.name = proxy->getProperty("Name")
-                   .onInterface(kMediaItemIface)
-                   .get<std::string>();
-  props.type = proxy->getProperty("Type")
-                   .onInterface(kMediaItemIface)
-                   .get<std::string>();
-  props.folderType = proxy->getProperty("FolderType")
-                         .onInterface(kMediaItemIface)
-                         .get<std::string>();
-  props.playable =
-      proxy->getProperty("Playable").onInterface(kMediaItemIface).get<bool>();
-  props.metadata =
-      track_to_properties(proxy->getProperty("Metadata")
-                              .onInterface(kMediaItemIface)
-                              .get<std::map<std::string, sdbus::Variant>>());
+                     .get<std::string>();
+  } catch (const sdbus::Error &) {
+  }
+  try {
+    props.type = proxy->getProperty("Type")
+                     .onInterface(kMediaItemIface)
+                     .get<std::string>();
+  } catch (const sdbus::Error &) {
+  }
+  try {
+    props.folderType = proxy->getProperty("FolderType")
+                           .onInterface(kMediaItemIface)
+                           .get<std::string>();
+  } catch (const sdbus::Error &) {
+  }
+  try {
+    props.playable =
+        proxy->getProperty("Playable").onInterface(kMediaItemIface).get<bool>();
+  } catch (const sdbus::Error &) {
+  }
+  try {
+    props.metadata =
+        track_to_properties(proxy->getProperty("Metadata")
+                                .onInterface(kMediaItemIface)
+                                .get<std::map<std::string, sdbus::Variant>>());
+  } catch (const sdbus::Error &) {
+  }
   return glz::encode(props);
 }
