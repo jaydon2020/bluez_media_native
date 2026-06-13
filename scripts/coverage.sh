@@ -18,7 +18,7 @@ ctest --test-dir "${BUILD_DIR}" --output-on-failure -j4
 
 if ! find "${BUILD_DIR}" -name '*.gcda' -print -quit | grep -q .; then
     echo "No coverage data found in ${BUILD_DIR}."
-    echo "This is expected while native/test has no runnable tests."
+    echo "The coverage build completed, but no instrumented test produced data."
     exit 0
 fi
 

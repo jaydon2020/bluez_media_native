@@ -134,12 +134,15 @@ jobs:
           cmake --build build --parallel
       - run: ./scripts/clang_tidy.sh build
 
-  # ── Coverage (PR only) ──────────────────────────────────────────────────
+  # ── Coverage (main repo PRs + main pushes) ──────────────────────────────
   coverage:
     name: Coverage
     runs-on: ubuntu-24.04
     needs: [test-cpp]
-    if: github.event_name == 'pull_request'
+    if: >
+      github.repository == 'jaydon2020/bluez_media_native' &&
+      (github.event_name == 'pull_request' ||
+       (github.event_name == 'push' && github.ref == 'refs/heads/main'))
     steps:
       - uses: actions/checkout@v4
         with: { submodules: recursive }
