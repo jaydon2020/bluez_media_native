@@ -45,7 +45,7 @@ class BluezMediaPlayerRegistrationConfig {
     required this.adapterPath,
     required this.playerPath,
     this.name = 'bluez_media_native',
-    this.type = 'audio',
+    this.type = 'Audio',
     this.subtype = '',
     this.browsable = false,
     this.searchable = false,
@@ -179,6 +179,7 @@ class BluezMediaClient {
 
   void registerPlayer(BluezMediaPlayerRegistrationConfig config) {
     _ensureOpen();
+    _validateRegistrationConfig(config);
 
     final registration = calloc<BluezMediaPlayerRegistration>();
     final strings = <Pointer<Utf8>>[];
@@ -442,37 +443,23 @@ class BluezMediaClient {
 
     final folderPathPtr = folderPath.toNativeUtf8();
     final valuePtr = value.toNativeUtf8();
+    final out = calloc<Uint8>(_methodResultCapacity);
     try {
-      final size = _bindings.bluez_media_folder_search(
+      final result = _bindings.bluez_media_folder_search(
         _handle,
         folderPathPtr.cast<Char>(),
         valuePtr.cast<Char>(),
-        nullptr,
-        0,
+        out,
+        _methodResultCapacity,
       );
-      if (size < 0) {
-        _checkResult(size, 'search media folder size');
+      if (result < 0) {
+        _checkResult(result, 'search media folder');
       }
 
-      final out = calloc<Uint8>(size);
-      try {
-        final result = _bindings.bluez_media_folder_search(
-          _handle,
-          folderPathPtr.cast<Char>(),
-          valuePtr.cast<Char>(),
-          out,
-          size,
-        );
-        if (result < 0) {
-          _checkResult(result, 'search media folder');
-        }
-
-        final bytes = Uint8List.fromList(out.asTypedList(result));
-        return GlazeCodec.decode<BlueZMediaFolderProps>(bytes, 0);
-      } finally {
-        calloc.free(out);
-      }
+      final bytes = Uint8List.fromList(out.asTypedList(result));
+      return GlazeCodec.decode<BlueZMediaFolderProps>(bytes, 0);
     } finally {
+      calloc.free(out);
       calloc.free(valuePtr);
       calloc.free(folderPathPtr);
     }
@@ -624,35 +611,22 @@ class BluezMediaClient {
   BlueZMediaAcquireResult transportAcquire(String transportPath) {
     _ensureOpen();
     final transportPathPtr = transportPath.toNativeUtf8();
+    final out = calloc<Uint8>(_methodResultCapacity);
     try {
-      final size = _bindings.bluez_media_transport_acquire(
+      final result = _bindings.bluez_media_transport_acquire(
         _handle,
         transportPathPtr.cast<Char>(),
-        nullptr,
-        0,
+        out,
+        _methodResultCapacity,
       );
-      if (size < 0) {
-        _checkResult(size, 'acquire media transport size');
+      if (result < 0) {
+        _checkResult(result, 'acquire media transport');
       }
 
-      final out = calloc<Uint8>(size);
-      try {
-        final result = _bindings.bluez_media_transport_acquire(
-          _handle,
-          transportPathPtr.cast<Char>(),
-          out,
-          size,
-        );
-        if (result < 0) {
-          _checkResult(result, 'acquire media transport');
-        }
-
-        final bytes = Uint8List.fromList(out.asTypedList(result));
-        return GlazeCodec.decode<BlueZMediaAcquireResult>(bytes, 0);
-      } finally {
-        calloc.free(out);
-      }
+      final bytes = Uint8List.fromList(out.asTypedList(result));
+      return GlazeCodec.decode<BlueZMediaAcquireResult>(bytes, 0);
     } finally {
+      calloc.free(out);
       calloc.free(transportPathPtr);
     }
   }
@@ -660,35 +634,22 @@ class BluezMediaClient {
   BlueZMediaAcquireResult transportTryAcquire(String transportPath) {
     _ensureOpen();
     final transportPathPtr = transportPath.toNativeUtf8();
+    final out = calloc<Uint8>(_methodResultCapacity);
     try {
-      final size = _bindings.bluez_media_transport_try_acquire(
+      final result = _bindings.bluez_media_transport_try_acquire(
         _handle,
         transportPathPtr.cast<Char>(),
-        nullptr,
-        0,
+        out,
+        _methodResultCapacity,
       );
-      if (size < 0) {
-        _checkResult(size, 'try acquire media transport size');
+      if (result < 0) {
+        _checkResult(result, 'try acquire media transport');
       }
 
-      final out = calloc<Uint8>(size);
-      try {
-        final result = _bindings.bluez_media_transport_try_acquire(
-          _handle,
-          transportPathPtr.cast<Char>(),
-          out,
-          size,
-        );
-        if (result < 0) {
-          _checkResult(result, 'try acquire media transport');
-        }
-
-        final bytes = Uint8List.fromList(out.asTypedList(result));
-        return GlazeCodec.decode<BlueZMediaAcquireResult>(bytes, 0);
-      } finally {
-        calloc.free(out);
-      }
+      final bytes = Uint8List.fromList(out.asTypedList(result));
+      return GlazeCodec.decode<BlueZMediaAcquireResult>(bytes, 0);
     } finally {
+      calloc.free(out);
       calloc.free(transportPathPtr);
     }
   }
@@ -739,6 +700,9 @@ class BluezMediaClient {
 
   void transportSetVolume(String transportPath, int volume) {
     _ensureOpen();
+    if (volume < 0 || volume > 127) {
+      throw RangeError.range(volume, 0, 127, 'volume');
+    }
     final transportPathPtr = transportPath.toNativeUtf8();
     try {
       final result = _bindings.bluez_media_transport_set_volume(
@@ -784,6 +748,16 @@ class BluezMediaClient {
 
   void _onEvent(dynamic message) {
     if (message is! Uint8List || message.isEmpty || _handle == nullptr) return;
+    try {
+      _dispatchEvent(message);
+    } on Exception catch (error) {
+      // A malformed native event must not terminate the ReceivePort listener.
+      // ignore: avoid_print
+      print('[bluez_media] event decode failed: $error');
+    }
+  }
+
+  void _dispatchEvent(Uint8List message) {
     switch (message[0]) {
       case 0x00:
         if (!_ready.isCompleted) _ready.complete();
@@ -923,6 +897,37 @@ class BluezMediaClient {
     );
   }
 
+  static void _validateRegistrationConfig(
+    BluezMediaPlayerRegistrationConfig config,
+  ) {
+    if (!config.adapterPath.startsWith('/') ||
+        !config.playerPath.startsWith('/')) {
+      throw ArgumentError(
+        'Adapter and player paths must be D-Bus object paths.',
+      );
+    }
+    if (!_localPlayerTypes.contains(config.type)) {
+      throw ArgumentError.value(
+        config.type,
+        'type',
+        'Unsupported player type.',
+      );
+    }
+    if (config.subtype.isNotEmpty &&
+        !_localPlayerSubtypes.contains(config.subtype)) {
+      throw ArgumentError.value(
+        config.subtype,
+        'subtype',
+        'Unsupported player subtype.',
+      );
+    }
+    if (config.browsable || config.searchable) {
+      throw UnsupportedError(
+        'Local player browsing requires a MediaFolder1 implementation.',
+      );
+    }
+  }
+
   static void _checkMediaPlayerSettingResult(
     int result,
     String property,
@@ -947,6 +952,14 @@ bool _nativeApiInitialized = false;
 
 const _repeatModes = {'off', 'singletrack', 'alltracks', 'group'};
 const _shuffleModes = {'off', 'alltracks', 'group'};
+const _localPlayerTypes = {
+  'Audio',
+  'Video',
+  'Audio Broadcasting',
+  'Video Broadcasting',
+};
+const _localPlayerSubtypes = {'Audio Book', 'Podcast'};
+const _methodResultCapacity = 4096;
 
 void _initializeNativeApi() {
   if (_nativeApiInitialized) return;

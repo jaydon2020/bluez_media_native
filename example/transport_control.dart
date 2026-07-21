@@ -86,7 +86,7 @@ Future<void> main(List<String> args) async {
         break;
       case 'set_volume':
         if (args.length < 3) {
-          throw FormatException(
+          throw const FormatException(
             'set_volume requires a volume argument (0-127).',
           );
         }

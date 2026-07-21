@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:bluez_media_native/src/ffi/codec.dart';
 import 'package:bluez_media_native/src/ffi/types.dart';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 
 /// Helper: encode a string as length-prefixed UTF-8 (matches glaze_meta.h).
 void _writeString(BytesBuilder b, String s) {

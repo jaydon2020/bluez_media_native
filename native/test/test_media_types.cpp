@@ -1,6 +1,7 @@
 // test_media_types.cpp — glaze roundtrip tests for BlueZ Media wire structs.
 
 #include "bluez_media_types.h"
+#include "media_player_proxy.h"
 
 #include <cassert>
 #include <vector>
@@ -182,7 +183,32 @@ void test_method_result_roundtrips() {
   assert(decoded_acquire.fd == acquire.fd);
   assert(decoded_acquire.readMtu == acquire.readMtu);
   assert(decoded_acquire.writeMtu == acquire.writeMtu);
+}
 
+void test_player_properties_from_object_manager_payload() {
+  const std::map<std::string, sdbus::Variant> track{
+      {"Title", sdbus::Variant{std::string{"Blue Train"}}},
+      {"Duration", sdbus::Variant{uint32_t{643000}}}};
+  const std::map<std::string, sdbus::Variant> properties{
+      {"Status", sdbus::Variant{std::string{"playing"}}},
+      {"Position", sdbus::Variant{uint32_t{42000}}},
+      {"Track", sdbus::Variant{track}},
+      {"Browsable", sdbus::Variant{true}},
+      // A malformed property must fall back instead of throwing in a signal
+      // callback.
+      {"Searchable", sdbus::Variant{std::string{"not-a-bool"}}}};
+
+  const auto buffer = MediaPlayerProxy::encode_properties(
+      "/org/bluez/hci0/dev_AA/player0", properties);
+  BlueZMediaPlayerProps decoded;
+  const auto end = glz::decode(buffer.data(), 0, decoded);
+
+  assert(end == buffer.size());
+  assert(decoded.status == "playing");
+  assert(decoded.position == 42000u);
+  assert(decoded.browsable);
+  assert(!decoded.searchable);
+  assert(decoded.track.size() == 2u);
 }
 
 void test_object_manager_roundtrips() {
@@ -230,6 +256,7 @@ int main() {
   test_media_item_props_roundtrip();
   test_media_folder_items_roundtrip();
   test_method_result_roundtrips();
+  test_player_properties_from_object_manager_payload();
   test_object_manager_roundtrips();
   return 0;
 }

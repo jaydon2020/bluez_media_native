@@ -2,9 +2,10 @@
 #include "media_control_proxy.h"
 #include "bluez_media_native.h"
 #include "bluez_media_types.h"
+#include "media_utils.h"
 
-MediaControlProxy::MediaControlProxy(sdbus::IConnection &conn,
-                                     const std::string &control_path)
+MediaControlProxy::MediaControlProxy(sdbus::IConnection& conn,
+                                     const std::string& control_path)
     : control_path_(control_path) {
   if (control_path_.empty()) {
     throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
@@ -60,20 +61,21 @@ int MediaControlProxy::rewind() const {
 }
 
 std::vector<uint8_t> MediaControlProxy::properties() const {
+  std::map<std::string, sdbus::Variant> properties;
+  proxy_->callMethod("GetAll")
+      .onInterface("org.freedesktop.DBus.Properties")
+      .withArguments(std::string{kMediaControlIface})
+      .storeResultsTo(properties);
+  return encode_properties(control_path_, properties);
+}
+
+std::vector<uint8_t> MediaControlProxy::encode_properties(
+    const std::string& control_path,
+    const std::map<std::string, sdbus::Variant>& properties) {
   BlueZMediaControlProps props;
-  props.objectPath = control_path_;
-  try {
-    props.connected = proxy_->getProperty("Connected")
-                          .onInterface(kMediaControlIface)
-                          .get<bool>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.player = proxy_->getProperty("Player")
-                       .onInterface(kMediaControlIface)
-                       .get<sdbus::ObjectPath>();
-  } catch (const sdbus::Error &) {
-  }
+  props.objectPath = control_path;
+  props.connected = media_property<bool>(properties, "Connected");
+  props.player = media_property<sdbus::ObjectPath>(properties, "Player");
 
   return glz::encode(props);
 }

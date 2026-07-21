@@ -4,8 +4,8 @@
 #include "bluez_media_types.h"
 #include "media_utils.h"
 
-MediaPlayerProxy::MediaPlayerProxy(sdbus::IConnection &conn,
-                                   const std::string &player_path)
+MediaPlayerProxy::MediaPlayerProxy(sdbus::IConnection& conn,
+                                   const std::string& player_path)
     : player_path_(player_path) {
   if (player_path_.empty()) {
     throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
@@ -40,12 +40,12 @@ int MediaPlayerProxy::previous() const {
   return BLUEZ_MEDIA_SUCCESS;
 }
 
-int MediaPlayerProxy::set_repeat(const std::string &repeat) const {
+int MediaPlayerProxy::set_repeat(const std::string& repeat) const {
   proxy_->setProperty("Repeat").onInterface(kMediaPlayerIface).toValue(repeat);
   return BLUEZ_MEDIA_SUCCESS;
 }
 
-int MediaPlayerProxy::set_shuffle(const std::string &shuffle) const {
+int MediaPlayerProxy::set_shuffle(const std::string& shuffle) const {
   proxy_->setProperty("Shuffle")
       .onInterface(kMediaPlayerIface)
       .toValue(shuffle);
@@ -53,94 +53,35 @@ int MediaPlayerProxy::set_shuffle(const std::string &shuffle) const {
 }
 
 std::vector<uint8_t> MediaPlayerProxy::properties() const {
-  BlueZMediaPlayerProps props;
-  props.objectPath = player_path_;
-  try {
-    props.equalizer = proxy_->getProperty("Equalizer")
-                          .onInterface(kMediaPlayerIface)
-                          .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.repeat = proxy_->getProperty("Repeat")
-                       .onInterface(kMediaPlayerIface)
-                       .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.shuffle = proxy_->getProperty("Shuffle")
-                        .onInterface(kMediaPlayerIface)
-                        .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.scan = proxy_->getProperty("Scan")
-                     .onInterface(kMediaPlayerIface)
-                     .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.status = proxy_->getProperty("Status")
-                       .onInterface(kMediaPlayerIface)
-                       .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.position = proxy_->getProperty("Position")
-                         .onInterface(kMediaPlayerIface)
-                         .get<uint32_t>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.track =
-        track_to_properties(proxy_->getProperty("Track")
-                                .onInterface(kMediaPlayerIface)
-                                .get<std::map<std::string, sdbus::Variant>>());
-  } catch (const sdbus::Error &) {
-  }
+  std::map<std::string, sdbus::Variant> properties;
+  proxy_->callMethod("GetAll")
+      .onInterface("org.freedesktop.DBus.Properties")
+      .withArguments(std::string{kMediaPlayerIface})
+      .storeResultsTo(properties);
+  return encode_properties(player_path_, properties);
+}
 
-  try {
-    props.device = proxy_->getProperty("Device")
-                       .onInterface(kMediaPlayerIface)
-                       .get<sdbus::ObjectPath>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.name = proxy_->getProperty("Name")
-                     .onInterface(kMediaPlayerIface)
-                     .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.type = proxy_->getProperty("Type")
-                     .onInterface(kMediaPlayerIface)
-                     .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.subtype = proxy_->getProperty("Subtype")
-                        .onInterface(kMediaPlayerIface)
-                        .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.browsable = proxy_->getProperty("Browsable")
-                          .onInterface(kMediaPlayerIface)
-                          .get<bool>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.searchable = proxy_->getProperty("Searchable")
-                           .onInterface(kMediaPlayerIface)
-                           .get<bool>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.playlist = proxy_->getProperty("Playlist")
-                         .onInterface(kMediaPlayerIface)
-                         .get<sdbus::ObjectPath>();
-  } catch (const sdbus::Error &) {
-  }
+std::vector<uint8_t> MediaPlayerProxy::encode_properties(
+    const std::string& player_path,
+    const std::map<std::string, sdbus::Variant>& properties) {
+  BlueZMediaPlayerProps props;
+  props.objectPath = player_path;
+  props.equalizer = media_property<std::string>(properties, "Equalizer");
+  props.repeat = media_property<std::string>(properties, "Repeat");
+  props.shuffle = media_property<std::string>(properties, "Shuffle");
+  props.scan = media_property<std::string>(properties, "Scan");
+  props.status = media_property<std::string>(properties, "Status");
+  props.position = media_property<uint32_t>(properties, "Position");
+  props.track =
+      track_to_properties(media_property<std::map<std::string, sdbus::Variant>>(
+          properties, "Track"));
+  props.device = media_property<sdbus::ObjectPath>(properties, "Device");
+  props.name = media_property<std::string>(properties, "Name");
+  props.type = media_property<std::string>(properties, "Type");
+  props.subtype = media_property<std::string>(properties, "Subtype");
+  props.browsable = media_property<bool>(properties, "Browsable");
+  props.searchable = media_property<bool>(properties, "Searchable");
+  props.playlist = media_property<sdbus::ObjectPath>(properties, "Playlist");
 
   return glz::encode(props);
 }

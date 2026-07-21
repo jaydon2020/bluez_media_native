@@ -2,7 +2,7 @@
 #include "media_utils.h"
 #include <sstream>
 
-std::string variant_to_string(const sdbus::Variant &value) {
+std::string variant_to_string(const sdbus::Variant& value) {
   if (value.containsValueOfType<std::string>()) {
     return value.get<std::string>();
   }
@@ -41,7 +41,7 @@ std::string variant_to_string(const sdbus::Variant &value) {
   if (value.containsValueOfType<std::vector<std::string>>()) {
     const auto values = value.get<std::vector<std::string>>();
     std::string joined;
-    for (const auto &item : values) {
+    for (const auto& item : values) {
       if (!joined.empty()) {
         joined += ",";
       }
@@ -52,11 +52,11 @@ std::string variant_to_string(const sdbus::Variant &value) {
   return value.dumpToString();
 }
 
-std::vector<BlueZMediaProperty>
-track_to_properties(const std::map<std::string, sdbus::Variant> &track) {
+std::vector<BlueZMediaProperty> track_to_properties(
+    const std::map<std::string, sdbus::Variant>& track) {
   std::vector<BlueZMediaProperty> properties;
   properties.reserve(track.size());
-  for (const auto &[key, value] : track) {
+  for (const auto& [key, value] : track) {
     properties.push_back(BlueZMediaProperty{key, variant_to_string(value)});
   }
   return properties;

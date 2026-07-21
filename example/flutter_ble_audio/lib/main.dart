@@ -37,19 +37,20 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   late final BluezMediaClient _client;
   final _subscriptions = <StreamSubscription<List<String>>>[];
   final _messages = <String>[];
-
   var _loading = true;
   String? _error;
 
   List<BluezMediaPlayer> _players = const [];
   List<BluezMediaControl> _controls = const [];
   List<BluezMediaTransport> _transports = const [];
+  List<BluezMediaFolder> _folders = const [];
+  List<BluezMediaItem> _items = const [];
 
   String? _selectedDevicePath;
   double? _transportVolumeDraft;
 
   List<_MediaDevice> get _devices =>
-      _mediaDevices(_players, _controls, _transports);
+      _mediaDevices(_players, _controls, _transports, _folders, _items);
 
   _MediaDevice? get _selectedDevice {
     final devices = _devices;
@@ -90,6 +91,8 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       final players = objects.players.map(_client.player).toList();
       final controls = objects.controls.map(_client.control).toList();
       final transports = objects.transports.map(_client.transport).toList();
+      final folders = objects.folders.map(_client.folder).toList();
+      final items = objects.items.map(_client.item).toList();
 
       for (final subscription in _subscriptions) {
         await subscription.cancel();
@@ -103,12 +106,18 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
             control.propertiesChanged.listen((_) => _refreshView()),
           for (final transport in transports)
             transport.propertiesChanged.listen((_) => _refreshView()),
+          for (final folder in folders)
+            folder.propertiesChanged.listen((_) => _refreshView()),
+          for (final item in items)
+            item.propertiesChanged.listen((_) => _refreshView()),
         ]);
 
       setState(() {
         _players = players;
         _controls = controls;
         _transports = transports;
+        _folders = folders;
+        _items = items;
         _selectedDevicePath = _keepDeviceSelection(
           _devices,
           _selectedDevicePath,
@@ -136,6 +145,12 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     try {
       device?.player?.refresh();
       device?.control?.refresh();
+      for (final folder in device?.folders ?? const <BluezMediaFolder>[]) {
+        folder.refresh();
+      }
+      for (final item in device?.items ?? const <BluezMediaItem>[]) {
+        item.refresh();
+      }
       for (final transport
           in device?.transports ?? const <BluezMediaTransport>[]) {
         transport.refresh();
@@ -152,6 +167,28 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       command();
       _pushMessage(label);
       _refreshView();
+    } catch (error) {
+      _pushMessage('$error');
+    }
+  }
+
+  Future<void> _listFolderItems(BluezMediaFolder folder) async {
+    try {
+      final knownPaths = _items.map((item) => item.objectPath).toSet();
+      final children = folder.listItems();
+      for (final child in children) {
+        if (knownPaths.add(child.objectPath)) {
+          _subscriptions.add(
+            child.propertiesChanged.listen((_) => _refreshView()),
+          );
+        }
+      }
+      setState(() {
+        _items = _mergeItems(_items, children);
+      });
+      _pushMessage(
+        'Listed ${children.length} item(s) from ${_objectName(folder.objectPath)}',
+      );
     } catch (error) {
       _pushMessage('$error');
     }
@@ -234,7 +271,11 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
         subtitle: _error!,
       );
     }
-    if (_players.isEmpty && _controls.isEmpty && _transports.isEmpty) {
+    if (_players.isEmpty &&
+        _controls.isEmpty &&
+        _transports.isEmpty &&
+        _folders.isEmpty &&
+        _items.isEmpty) {
       return const _EmptyState(
         icon: Icons.bluetooth_disabled,
         title: 'No BlueZ media devices',
@@ -254,6 +295,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
           onRefresh: _refreshSelected,
           onRepeatChanged: _setRepeatMode,
           onShuffleChanged: _setShuffleMode,
+          onListFolderItems: _listFolderItems,
           transportVolumeDraft: _transportVolumeDraft,
           onTransportVolumePreview: _previewTransportVolume,
           onTransportVolumeChanged: _setTransportVolume,
@@ -439,6 +481,7 @@ class _ProxyPanels extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final ValueChanged<String> onRepeatChanged;
   final ValueChanged<String> onShuffleChanged;
+  final ValueChanged<BluezMediaFolder> onListFolderItems;
   final double? transportVolumeDraft;
   final ValueChanged<double> onTransportVolumePreview;
   final ValueChanged<double> onTransportVolumeChanged;
@@ -450,6 +493,7 @@ class _ProxyPanels extends StatelessWidget {
     required this.onRefresh,
     required this.onRepeatChanged,
     required this.onShuffleChanged,
+    required this.onListFolderItems,
     required this.transportVolumeDraft,
     required this.onTransportVolumePreview,
     required this.onTransportVolumeChanged,
@@ -490,6 +534,13 @@ class _ProxyPanels extends StatelessWidget {
           onCommand: onCommand,
         ),
         const SizedBox(height: 16),
+        _BrowseProxyPanel(
+          folders: device?.folders ?? const [],
+          items: device?.items ?? const [],
+          onListFolderItems: onListFolderItems,
+          onCommand: onCommand,
+        ),
+        const SizedBox(height: 16),
         _ControlProxyPanel(control: control, onCommand: onCommand),
         const SizedBox(height: 16),
         _TransportProxyPanel(
@@ -527,7 +578,6 @@ class _PlayerProxyPanel extends StatelessWidget {
     final title = _trackValue(player, const ['Title', 'xesam:title']);
     final artist = _trackValue(player, const ['Artist', 'xesam:artist']);
     final album = _trackValue(player, const ['Album', 'xesam:album']);
-
     return _SectionPanel(
       icon: Icons.queue_music,
       title: 'MediaPlayer1',
@@ -535,18 +585,29 @@ class _PlayerProxyPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            title.isEmpty ? 'No track title' : title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            artist.isEmpty ? 'Unknown artist' : artist,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyLarge,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      title.isEmpty ? 'No track title' : title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      artist.isEmpty ? 'Unknown artist' : artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -638,6 +699,21 @@ class _PlayerProxyPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
+          // Position slider
+          Row(
+            children: [
+              Text(_formatMilliseconds(player?.position ?? 0)),
+              Expanded(
+                child: Slider(
+                  value: _sliderPosition(player),
+                  max: _sliderMaximum(player),
+                  onChanged: null, // Read-only for now unless we implement seek
+                ),
+              ),
+              Text(_formatMilliseconds(_getDuration(player))),
+            ],
+          ),
+          const SizedBox(height: 16),
           Text(
             'Track metadata',
             style: Theme.of(context).textTheme.titleMedium,
@@ -645,6 +721,199 @@ class _PlayerProxyPanel extends StatelessWidget {
           const SizedBox(height: 8),
           _MetadataTable(properties: player?.track ?? const []),
         ],
+      ),
+    );
+  }
+}
+
+class _BrowseProxyPanel extends StatelessWidget {
+  final List<BluezMediaFolder> folders;
+  final List<BluezMediaItem> items;
+  final ValueChanged<BluezMediaFolder> onListFolderItems;
+  final void Function(String label, VoidCallback command) onCommand;
+
+  const _BrowseProxyPanel({
+    required this.folders,
+    required this.items,
+    required this.onListFolderItems,
+    required this.onCommand,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedFolders = [...folders]
+      ..sort((left, right) => left.objectPath.compareTo(right.objectPath));
+    final sortedItems = [...items]
+      ..sort((left, right) => left.objectPath.compareTo(right.objectPath));
+
+    return _SectionPanel(
+      icon: Icons.library_music_outlined,
+      title: 'Media items',
+      subtitle:
+          '${folders.length} folder${folders.length == 1 ? '' : 's'}, '
+          '${items.length} item${items.length == 1 ? '' : 's'}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (sortedFolders.isEmpty && sortedItems.isEmpty)
+            const Text('No folders or items reported for selected device'),
+          if (sortedFolders.isNotEmpty) ...[
+            Text('Folders', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final folder in sortedFolders)
+              _FolderRow(folder: folder, onListItems: onListFolderItems),
+          ],
+          if (sortedFolders.isNotEmpty && sortedItems.isNotEmpty)
+            const SizedBox(height: 14),
+          if (sortedItems.isNotEmpty) ...[
+            Text('Items', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final item in sortedItems)
+              _ItemRow(item: item, onCommand: onCommand),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FolderRow extends StatelessWidget {
+  final BluezMediaFolder folder;
+  final ValueChanged<BluezMediaFolder> onListItems;
+
+  const _FolderRow({required this.folder, required this.onListItems});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              const Icon(Icons.folder_open, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      folder.name.isEmpty
+                          ? _objectName(folder.objectPath)
+                          : folder.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    Text(
+                      '${folder.numberOfItems} item(s) - ${folder.objectPath}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              Tooltip(
+                message: 'List items',
+                child: IconButton.filledTonal(
+                  onPressed: () => onListItems(folder),
+                  icon: const Icon(Icons.format_list_bulleted),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ItemRow extends StatelessWidget {
+  final BluezMediaItem item;
+  final void Function(String label, VoidCallback command) onCommand;
+
+  const _ItemRow({required this.item, required this.onCommand});
+
+  @override
+  Widget build(BuildContext context) {
+    final depth = _itemDepth(item);
+    final title = item.name.isEmpty ? _objectName(item.objectPath) : item.name;
+    final subtitleParts = [
+      if (item.type.isNotEmpty) item.type,
+      if (item.folderType.isNotEmpty) item.folderType,
+      if (item.playable) 'playable',
+    ];
+
+    return Padding(
+      padding: EdgeInsets.only(left: depth * 18.0, bottom: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                item.type == 'folder' || item.folderType.isNotEmpty
+                    ? Icons.folder
+                    : Icons.music_note,
+                size: 20,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    Text(
+                      subtitleParts.isEmpty
+                          ? item.objectPath
+                          : '${subtitleParts.join(' - ')} - ${item.objectPath}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              _CommandButton(
+                tooltip: 'Play item',
+                icon: Icons.play_arrow,
+                onPressed: item.playable
+                    ? () => onCommand('MediaItem1 Play', item.play)
+                    : null,
+              ),
+              const SizedBox(width: 6),
+              _CommandButton(
+                tooltip: 'Add to now playing',
+                icon: Icons.playlist_add,
+                onPressed: item.playable
+                    ? () => onCommand(
+                        'MediaItem1 Add to now playing',
+                        item.addToNowPlaying,
+                      )
+                    : null,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1219,12 +1488,16 @@ class _MediaDevice {
   final BluezMediaPlayer? player;
   final BluezMediaControl? control;
   final List<BluezMediaTransport> transports;
+  final List<BluezMediaFolder> folders;
+  final List<BluezMediaItem> items;
 
   const _MediaDevice({
     required this.devicePath,
     required this.player,
     required this.control,
     required this.transports,
+    required this.folders,
+    required this.items,
   });
 
   BluezMediaTransport? get transport => transports.firstOrNull;
@@ -1242,6 +1515,8 @@ List<_MediaDevice> _mediaDevices(
   List<BluezMediaPlayer> players,
   List<BluezMediaControl> controls,
   List<BluezMediaTransport> transports,
+  List<BluezMediaFolder> folders,
+  List<BluezMediaItem> items,
 ) {
   final devicePaths = <String>{};
   for (final player in players) {
@@ -1253,24 +1528,59 @@ List<_MediaDevice> _mediaDevices(
   for (final transport in transports) {
     devicePaths.add(_devicePathForTransport(transport));
   }
+  for (final folder in folders) {
+    devicePaths.add(_devicePathFromObjectPath(folder.objectPath));
+  }
+  for (final item in items) {
+    devicePaths.add(_devicePathForItem(item));
+  }
 
   return [
     for (final devicePath in devicePaths.where((path) => path.isNotEmpty))
-      _MediaDevice(
-        devicePath: devicePath,
-        player: players
-            .where((player) => _devicePathForPlayer(player) == devicePath)
-            .firstOrNull,
-        control: controls
-            .where((control) => control.objectPath == devicePath)
-            .firstOrNull,
-        transports: transports
-            .where(
-              (transport) => _devicePathForTransport(transport) == devicePath,
-            )
-            .toList(),
+      _mediaDeviceForPath(
+        devicePath,
+        players,
+        controls,
+        transports,
+        folders,
+        items,
       ),
   ]..sort((left, right) => left.devicePath.compareTo(right.devicePath));
+}
+
+_MediaDevice _mediaDeviceForPath(
+  String devicePath,
+  List<BluezMediaPlayer> players,
+  List<BluezMediaControl> controls,
+  List<BluezMediaTransport> transports,
+  List<BluezMediaFolder> folders,
+  List<BluezMediaItem> items,
+) {
+  final player = players
+      .where((player) => _devicePathForPlayer(player) == devicePath)
+      .firstOrNull;
+  final playerPath = player?.objectPath;
+
+  return _MediaDevice(
+    devicePath: devicePath,
+    player: player,
+    control: controls
+        .where((control) => control.objectPath == devicePath)
+        .firstOrNull,
+    transports: transports
+        .where((transport) => _devicePathForTransport(transport) == devicePath)
+        .toList(),
+    folders: folders
+        .where(
+          (folder) =>
+              _devicePathFromObjectPath(folder.objectPath) == devicePath &&
+              _belongsToPlayer(folder.objectPath, playerPath),
+        )
+        .toList(),
+    items: items
+        .where((item) => _devicePathForItem(item) == devicePath)
+        .toList(),
+  );
 }
 
 String? _keepDeviceSelection(List<_MediaDevice> devices, String? selectedPath) {
@@ -1291,6 +1601,13 @@ String _devicePathForPlayer(BluezMediaPlayer player) {
 String _devicePathForTransport(BluezMediaTransport transport) {
   if (transport.device.isNotEmpty) return transport.device;
   return _devicePathFromObjectPath(transport.objectPath);
+}
+
+String _devicePathForItem(BluezMediaItem item) {
+  if (item.playerPath.isNotEmpty) {
+    return _devicePathFromObjectPath(item.playerPath);
+  }
+  return _devicePathFromObjectPath(item.objectPath);
 }
 
 String _devicePathFromObjectPath(String objectPath) {
@@ -1320,6 +1637,63 @@ String _trackValue(BluezMediaPlayer? player, List<String> keys) {
   }
   return '';
 }
+
+List<BluezMediaItem> _mergeItems(
+  List<BluezMediaItem> existing,
+  List<BluezMediaItem> next,
+) {
+  final byPath = {
+    for (final item in existing) item.objectPath: item,
+    for (final item in next) item.objectPath: item,
+  };
+  return byPath.values.toList()
+    ..sort((left, right) => left.objectPath.compareTo(right.objectPath));
+}
+
+bool _belongsToPlayer(String objectPath, String? playerPath) {
+  if (playerPath == null || playerPath.isEmpty) return true;
+  return objectPath == playerPath || objectPath.startsWith('$playerPath/');
+}
+
+int _itemDepth(BluezMediaItem item) {
+  final playerPath = item.playerPath;
+  if (playerPath.isEmpty || !item.objectPath.startsWith('$playerPath/')) {
+    return 0;
+  }
+  final relativePath = item.objectPath.substring(playerPath.length + 1);
+  final segmentCount = relativePath
+      .split('/')
+      .where((segment) => segment.isNotEmpty)
+      .length;
+  final depth = segmentCount - 1;
+  if (depth < 0) return 0;
+  if (depth > 4) return 4;
+  return depth;
+}
+
+String _objectName(String objectPath) {
+  if (objectPath.isEmpty) return 'unknown';
+  return objectPath.split('/').where((segment) => segment.isNotEmpty).last;
+}
+
+int _getDuration(BluezMediaPlayer? player) {
+  if (player == null) return 0;
+  for (final prop in player.track) {
+    if (prop.key == 'Duration') {
+      return int.tryParse(prop.value) ?? 0;
+    }
+  }
+  return 0;
+}
+
+double _sliderMaximum(BluezMediaPlayer? player) {
+  final duration = _getDuration(player);
+  final position = player?.position ?? 0;
+  return [duration, position, 1].reduce((a, b) => a > b ? a : b).toDouble();
+}
+
+double _sliderPosition(BluezMediaPlayer? player) =>
+    (player?.position ?? 0).clamp(0, _sliderMaximum(player)).toDouble();
 
 String _display(String? value) {
   if (value == null || value.isEmpty) return 'unknown';

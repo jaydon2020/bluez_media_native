@@ -3,10 +3,10 @@
 #include "bluez_media_types.h"
 #include "local_player.h"
 
-MediaClient::MediaClient(sdbus::IConnection &conn) : conn_(conn) {
+MediaClient::MediaClient(sdbus::IConnection& conn) : conn_(conn) {
   try {
     conn_.addObjectManager(sdbus::ObjectPath{"/"});
-  } catch (const sdbus::Error &e) {
+  } catch (const sdbus::Error& e) {
     fprintf(stderr, "MediaClient: failed to add ObjectManager: %s\n", e.what());
   }
 }
@@ -14,9 +14,12 @@ MediaClient::MediaClient(sdbus::IConnection &conn) : conn_(conn) {
 MediaClient::~MediaClient() = default;
 
 int MediaClient::register_player(
-    const BluezMediaPlayerRegistration &registration) {
+    const BluezMediaPlayerRegistration& registration) {
   if (registration.adapter_path == nullptr ||
       registration.player_path == nullptr) {
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+  }
+  if (registration.browsable != 0 || registration.searchable != 0) {
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
   std::string player_path{registration.player_path};
@@ -28,13 +31,13 @@ int MediaClient::register_player(
     players_.emplace(player_path,
                      std::make_unique<LocalPlayer>(conn_, registration));
     return BLUEZ_MEDIA_SUCCESS;
-  } catch (const std::exception &) {
+  } catch (const std::exception&) {
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
-int MediaClient::unregister_player(const char *adapter_path,
-                                   const char *player_path) {
+int MediaClient::unregister_player(const char* adapter_path,
+                                   const char* player_path) {
   if (adapter_path == nullptr || player_path == nullptr) {
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
@@ -58,7 +61,7 @@ std::vector<uint8_t> MediaClient::get_managed_objects() const {
       .storeResultsTo(objects);
 
   BlueZMediaManagedObjects result;
-  for (const auto &[path, interfaces] : objects) {
+  for (const auto& [path, interfaces] : objects) {
     if (interfaces.contains("org.bluez.Media1")) {
       result.media.push_back(path);
     }

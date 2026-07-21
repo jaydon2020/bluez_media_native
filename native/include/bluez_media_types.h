@@ -24,7 +24,8 @@ struct BlueZMediaProperty {
   std::string key;
   std::string value;
 };
-template <> struct glz::meta<BlueZMediaProperty> {
+template <>
+struct glz::meta<BlueZMediaProperty> {
   static constexpr auto fields =
       std::make_tuple(glz::field("key", &BlueZMediaProperty::key),
                       glz::field("value", &BlueZMediaProperty::value));
@@ -49,7 +50,8 @@ struct BlueZMediaPlayerProps {
   bool searchable{};
   std::string playlist;
 };
-template <> struct glz::meta<BlueZMediaPlayerProps> {
+template <>
+struct glz::meta<BlueZMediaPlayerProps> {
   static constexpr auto fields = std::make_tuple(
       glz::field("objectPath", &BlueZMediaPlayerProps::objectPath),
       glz::field("equalizer", &BlueZMediaPlayerProps::equalizer),
@@ -75,7 +77,8 @@ struct BlueZMediaControlProps {
   bool connected{};
   std::string player;
 };
-template <> struct glz::meta<BlueZMediaControlProps> {
+template <>
+struct glz::meta<BlueZMediaControlProps> {
   static constexpr auto fields = std::make_tuple(
       glz::field("objectPath", &BlueZMediaControlProps::objectPath),
       glz::field("connected", &BlueZMediaControlProps::connected),
@@ -95,7 +98,8 @@ struct BlueZMediaTransportProps {
   uint16_t volume{};
   std::string endpoint;
 };
-template <> struct glz::meta<BlueZMediaTransportProps> {
+template <>
+struct glz::meta<BlueZMediaTransportProps> {
   static constexpr auto fields = std::make_tuple(
       glz::field("objectPath", &BlueZMediaTransportProps::objectPath),
       glz::field("device", &BlueZMediaTransportProps::device),
@@ -115,7 +119,8 @@ struct BlueZMediaFolderProps {
   uint32_t numberOfItems{};
   std::string name;
 };
-template <> struct glz::meta<BlueZMediaFolderProps> {
+template <>
+struct glz::meta<BlueZMediaFolderProps> {
   static constexpr auto fields = std::make_tuple(
       glz::field("objectPath", &BlueZMediaFolderProps::objectPath),
       glz::field("numberOfItems", &BlueZMediaFolderProps::numberOfItems),
@@ -133,7 +138,8 @@ struct BlueZMediaItemProps {
   bool playable{};
   std::vector<BlueZMediaProperty> metadata;
 };
-template <> struct glz::meta<BlueZMediaItemProps> {
+template <>
+struct glz::meta<BlueZMediaItemProps> {
   static constexpr auto fields = std::make_tuple(
       glz::field("objectPath", &BlueZMediaItemProps::objectPath),
       glz::field("player", &BlueZMediaItemProps::player),
@@ -148,7 +154,8 @@ struct BlueZMediaFolderItems {
   std::string objectPath;
   std::vector<BlueZMediaItemProps> items;
 };
-template <> struct glz::meta<BlueZMediaFolderItems> {
+template <>
+struct glz::meta<BlueZMediaFolderItems> {
   static constexpr auto fields = std::make_tuple(
       glz::field("objectPath", &BlueZMediaFolderItems::objectPath),
       glz::field("items", &BlueZMediaFolderItems::items));
@@ -162,7 +169,8 @@ struct BlueZMediaAcquireResult {
   uint16_t readMtu{};
   uint16_t writeMtu{};
 };
-template <> struct glz::meta<BlueZMediaAcquireResult> {
+template <>
+struct glz::meta<BlueZMediaAcquireResult> {
   static constexpr auto fields = std::make_tuple(
       glz::field("transportPath", &BlueZMediaAcquireResult::transportPath),
       glz::field("fd", &BlueZMediaAcquireResult::fd),
@@ -178,7 +186,8 @@ struct BlueZMediaManagedObjects {
   std::vector<std::string> folders;
   std::vector<std::string> items;
 };
-template <> struct glz::meta<BlueZMediaManagedObjects> {
+template <>
+struct glz::meta<BlueZMediaManagedObjects> {
   static constexpr auto fields = std::make_tuple(
       glz::field("media", &BlueZMediaManagedObjects::media),
       glz::field("players", &BlueZMediaManagedObjects::players),
@@ -192,7 +201,8 @@ struct BlueZMediaObjectRemoved {
   std::string objectPath;
   std::string interfaceName;
 };
-template <> struct glz::meta<BlueZMediaObjectRemoved> {
+template <>
+struct glz::meta<BlueZMediaObjectRemoved> {
   static constexpr auto fields = std::make_tuple(
       glz::field("objectPath", &BlueZMediaObjectRemoved::objectPath),
       glz::field("interfaceName", &BlueZMediaObjectRemoved::interfaceName));

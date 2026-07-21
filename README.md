@@ -15,22 +15,15 @@ inspection/acquisition.
 - Inspect and control `org.bluez.MediaTransport1` properties, volume, and file
   descriptor acquisition
 - Receive native ObjectManager updates through a Dart `ReceivePort`
-- Bundle the native library in Flutter Linux apps through the FFI plugin build
-
-Planned for a future release:
-
-- Register a local `org.bluez.MediaPlayer1` object through `org.bluez.Media1`
+- Bundle the native library in Dart and Flutter Linux apps through native assets
+- Register a local MPRIS player object through `org.bluez.Media1`
 - Browse `org.bluez.MediaFolder1` and `org.bluez.MediaItem1` trees
-
-`org.bluez.MediaEndpoint1` XML and generated proxy definitions are included for
-code generation, but endpoint registration is not currently exposed by the
-public Dart API.
 
 ## Platform Support
 
 | Platform | MediaPlayer1 | MediaControl1 | MediaTransport1 | Media1 / Browsing |
 |----------|--------------|---------------|-----------------|-------------------|
-| Linux with BlueZ | Tested | Tested | Tested | Planned |
+| Linux with BlueZ | Tested | Tested | Tested | Supported |
 | macOS | No | No | No | No |
 | Windows | No | No | No | No |
 
@@ -57,10 +50,10 @@ dependencies:
   bluez_media_native: ^0.0.1
 ```
 
-### 3. Build the native library for CLI examples
+### 3. Build the native library manually (optional)
 
-Flutter Linux apps build and bundle the native library automatically through the
-FFI plugin configuration. For plain Dart examples, build it manually:
+The native-assets hook builds and bundles the library automatically. To build it
+directly for native development:
 
 ```bash
 cmake -S native -B build/native -GNinja -DCMAKE_BUILD_TYPE=Release
@@ -132,22 +125,23 @@ caches media objects from BlueZ ObjectManager updates.
 | `ready` | Completes after the initial ObjectManager snapshot is cached |
 | `players` | Cached `MediaPlayer1` proxies |
 | `controls` | Cached `MediaControl1` proxies |
-| `folders` | Cached `MediaFolder1` proxies, planned for future tested support |
-| `items` | Cached `MediaItem1` proxies, planned for future tested support |
+| `folders` | Cached `MediaFolder1` proxies |
+| `items` | Cached `MediaItem1` proxies |
 | `transports` | Cached `MediaTransport1` proxies |
 | `transportAdded` / `transportRemoved` | Streams for transport lifecycle events |
-| `registerPlayer()` / `unregisterPlayer()` | Register or remove a local media player, planned for future tested support |
+| `registerPlayer()` / `unregisterPlayer()` | Register or remove a local MPRIS player |
 | `getManagedObjects()` | Return a snapshot of known BlueZ media objects |
 | `close()` | Stop native event processing and release cached proxies |
 
-### Future: Media1 Local Player Registration
+### Media1 Local Player Registration
 
 `org.bluez.Media1` is exposed on adapter paths such as `/org/bluez/hci0`.
 Use it only when this Linux process wants to publish a local media player to
 BlueZ. You do not need this to control a phone's remote
 `/org/bluez/hci0/dev_.../avrcp/player0` object.
 
-This API is planned for a future tested release.
+Local browsing/searching flags are rejected until the package exports a local
+`MediaFolder1`; remote browsing through `BluezMediaFolder` remains supported.
 
 ```dart
 import 'package:bluez_media_native/bluez_media_native.dart';
@@ -160,9 +154,7 @@ Future<void> main() async {
         adapterPath: '/org/bluez/hci0',
         playerPath: '/bluez_media/player0',
         name: 'bluez_media_native',
-        type: 'audio',
-        browsable: true,
-        searchable: true,
+        type: 'Audio',
       ),
     );
 
@@ -215,10 +207,10 @@ Proxy for `org.bluez.MediaControl1`.
 | `fastForward()`, `rewind()` | Controller seek commands |
 | `connected`, `playerPath` | Current control snapshot |
 
-### Future: BluezMediaFolder and BluezMediaItem
+### BluezMediaFolder and BluezMediaItem
 
 AVRCP browsing helpers for `org.bluez.MediaFolder1` and
-`org.bluez.MediaItem1`. These APIs are planned for a future tested release.
+`org.bluez.MediaItem1`.
 
 | Method / Property | Description |
 |---|---|
@@ -278,10 +270,9 @@ More command examples are available in [example/README.md](example/README.md).
 
 ## Project Structure
 
-- `native/` - C/C++ source, CMake configuration, generated sdbus-c++ proxies,
-  and BlueZ D-Bus XML interfaces
+- `native/` - C/C++ source and CMake configuration
 - `lib/` - Dart API and FFI codec/bindings
-- `linux/` - Flutter Linux plugin build integration
+- `hook/` - native-assets build integration for Dart and Flutter
 - `example/` - CLI examples and the Flutter Linux demo app
 - `test/` and `native/test/` - Dart codec tests and native wire-type tests
 
@@ -296,26 +287,16 @@ ctest --test-dir build/native --output-on-failure
 Run Dart tests:
 
 ```bash
-flutter test
+dart test
 ```
 
-## Generate Bindings And Proxies
+## Generate Bindings
 
 Regenerate Dart FFI bindings from `native/include/bluez_media_native.h`:
 
 ```bash
 dart run ffigen --config ffigen.yaml
 ```
-
-Regenerate sdbus-c++ proxy headers from the BlueZ XML files:
-
-```bash
-./scripts/generate_proxies.sh
-```
-
-The checked-in files under `native/generated/` are generated protocol artifacts.
-Runtime bridge classes currently use the hand-written wrappers under
-`native/include/` and `native/src/`.
 
 ## Troubleshooting
 

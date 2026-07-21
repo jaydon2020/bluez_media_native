@@ -51,8 +51,6 @@ Future<void> main(List<String> args) async {
         adapterPath: adapterPath,
         playerPath: playerPath,
         name: name,
-        browsable: true,
-        searchable: true,
       ),
     );
 

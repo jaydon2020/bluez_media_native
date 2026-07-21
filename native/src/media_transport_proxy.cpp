@@ -2,13 +2,14 @@
 #include "media_transport_proxy.h"
 #include "bluez_media_native.h"
 #include "bluez_media_types.h"
+#include "media_utils.h"
 
+#include <unistd.h>
 #include <cerrno>
 #include <system_error>
-#include <unistd.h>
 
-MediaTransportProxy::MediaTransportProxy(sdbus::IConnection &conn,
-                                         const std::string &transport_path)
+MediaTransportProxy::MediaTransportProxy(sdbus::IConnection& conn,
+                                         const std::string& transport_path)
     : transport_path_(transport_path) {
   if (transport_path_.empty()) {
     throw sdbus::Error{sdbus::Error::Name{"org.bluez.Error.InvalidArguments"},
@@ -68,56 +69,28 @@ int MediaTransportProxy::release() const {
 }
 
 std::vector<uint8_t> MediaTransportProxy::properties() const {
+  std::map<std::string, sdbus::Variant> properties;
+  proxy_->callMethod("GetAll")
+      .onInterface("org.freedesktop.DBus.Properties")
+      .withArguments(std::string{kMediaTransportIface})
+      .storeResultsTo(properties);
+  return encode_properties(transport_path_, properties);
+}
+
+std::vector<uint8_t> MediaTransportProxy::encode_properties(
+    const std::string& transport_path,
+    const std::map<std::string, sdbus::Variant>& properties) {
   BlueZMediaTransportProps props;
-  props.objectPath = transport_path_;
-  try {
-    props.device = proxy_->getProperty("Device")
-                       .onInterface(kMediaTransportIface)
-                       .get<sdbus::ObjectPath>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.uuid = proxy_->getProperty("UUID")
-                     .onInterface(kMediaTransportIface)
-                     .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.codec = proxy_->getProperty("Codec")
-                      .onInterface(kMediaTransportIface)
-                      .get<uint8_t>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.configuration = proxy_->getProperty("Configuration")
-                              .onInterface(kMediaTransportIface)
-                              .get<std::vector<uint8_t>>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.state = proxy_->getProperty("State")
-                      .onInterface(kMediaTransportIface)
-                      .get<std::string>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.delay = proxy_->getProperty("Delay")
-                      .onInterface(kMediaTransportIface)
-                      .get<uint16_t>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.volume = proxy_->getProperty("Volume")
-                       .onInterface(kMediaTransportIface)
-                       .get<uint16_t>();
-  } catch (const sdbus::Error &) {
-  }
-  try {
-    props.endpoint = proxy_->getProperty("Endpoint")
-                         .onInterface(kMediaTransportIface)
-                         .get<sdbus::ObjectPath>();
-  } catch (const sdbus::Error &) {
-  }
+  props.objectPath = transport_path;
+  props.device = media_property<sdbus::ObjectPath>(properties, "Device");
+  props.uuid = media_property<std::string>(properties, "UUID");
+  props.codec = media_property<uint8_t>(properties, "Codec");
+  props.configuration =
+      media_property<std::vector<uint8_t>>(properties, "Configuration");
+  props.state = media_property<std::string>(properties, "State");
+  props.delay = media_property<uint16_t>(properties, "Delay");
+  props.volume = media_property<uint16_t>(properties, "Volume");
+  props.endpoint = media_property<sdbus::ObjectPath>(properties, "Endpoint");
   return glz::encode(props);
 }
 

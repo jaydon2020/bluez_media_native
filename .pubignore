@@ -1,0 +1,19 @@
+# Native sources are required by hook/build.dart; exclude only development files.
+build/
+linux/
+src/
+native/generated/
+native/build/
+native/build-*/
+native/test/
+native/third_party/sdbus-cpp/build/
+native/third_party/sdbus-cpp/.git/
+
+interfaces/
+scripts/
+.github/
+.clang-format
+.clang-tidy
+.gitmodules
+codecov.yaml
+*.iml

@@ -14,3 +14,12 @@ lets you choose one device from the top selector. It shows which media
 interfaces are available for that device, then exposes playback, repeat,
 shuffle, controller volume, transport volume, and transport metadata controls
 when BlueZ reports support for them.
+
+The UI follows ObjectManager property signals and provides an explicit refresh
+action for properties that BlueZ does not signal.
+
+The media items panel lists `MediaFolder1` folders and all `MediaItem1` objects
+reported by BlueZ for the selected player, including trees such as
+`NowPlaying/item1`, `NowPlaying/item2`, and `NowPlaying/item3`. Use the list
+button on a folder to call `ListItems()` and merge any returned children into
+the visible item tree.

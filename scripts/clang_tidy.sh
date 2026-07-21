@@ -31,10 +31,9 @@ fi
 
 echo "Using: ${CLANG_TIDY}"
 
-# Only run on project source files -- exclude generated proxies, vendored Dart
-# API headers, glaze_meta.h, and third_party/.
-find "${ROOT_DIR}/native/src" "${ROOT_DIR}/native/include" \
-    \( -name '*.c' -o -name '*.cpp' -o -name '*.h' \) \
+# Analyze translation units; their project headers are checked transitively.
+find "${ROOT_DIR}/native/src" \
+    -name '*.cpp' \
     ! -path '*/third_party/*' \
     ! -path '*/generated/*' \
     ! -path '*/internal/*' \
