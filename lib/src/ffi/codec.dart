@@ -1,5 +1,5 @@
 // codec.dart — GlazeCodec for decoding BlueZ Media native payloads.
-// Matches the binary encoding in glaze_meta.h (little-endian, length-prefixed).
+// Matches glaze_meta.h: little-endian with uint32 length/count prefixes.
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -113,7 +113,7 @@ class GlazeCodec {
   static BlueZMediaAcquireResult _decodeMediaAcquireResult(_Reader r) {
     return BlueZMediaAcquireResult(
       transportPath: r.readString(),
-      fd: r.readUint64(),
+      fd: r.readInt32(),
       readMtu: r.readUint16(),
       writeMtu: r.readUint16(),
     );
@@ -185,10 +185,10 @@ class _Reader {
     return v;
   }
 
-  int readUint64() {
-    _checkBounds(8);
-    final v = _data.getUint64(_offset, Endian.little);
-    _offset += 8;
+  int readInt32() {
+    _checkBounds(4);
+    final v = _data.getInt32(_offset, Endian.little);
+    _offset += 4;
     return v;
   }
 

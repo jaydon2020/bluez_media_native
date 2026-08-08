@@ -170,11 +170,18 @@ void test_media_folder_items_roundtrip() {
 void test_method_result_roundtrips() {
   BlueZMediaAcquireResult acquire;
   acquire.transportPath = "/org/bluez/hci0/dev_AA/fd0";
-  acquire.fd = 42;
+  acquire.fd = -1;
   acquire.readMtu = 672;
   acquire.writeMtu = 672;
 
   auto acquire_buf = glz::encode(acquire);
+  const auto fd_offset = sizeof(uint32_t) + acquire.transportPath.size();
+  assert(acquire_buf.size() == fd_offset + sizeof(int32_t) +
+                                   (2 * sizeof(uint16_t)));
+  assert(acquire_buf[fd_offset] == 0xff);
+  assert(acquire_buf[fd_offset + 1] == 0xff);
+  assert(acquire_buf[fd_offset + 2] == 0xff);
+  assert(acquire_buf[fd_offset + 3] == 0xff);
   BlueZMediaAcquireResult decoded_acquire;
   auto acquire_end = glz::decode(acquire_buf.data(), 0, decoded_acquire);
 

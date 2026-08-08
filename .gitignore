@@ -32,6 +32,7 @@ migrate_working_dir/
 /build/
 /build-*/
 /coverage/
+**/.desktop-homescreen/
 
 # Native/CMake local build artifacts
 CMakeCache.txt

@@ -31,8 +31,8 @@ void _writeUint32(BytesBuilder b, int v) {
   b.add(d.buffer.asUint8List());
 }
 
-void _writeUint64(BytesBuilder b, int v) {
-  final d = ByteData(8)..setUint64(0, v, Endian.little);
+void _writeInt32(BytesBuilder b, int v) {
+  final d = ByteData(4)..setInt32(0, v, Endian.little);
   b.add(d.buffer.asUint8List());
 }
 
@@ -236,7 +236,7 @@ void main() {
     test('decodes BlueZMediaAcquireResult', () {
       final b = BytesBuilder();
       _writeString(b, '/org/bluez/hci0/dev_AA/fd0');
-      _writeUint64(b, 42);
+      _writeInt32(b, -1);
       _writeUint16(b, 672);
       _writeUint16(b, 672);
 
@@ -244,7 +244,7 @@ void main() {
       final result = GlazeCodec.decode<BlueZMediaAcquireResult>(data, 0);
 
       expect(result.transportPath, '/org/bluez/hci0/dev_AA/fd0');
-      expect(result.fd, 42);
+      expect(result.fd, -1);
       expect(result.readMtu, 672);
       expect(result.writeMtu, 672);
     });

@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.10)
-project(bluez_media_native_library VERSION 0.0.1 LANGUAGES C CXX)
+cmake_minimum_required(VERSION 3.22)
+project(bluez_media_native_library VERSION 0.0.1 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -14,9 +14,14 @@ set(SDBUSCPP_INSTALL OFF CACHE BOOL "" FORCE)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 add_subdirectory(third_party/sdbus-cpp EXCLUDE_FROM_ALL)
 
+# Compile the Dart dynamic-linking shim once as plain C and reuse it in both
+# native targets.
+add_library(dart_api_dl OBJECT src/dart_api_dl.c)
+target_include_directories(dart_api_dl PUBLIC include)
+set_target_properties(dart_api_dl PROPERTIES C_VISIBILITY_PRESET hidden)
+
 add_library(bluez_media_native_core STATIC
   src/bluez_media_client.cpp
-  src/dart_api_dl.c
   src/media_client.cpp
   src/media_object_manager.cpp
   src/local_player.cpp
@@ -25,14 +30,11 @@ add_library(bluez_media_native_core STATIC
   src/media_browser_proxy.cpp
   src/media_transport_proxy.cpp
   src/media_utils.cpp
+  $<TARGET_OBJECTS:dart_api_dl>
 )
 
 target_include_directories(bluez_media_native_core
   PUBLIC include
-)
-
-target_compile_definitions(bluez_media_native_core
-  PUBLIC DART_SHARED_LIB
 )
 
 target_link_libraries(bluez_media_native_core
@@ -46,7 +48,6 @@ set_target_properties(bluez_media_native_core PROPERTIES
 
 add_library(bluez_media_native SHARED
   src/bluez_media_client.cpp
-  src/dart_api_dl.c
   src/media_client.cpp
   src/media_object_manager.cpp
   src/local_player.cpp
@@ -55,14 +56,11 @@ add_library(bluez_media_native SHARED
   src/media_browser_proxy.cpp
   src/media_transport_proxy.cpp
   src/media_utils.cpp
+  $<TARGET_OBJECTS:dart_api_dl>
 )
 
 target_include_directories(bluez_media_native
   PRIVATE include
-)
-
-target_compile_definitions(bluez_media_native
-  PUBLIC DART_SHARED_LIB
 )
 
 target_link_libraries(bluez_media_native

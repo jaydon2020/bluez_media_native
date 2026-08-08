@@ -165,7 +165,7 @@ struct glz::meta<BlueZMediaFolderItems> {
 
 struct BlueZMediaAcquireResult {
   std::string transportPath;
-  uint64_t fd{};
+  int32_t fd{-1};
   uint16_t readMtu{};
   uint16_t writeMtu{};
 };

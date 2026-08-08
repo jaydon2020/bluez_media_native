@@ -35,7 +35,7 @@ std::vector<uint8_t> MediaTransportProxy::acquire() const {
 
   BlueZMediaAcquireResult result;
   result.transportPath = transport_path_;
-  result.fd = static_cast<uint64_t>(duplicated_fd);
+  result.fd = duplicated_fd;
   result.readMtu = read_mtu;
   result.writeMtu = write_mtu;
   return glz::encode(result);
@@ -57,7 +57,7 @@ std::vector<uint8_t> MediaTransportProxy::try_acquire() const {
 
   BlueZMediaAcquireResult result;
   result.transportPath = transport_path_;
-  result.fd = static_cast<uint64_t>(duplicated_fd);
+  result.fd = duplicated_fd;
   result.readMtu = read_mtu;
   result.writeMtu = write_mtu;
   return glz::encode(result);
