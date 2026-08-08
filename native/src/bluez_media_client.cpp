@@ -169,6 +169,34 @@ int bluez_media_player_previous(void* handle, const char* player_path) {
   }
 }
 
+int bluez_media_player_fast_forward(void* handle, const char* player_path) {
+  if (handle == nullptr || player_path == nullptr) {
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+  }
+  try {
+    auto* ctx = static_cast<BluezMediaClientContext*>(handle);
+    MediaPlayerProxy proxy{*ctx->conn, player_path};
+    return proxy.fast_forward();
+  } catch (const sdbus::Error& e) {
+    fprintf(stderr, "bluez_media_player_fast_forward: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  }
+}
+
+int bluez_media_player_rewind(void* handle, const char* player_path) {
+  if (handle == nullptr || player_path == nullptr) {
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+  }
+  try {
+    auto* ctx = static_cast<BluezMediaClientContext*>(handle);
+    MediaPlayerProxy proxy{*ctx->conn, player_path};
+    return proxy.rewind();
+  } catch (const sdbus::Error& e) {
+    fprintf(stderr, "bluez_media_player_rewind: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  }
+}
+
 int bluez_media_player_set_repeat(void* handle,
                                   const char* player_path,
                                   const char* repeat) {

@@ -17,7 +17,7 @@ void main(List<String> args) {
 
   if (args.length < 2 || hasFlag(args, '--help')) {
     printUsage('dart run example/player_control.dart <player_path> <command>', [
-      'Commands: list, play, pause, stop, next, previous, props',
+      'Commands: list, play, pause, stop, next, previous, fast-forward, rewind, props',
       '',
       'Example:',
       '  dart run example/player_control.dart list',
@@ -48,6 +48,12 @@ void main(List<String> args) {
         break;
       case 'previous':
         player.previous();
+        break;
+      case 'fast-forward':
+        player.fastForward();
+        break;
+      case 'rewind':
+        player.rewind();
         break;
       case 'props':
         player.refresh();

@@ -26,7 +26,7 @@ void main(List<String> args) {
 
   if (args.length < 2 || hasFlag(args, '--help')) {
     printUsage('dart run example/media_browsing.dart <path> <command>', [
-      'Player commands: play, pause, stop, next, previous, player-props',
+      'Player commands: play, pause, stop, next, previous, fast-forward, rewind, player-props',
       'Folder commands: folder-props, list, search <text>, cd <folder_path>',
       'Item commands:   item-props, play-item, add-now-playing',
       'Discovery:       list',
@@ -71,6 +71,14 @@ void main(List<String> args) {
       case 'previous':
         player.previous();
         print('Sent Previous to player $path.');
+        break;
+      case 'fast-forward':
+        player.fastForward();
+        print('Sent FastForward to player $path.');
+        break;
+      case 'rewind':
+        player.rewind();
+        print('Sent Rewind to player $path.');
         break;
       case 'player-props':
         player.refresh();

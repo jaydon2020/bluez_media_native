@@ -59,6 +59,10 @@ BLUEZ_MEDIA_EXPORT int bluez_media_player_next(void* handle,
                                                const char* player_path);
 BLUEZ_MEDIA_EXPORT int bluez_media_player_previous(void* handle,
                                                    const char* player_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_player_fast_forward(void* handle,
+                                                       const char* player_path);
+BLUEZ_MEDIA_EXPORT int bluez_media_player_rewind(void* handle,
+                                                 const char* player_path);
 BLUEZ_MEDIA_EXPORT int bluez_media_player_set_repeat(void* handle,
                                                      const char* player_path,
                                                      const char* repeat);

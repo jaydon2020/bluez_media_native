@@ -40,6 +40,16 @@ int MediaPlayerProxy::previous() const {
   return BLUEZ_MEDIA_SUCCESS;
 }
 
+int MediaPlayerProxy::fast_forward() const {
+  proxy_->callMethod("FastForward").onInterface(kMediaPlayerIface);
+  return BLUEZ_MEDIA_SUCCESS;
+}
+
+int MediaPlayerProxy::rewind() const {
+  proxy_->callMethod("Rewind").onInterface(kMediaPlayerIface);
+  return BLUEZ_MEDIA_SUCCESS;
+}
+
 int MediaPlayerProxy::set_repeat(const std::string& repeat) const {
   proxy_->setProperty("Repeat").onInterface(kMediaPlayerIface).toValue(repeat);
   return BLUEZ_MEDIA_SUCCESS;

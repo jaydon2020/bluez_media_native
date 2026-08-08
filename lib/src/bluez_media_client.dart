@@ -258,6 +258,22 @@ class BluezMediaClient {
     );
   }
 
+  void playerFastForward(String playerPath) {
+    _callPlayerControl(
+      playerPath,
+      _bindings.bluez_media_player_fast_forward,
+      'fast forward',
+    );
+  }
+
+  void playerRewind(String playerPath) {
+    _callPlayerControl(
+      playerPath,
+      _bindings.bluez_media_player_rewind,
+      'rewind',
+    );
+  }
+
   void setRepeat(String playerPath, String repeat) {
     _ensureOpen();
     _checkMediaPlayerMode(repeat, _repeatModes, 'Repeat');

@@ -193,6 +193,41 @@ class BluezMediaNativeBindings {
   late final _bluez_media_player_previous = _bluez_media_player_previousPtr
       .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
 
+  int bluez_media_player_fast_forward(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+  ) {
+    return _bluez_media_player_fast_forward(handle, player_path);
+  }
+
+  late final _bluez_media_player_fast_forwardPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_player_fast_forward');
+  late final _bluez_media_player_fast_forward =
+      _bluez_media_player_fast_forwardPtr
+          .asFunction<
+            int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+          >();
+
+  int bluez_media_player_rewind(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+  ) {
+    return _bluez_media_player_rewind(handle, player_path);
+  }
+
+  late final _bluez_media_player_rewindPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)
+        >
+      >('bluez_media_player_rewind');
+  late final _bluez_media_player_rewind = _bluez_media_player_rewindPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>)>();
+
   int bluez_media_player_set_repeat(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> player_path,

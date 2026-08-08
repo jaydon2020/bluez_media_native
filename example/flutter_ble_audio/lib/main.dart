@@ -688,6 +688,23 @@ class _PlayerProxyPanel extends StatelessWidget {
                     ? null
                     : () => onCommand('MediaPlayer1 Next', player!.next),
               ),
+              _CommandButton(
+                tooltip: 'Rewind',
+                icon: Icons.fast_rewind,
+                onPressed: player == null
+                    ? null
+                    : () => onCommand('MediaPlayer1 Rewind', player!.rewind),
+              ),
+              _CommandButton(
+                tooltip: 'Fast Forward',
+                icon: Icons.fast_forward,
+                onPressed: player == null
+                    ? null
+                    : () => onCommand(
+                        'MediaPlayer1 Fast forward',
+                        player!.fastForward,
+                      ),
+              ),
               _RepeatModeControl(
                 repeat: player?.repeat ?? 'off',
                 onChanged: player == null ? null : onRepeatChanged,

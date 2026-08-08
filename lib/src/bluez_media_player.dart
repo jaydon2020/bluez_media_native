@@ -43,6 +43,8 @@ class BluezMediaPlayer {
   void stop() => _client.stop(objectPath);
   void next() => _client.next(objectPath);
   void previous() => _client.previous(objectPath);
+  void fastForward() => _client.playerFastForward(objectPath);
+  void rewind() => _client.playerRewind(objectPath);
   void setRepeat(String repeat) => _client.setRepeat(objectPath, repeat);
   void setShuffle(String shuffle) => _client.setShuffle(objectPath, shuffle);
 
