@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' as io;
 
 import 'package:bluez_media_native/bluez_media_native.dart';
 import 'package:flutter/material.dart';
@@ -47,6 +48,10 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   List<BluezMediaItem> _items = const [];
 
   String? _selectedDevicePath;
+  io.Directory? _coverArtDirectory;
+  String? _coverArtHandle;
+  String? _coverArtPath;
+  var _coverArtLoading = false;
   double? _transportVolumeDraft;
 
   List<_MediaDevice> get _devices =>
@@ -74,6 +79,10 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   void dispose() {
     for (final subscription in _subscriptions) {
       subscription.cancel();
+    }
+    final coverArtDirectory = _coverArtDirectory;
+    if (coverArtDirectory != null) {
+      unawaited(_deleteDirectory(coverArtDirectory));
     }
     _client.close();
     super.dispose();
@@ -218,6 +227,43 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     });
   }
 
+  Future<void> _getCoverArt() async {
+    final player = _selectedDevice?.player;
+    if (player == null || player.imageHandle.isEmpty || _coverArtLoading) {
+      _pushMessage('Current track has no ImgHandle cover art');
+      return;
+    }
+
+    setState(() => _coverArtLoading = true);
+    io.Directory? directory;
+    try {
+      directory = await io.Directory.systemTemp.createTemp('bluez_media_art_');
+      final target = '${directory.path}/cover-art';
+      final path = await player.getCoverArt(target);
+      if (!mounted) {
+        await directory.delete(recursive: true);
+        return;
+      }
+      final previous = _coverArtDirectory;
+      setState(() {
+        _coverArtDirectory = directory;
+        _coverArtHandle = player.imageHandle;
+        _coverArtPath = path;
+      });
+      if (previous != null) {
+        unawaited(_deleteDirectory(previous));
+      }
+      _pushMessage('Saved cover art to $path');
+    } catch (error) {
+      if (directory != null) {
+        unawaited(_deleteDirectory(directory));
+      }
+      _pushMessage('$error');
+    } finally {
+      if (mounted) setState(() => _coverArtLoading = false);
+    }
+  }
+
   void _setTransportVolume(double value) {
     final transport = _selectedDevice?.transport;
     if (transport == null) return;
@@ -286,6 +332,10 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final selectedDevice = _selectedDevice;
+        final coverArtPath =
+            selectedDevice?.player?.imageHandle == _coverArtHandle
+            ? _coverArtPath
+            : null;
         final maxWidth = constraints.maxWidth >= 1040
             ? 1000.0
             : double.infinity;
@@ -295,6 +345,9 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
           onRefresh: _refreshSelected,
           onRepeatChanged: _setRepeatMode,
           onShuffleChanged: _setShuffleMode,
+          coverArtPath: coverArtPath,
+          coverArtLoading: _coverArtLoading,
+          onGetCoverArt: _getCoverArt,
           onListFolderItems: _listFolderItems,
           transportVolumeDraft: _transportVolumeDraft,
           onTransportVolumePreview: _previewTransportVolume,
@@ -317,6 +370,8 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
                       onChanged: (device) {
                         setState(() {
                           _selectedDevicePath = device?.devicePath;
+                          _coverArtHandle = null;
+                          _coverArtPath = null;
                           _transportVolumeDraft = null;
                         });
                         unawaited(_refreshSelected());
@@ -332,6 +387,14 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
         );
       },
     );
+  }
+}
+
+Future<void> _deleteDirectory(io.Directory directory) async {
+  try {
+    await directory.delete(recursive: true);
+  } on io.FileSystemException {
+    // Best-effort cleanup for temporary cover art.
   }
 }
 
@@ -481,6 +544,9 @@ class _ProxyPanels extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final ValueChanged<String> onRepeatChanged;
   final ValueChanged<String> onShuffleChanged;
+  final String? coverArtPath;
+  final bool coverArtLoading;
+  final VoidCallback onGetCoverArt;
   final ValueChanged<BluezMediaFolder> onListFolderItems;
   final double? transportVolumeDraft;
   final ValueChanged<double> onTransportVolumePreview;
@@ -493,6 +559,9 @@ class _ProxyPanels extends StatelessWidget {
     required this.onRefresh,
     required this.onRepeatChanged,
     required this.onShuffleChanged,
+    required this.coverArtPath,
+    required this.coverArtLoading,
+    required this.onGetCoverArt,
     required this.onListFolderItems,
     required this.transportVolumeDraft,
     required this.onTransportVolumePreview,
@@ -531,6 +600,9 @@ class _ProxyPanels extends StatelessWidget {
           player: player,
           onRepeatChanged: onRepeatChanged,
           onShuffleChanged: onShuffleChanged,
+          coverArtPath: coverArtPath,
+          coverArtLoading: coverArtLoading,
+          onGetCoverArt: onGetCoverArt,
           onCommand: onCommand,
         ),
         const SizedBox(height: 16),
@@ -564,12 +636,18 @@ class _PlayerProxyPanel extends StatelessWidget {
   final BluezMediaPlayer? player;
   final ValueChanged<String> onRepeatChanged;
   final ValueChanged<String> onShuffleChanged;
+  final String? coverArtPath;
+  final bool coverArtLoading;
+  final VoidCallback onGetCoverArt;
   final void Function(String label, VoidCallback command) onCommand;
 
   const _PlayerProxyPanel({
     required this.player,
     required this.onRepeatChanged,
     required this.onShuffleChanged,
+    required this.coverArtPath,
+    required this.coverArtLoading,
+    required this.onGetCoverArt,
     required this.onCommand,
   });
 
@@ -587,6 +665,20 @@ class _PlayerProxyPanel extends StatelessWidget {
         children: [
           Row(
             children: [
+              if (coverArtPath != null) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.file(
+                    io.File(coverArtPath!),
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) =>
+                        const Icon(Icons.broken_image, size: 80),
+                  ),
+                ),
+                const SizedBox(width: 16),
+              ],
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -704,6 +796,18 @@ class _PlayerProxyPanel extends StatelessWidget {
                         'MediaPlayer1 Fast forward',
                         player!.fastForward,
                       ),
+              ),
+              _CommandButton(
+                tooltip: coverArtLoading
+                    ? 'Downloading cover art'
+                    : 'Get cover art',
+                icon: Icons.image_outlined,
+                onPressed:
+                    player == null ||
+                        player!.imageHandle.isEmpty ||
+                        coverArtLoading
+                    ? null
+                    : onGetCoverArt,
               ),
               _RepeatModeControl(
                 repeat: player?.repeat ?? 'off',

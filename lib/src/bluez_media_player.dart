@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:isolate';
 
 import 'bluez_media_client.dart' show BluezMediaClient;
 import 'ffi/types.dart';
@@ -25,6 +26,14 @@ class BluezMediaPlayer {
   /// Current track metadata as string key/value properties.
   List<BlueZMediaProperty> get track => List.unmodifiable(_props.track);
 
+  /// AVRCP image handle for the current track, when cover art is available.
+  String get imageHandle {
+    for (final property in _props.track) {
+      if (property.key == 'ImgHandle') return property.value;
+    }
+    return '';
+  }
+
   String get name => _props.name;
   String get type => _props.type;
   String get subtype => _props.subtype;
@@ -47,6 +56,28 @@ class BluezMediaPlayer {
   void rewind() => _client.playerRewind(objectPath);
   void setRepeat(String repeat) => _client.setRepeat(objectPath, repeat);
   void setShuffle(String shuffle) => _client.setShuffle(objectPath, shuffle);
+
+  /// Downloads the current track's cover art through BlueZ OBEX BIP.
+  ///
+  /// [targetFile] must be an absolute path that does not already exist.
+  Future<String> getCoverArt(
+    String targetFile, {
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    final playerPath = objectPath;
+    return Isolate.run(() {
+      final client = BluezMediaClient.create();
+      try {
+        return client.getPlayerCoverArt(
+          playerPath,
+          targetFile,
+          timeout: timeout,
+        );
+      } finally {
+        client.close();
+      }
+    });
+  }
 
   /// Fetch the latest player snapshot from BlueZ.
   BlueZMediaPlayerProps refresh() {

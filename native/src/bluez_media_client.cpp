@@ -5,11 +5,13 @@
 #include <sdbus-c++/sdbus-c++.h>
 
 #include <unistd.h>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <exception>
 #include <memory>
 
+#include "cover_art_client.h"
 #include "media_browser_proxy.h"
 #include "media_client.h"
 #include "media_control_proxy.h"
@@ -260,6 +262,24 @@ int bluez_media_player_get_properties(void* handle,
     return static_cast<int>(payload.size());
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_player_get_properties: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  }
+}
+
+int bluez_media_player_get_cover_art(void* handle,
+                                     const char* player_path,
+                                     const char* target_file,
+                                     int32_t timeout_ms) {
+  if (handle == nullptr || player_path == nullptr || target_file == nullptr ||
+      timeout_ms <= 0) {
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+  }
+  try {
+    auto* ctx = static_cast<BluezMediaClientContext*>(handle);
+    return bluez_media::get_cover_art(*ctx->conn, player_path, target_file,
+                                      std::chrono::milliseconds{timeout_ms});
+  } catch (const std::exception& e) {
+    log_exception("bluez_media_player_get_cover_art", e);
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }

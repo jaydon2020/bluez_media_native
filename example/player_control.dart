@@ -2,9 +2,11 @@
 
 // example/player_control.dart — control a remote org.bluez.MediaPlayer1.
 
+import 'dart:io';
+
 import 'media_example_utils.dart';
 
-void main(List<String> args) {
+Future<void> main(List<String> args) async {
   if (isListCommand(args)) {
     final client = createClient();
     try {
@@ -17,7 +19,8 @@ void main(List<String> args) {
 
   if (args.length < 2 || hasFlag(args, '--help')) {
     printUsage('dart run example/player_control.dart <player_path> <command>', [
-      'Commands: list, play, pause, stop, next, previous, fast-forward, rewind, props',
+      'Commands: list, play, pause, stop, next, previous, fast-forward, rewind,',
+      '          cover-art <target_file>, props',
       '',
       'Example:',
       '  dart run example/player_control.dart list',
@@ -55,6 +58,13 @@ void main(List<String> args) {
       case 'rewind':
         player.rewind();
         break;
+      case 'cover-art':
+        if (args.length < 3) {
+          throw const FormatException('cover-art requires a target file.');
+        }
+        final target = File(args[2]).absolute.path;
+        print('Saved cover art to ${await player.getCoverArt(target)}.');
+        return;
       case 'props':
         player.refresh();
         print('Player: ${player.objectPath}');

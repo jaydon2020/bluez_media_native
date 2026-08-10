@@ -29,6 +29,7 @@ add_library(bluez_media_native_core STATIC
   src/media_control_proxy.cpp
   src/media_browser_proxy.cpp
   src/media_transport_proxy.cpp
+  src/cover_art_client.cpp
   src/media_utils.cpp
   $<TARGET_OBJECTS:dart_api_dl>
 )
@@ -55,6 +56,7 @@ add_library(bluez_media_native SHARED
   src/media_control_proxy.cpp
   src/media_browser_proxy.cpp
   src/media_transport_proxy.cpp
+  src/cover_art_client.cpp
   src/media_utils.cpp
   $<TARGET_OBJECTS:dart_api_dl>
 )

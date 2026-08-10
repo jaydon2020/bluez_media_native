@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="org.bluez.obex.Transfer1">
+    <method name="Cancel"/>
+    <property name="Status" type="s" access="read"/>
+  </interface>
+</node>

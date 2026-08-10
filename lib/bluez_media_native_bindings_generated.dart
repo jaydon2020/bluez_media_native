@@ -319,6 +319,42 @@ class BluezMediaNativeBindings {
             )
           >();
 
+  int bluez_media_player_get_cover_art(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+    ffi.Pointer<ffi.Char> target_file,
+    int timeout_ms,
+  ) {
+    return _bluez_media_player_get_cover_art(
+      handle,
+      player_path,
+      target_file,
+      timeout_ms,
+    );
+  }
+
+  late final _bluez_media_player_get_cover_artPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_player_get_cover_art');
+  late final _bluez_media_player_get_cover_art =
+      _bluez_media_player_get_cover_artPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Char>,
+              int,
+            )
+          >();
+
   /// ── org.bluez.MediaControl1 remote controller controls ─────────────────────
   int bluez_media_control_play(
     ffi.Pointer<ffi.Void> handle,

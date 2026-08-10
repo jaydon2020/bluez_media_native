@@ -349,6 +349,40 @@ class BluezMediaClient {
     }
   }
 
+  String getPlayerCoverArt(
+    String playerPath,
+    String targetFile, {
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    _ensureOpen();
+    if (!targetFile.startsWith('/')) {
+      throw ArgumentError.value(targetFile, 'targetFile', 'Must be absolute.');
+    }
+    if (timeout <= Duration.zero || timeout.inMilliseconds > 0x7fffffff) {
+      throw ArgumentError.value(
+        timeout,
+        'timeout',
+        'Must fit a positive int32.',
+      );
+    }
+
+    final playerPathPtr = playerPath.toNativeUtf8();
+    final targetFilePtr = targetFile.toNativeUtf8();
+    try {
+      final result = _bindings.bluez_media_player_get_cover_art(
+        _handle,
+        playerPathPtr.cast<Char>(),
+        targetFilePtr.cast<Char>(),
+        timeout.inMilliseconds,
+      );
+      _checkResult(result, 'get player cover art');
+      return targetFile;
+    } finally {
+      calloc.free(targetFilePtr);
+      calloc.free(playerPathPtr);
+    }
+  }
+
   void controlPlay(String controlPath) {
     _callControl(
       controlPath,

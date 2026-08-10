@@ -15,6 +15,10 @@ interfaces are available for that device, then exposes playback, repeat,
 shuffle, controller volume, transport volume, and transport metadata controls
 when BlueZ reports support for them.
 
+When the current `MediaPlayer1.Track` includes an experimental `ImgHandle`, the
+image button downloads and displays cover art through BlueZ OBEX BIP. This
+requires a running `obexd` with its experimental Image API enabled.
+
 The UI follows ObjectManager property signals and provides an explicit refresh
 action for properties that BlueZ does not signal.
 

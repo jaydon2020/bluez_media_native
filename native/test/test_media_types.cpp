@@ -1,8 +1,10 @@
 // test_media_types.cpp — glaze roundtrip tests for BlueZ Media wire structs.
 
+#include "bluez_media_native.h"
 #include "bluez_media_types.h"
 #include "media_player_proxy.h"
 
+#include <algorithm>
 #include <cassert>
 #include <vector>
 
@@ -195,6 +197,7 @@ void test_method_result_roundtrips() {
 void test_player_properties_from_object_manager_payload() {
   const std::map<std::string, sdbus::Variant> track{
       {"Title", sdbus::Variant{std::string{"Blue Train"}}},
+      {"ImgHandle", sdbus::Variant{std::string{"0000001"}}},
       {"Duration", sdbus::Variant{uint32_t{643000}}}};
   const std::map<std::string, sdbus::Variant> properties{
       {"Status", sdbus::Variant{std::string{"playing"}}},
@@ -215,7 +218,17 @@ void test_player_properties_from_object_manager_payload() {
   assert(decoded.position == 42000u);
   assert(decoded.browsable);
   assert(!decoded.searchable);
-  assert(decoded.track.size() == 2u);
+  assert(decoded.track.size() == 3u);
+  const auto image_handle = std::ranges::find_if(
+      decoded.track,
+      [](const auto& property) { return property.key == "ImgHandle"; });
+  assert(image_handle != decoded.track.end());
+  assert(image_handle->value == "0000001");
+}
+
+void test_cover_art_validates_arguments() {
+  assert(bluez_media_player_get_cover_art(nullptr, "/player", "/tmp/art", 1) ==
+         BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
 }
 
 void test_object_manager_roundtrips() {
@@ -264,6 +277,7 @@ int main() {
   test_media_folder_items_roundtrip();
   test_method_result_roundtrips();
   test_player_properties_from_object_manager_payload();
+  test_cover_art_validates_arguments();
   test_object_manager_roundtrips();
   return 0;
 }

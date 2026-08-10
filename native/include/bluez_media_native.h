@@ -74,6 +74,10 @@ BLUEZ_MEDIA_EXPORT int bluez_media_player_get_properties(
     const char* player_path,
     uint8_t* out,
     int32_t capacity);
+BLUEZ_MEDIA_EXPORT int bluez_media_player_get_cover_art(void* handle,
+                                                        const char* player_path,
+                                                        const char* target_file,
+                                                        int32_t timeout_ms);
 
 // ── org.bluez.MediaControl1 remote controller controls ─────────────────────
 

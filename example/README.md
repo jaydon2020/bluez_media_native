@@ -55,6 +55,7 @@ player.pause();
 player.next();
 player.fastForward();
 player.rewind();
+final cover = await player.getCoverArt('/tmp/bluez-cover-art');
 
 player.refresh();
 print(player.status);
@@ -70,8 +71,13 @@ dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp
 dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 previous
 dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 fast-forward
 dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 rewind
+dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 cover-art /tmp/bluez-cover-art
 dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 props
 ```
+
+Cover art requires an `ImgHandle` in the current track metadata and a running
+BlueZ `obexd` with the experimental BIP Image API enabled. The target file must
+not already exist.
 
 ## MediaControl1 Volume And Connectivity
 

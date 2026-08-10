@@ -18,6 +18,7 @@ inspection/acquisition.
 - Bundle the native library in Dart and Flutter Linux apps through native assets
 - Register a local MPRIS player object through `org.bluez.Media1`
 - Browse `org.bluez.MediaFolder1` and `org.bluez.MediaItem1` trees
+- Download AVRCP cover art through the experimental BlueZ OBEX BIP Image API
 
 ## Platform Support
 
@@ -105,6 +106,9 @@ Future<void> main() async {
       final player = client.players.first;
       player.play();
       player.refresh();
+      if (player.imageHandle.isNotEmpty) {
+        await player.getCoverArt('/tmp/bluez-cover-art');
+      }
     }
   } finally {
     client.close();
@@ -299,6 +303,12 @@ dart run ffigen --config ffigen.yaml
 ```
 
 ## Troubleshooting
+
+### Cover art is unavailable
+
+Cover art requires `ImgHandle` in `MediaPlayer1.Track` and a running BlueZ
+`obexd` with its experimental Image API enabled. The destination passed to
+`getCoverArt` must be an absolute path that does not already exist.
 
 ### BlueZ is not running
 

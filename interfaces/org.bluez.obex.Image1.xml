@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node>
+  <interface name="org.bluez.obex.Image1">
+    <method name="Get">
+      <arg name="targetfile" type="s" direction="in"/>
+      <arg name="handle" type="s" direction="in"/>
+      <arg name="description" type="a{sv}" direction="in"/>
+      <arg name="transfer" type="o" direction="out"/>
+      <arg name="properties" type="a{sv}" direction="out"/>
+    </method>
+    <method name="Properties">
+      <arg name="handle" type="s" direction="in"/>
+      <arg name="properties" type="aa{sv}" direction="out"/>
+    </method>
+    <method name="GetThumbnail">
+      <arg name="targetfile" type="s" direction="in"/>
+      <arg name="handle" type="s" direction="in"/>
+      <arg name="transfer" type="o" direction="out"/>
+      <arg name="properties" type="a{sv}" direction="out"/>
+    </method>
+  </interface>
+</node>
