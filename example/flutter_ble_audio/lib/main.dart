@@ -49,7 +49,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
 
   String? _selectedDevicePath;
   io.Directory? _coverArtDirectory;
-  String? _coverArtHandle;
+  String? _coverArtTrackKey;
   String? _coverArtPath;
   var _coverArtLoading = false;
   double? _transportVolumeDraft;
@@ -110,7 +110,14 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
         ..clear()
         ..addAll([
           for (final player in players)
-            player.propertiesChanged.listen((_) => _refreshView()),
+            player.propertiesChanged.listen((changed) {
+              _refreshView();
+              if (changed.contains('Track') &&
+                  player == _selectedDevice?.player &&
+                  player.imageHandle.isNotEmpty) {
+                unawaited(_getCoverArt());
+              }
+            }),
           for (final control in controls)
             control.propertiesChanged.listen((_) => _refreshView()),
           for (final transport in transports)
@@ -229,16 +236,17 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
 
   Future<void> _getCoverArt() async {
     final player = _selectedDevice?.player;
-    if (player == null || player.imageHandle.isEmpty || _coverArtLoading) {
-      _pushMessage('Current track has no ImgHandle cover art');
+    if (player == null || _coverArtLoading) {
       return;
     }
 
+    final trackKey = _trackKey(player);
     setState(() => _coverArtLoading = true);
     io.Directory? directory;
     try {
       directory = await io.Directory.systemTemp.createTemp('bluez_media_art_');
       final target = '${directory.path}/cover-art';
+      await Future<void>.delayed(Duration.zero);
       final path = await player.getCoverArt(target);
       if (!mounted) {
         await directory.delete(recursive: true);
@@ -247,7 +255,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       final previous = _coverArtDirectory;
       setState(() {
         _coverArtDirectory = directory;
-        _coverArtHandle = player.imageHandle;
+        _coverArtTrackKey = trackKey;
         _coverArtPath = path;
       });
       if (previous != null) {
@@ -333,7 +341,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       builder: (context, constraints) {
         final selectedDevice = _selectedDevice;
         final coverArtPath =
-            selectedDevice?.player?.imageHandle == _coverArtHandle
+            _trackKey(selectedDevice?.player) == _coverArtTrackKey
             ? _coverArtPath
             : null;
         final maxWidth = constraints.maxWidth >= 1040
@@ -370,7 +378,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
                       onChanged: (device) {
                         setState(() {
                           _selectedDevicePath = device?.devicePath;
-                          _coverArtHandle = null;
+                          _coverArtTrackKey = null;
                           _coverArtPath = null;
                           _transportVolumeDraft = null;
                         });
@@ -736,6 +744,13 @@ class _PlayerProxyPanel extends StatelessWidget {
                 label: 'Searchable',
                 value: player?.searchable ?? false ? 'yes' : 'no',
               ),
+              _MetricTile(
+                icon: Icons.image_outlined,
+                label: 'Cover art',
+                value: (player?.obexPort ?? 0) > 0
+                    ? 'available'
+                    : 'unavailable',
+              ),
             ],
           ),
           const SizedBox(height: 16),
@@ -803,9 +818,7 @@ class _PlayerProxyPanel extends StatelessWidget {
                     : 'Get cover art',
                 icon: Icons.image_outlined,
                 onPressed:
-                    player == null ||
-                        player!.imageHandle.isEmpty ||
-                        coverArtLoading
+                    player == null || player!.obexPort == 0 || coverArtLoading
                     ? null
                     : onGetCoverArt,
               ),
@@ -1758,6 +1771,13 @@ String _trackValue(BluezMediaPlayer? player, List<String> keys) {
   }
   return '';
 }
+
+String _trackKey(BluezMediaPlayer? player) => [
+  _trackValue(player, const ['Title', 'xesam:title']),
+  _trackValue(player, const ['Artist', 'xesam:artist']),
+  _trackValue(player, const ['Album', 'xesam:album']),
+  _trackValue(player, const ['Duration', 'mpris:length']),
+].join('\u001f');
 
 List<BluezMediaItem> _mergeItems(
   List<BluezMediaItem> existing,

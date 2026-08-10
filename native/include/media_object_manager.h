@@ -10,9 +10,13 @@
 
 #include "dart_api_dl.h"
 
+class CoverArtService;
+
 class MediaObjectManager {
  public:
-  MediaObjectManager(sdbus::IConnection& conn, Dart_Port_DL events_port);
+  MediaObjectManager(sdbus::IConnection& conn,
+                     Dart_Port_DL events_port,
+                     CoverArtService& cover_art);
   ~MediaObjectManager();
 
   void get_managed_objects();
@@ -33,6 +37,7 @@ class MediaObjectManager {
 
   sdbus::IConnection& conn_;
   Dart_Port_DL events_port_;
+  CoverArtService& cover_art_;
   std::unique_ptr<sdbus::IProxy> root_proxy_;
   std::map<std::string, std::unique_ptr<sdbus::IProxy>> property_proxies_;
   std::map<std::string, std::set<std::string>> interfaces_by_path_;

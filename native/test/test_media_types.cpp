@@ -39,6 +39,7 @@ void test_media_player_props_roundtrip() {
   orig.browsable = true;
   orig.searchable = false;
   orig.playlist = "/org/bluez/hci0/dev_AA/player0/playlist";
+  orig.obexPort = 0x1001;
 
   auto buf = glz::encode(orig);
   BlueZMediaPlayerProps decoded;
@@ -62,6 +63,7 @@ void test_media_player_props_roundtrip() {
   assert(decoded.browsable == orig.browsable);
   assert(decoded.searchable == orig.searchable);
   assert(decoded.playlist == orig.playlist);
+  assert(decoded.obexPort == orig.obexPort);
 }
 
 void test_media_control_props_roundtrip() {

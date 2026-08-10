@@ -375,6 +375,12 @@ class BluezMediaClient {
         targetFilePtr.cast<Char>(),
         timeout.inMilliseconds,
       );
+      if (result == -6) {
+        throw StateError(
+          'Cover art is unavailable: MediaPlayer1 has no ObexPort or the '
+          'current track did not publish ImgHandle.',
+        );
+      }
       _checkResult(result, 'get player cover art');
       return targetFile;
     } finally {

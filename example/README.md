@@ -108,6 +108,12 @@ dart run example/media_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF watch 
 Browse remote folders and playlist/media item trees via `MediaFolder1` and
 `MediaItem1`:
 
+The browsing CLI also accepts `cover-art <target_file>` for its player path:
+
+```sh
+dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 cover-art /tmp/bluez-cover-art
+```
+
 ```dart
 final folder = client.folder('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0');
 final items = folder.listItems();

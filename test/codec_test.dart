@@ -99,6 +99,7 @@ void main() {
       _writeBool(b, true);
       _writeBool(b, false);
       _writeString(b, '/org/bluez/hci0/dev_AA/player0/playlist');
+      _writeUint16(b, 0x1001);
 
       final data = Uint8List.fromList(b.toBytes());
       final props = GlazeCodec.decode<BlueZMediaPlayerProps>(data, 0);
@@ -117,6 +118,7 @@ void main() {
       expect(props.browsable, true);
       expect(props.searchable, false);
       expect(props.playlist, '/org/bluez/hci0/dev_AA/player0/playlist');
+      expect(props.obexPort, 0x1001);
     });
 
     test('decodes BlueZMediaControlProps', () {

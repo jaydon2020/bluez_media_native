@@ -22,5 +22,6 @@
     <property name="Browsable" type="b" access="read"/>
     <property name="Searchable" type="b" access="read"/>
     <property name="Playlist" type="o" access="read"/>
+    <property name="ObexPort" type="q" access="read"/>
   </interface>
 </node>

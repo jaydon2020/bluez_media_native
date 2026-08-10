@@ -49,6 +49,7 @@ struct BlueZMediaPlayerProps {
   bool browsable{};
   bool searchable{};
   std::string playlist;
+  uint16_t obexPort{};
 };
 template <>
 struct glz::meta<BlueZMediaPlayerProps> {
@@ -67,7 +68,8 @@ struct glz::meta<BlueZMediaPlayerProps> {
       glz::field("subtype", &BlueZMediaPlayerProps::subtype),
       glz::field("browsable", &BlueZMediaPlayerProps::browsable),
       glz::field("searchable", &BlueZMediaPlayerProps::searchable),
-      glz::field("playlist", &BlueZMediaPlayerProps::playlist));
+      glz::field("playlist", &BlueZMediaPlayerProps::playlist),
+      glz::field("obexPort", &BlueZMediaPlayerProps::obexPort));
 };
 
 // ── MediaControl1 properties ───────────────────────────────────────────────

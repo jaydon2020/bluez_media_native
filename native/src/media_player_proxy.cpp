@@ -92,6 +92,7 @@ std::vector<uint8_t> MediaPlayerProxy::encode_properties(
   props.browsable = media_property<bool>(properties, "Browsable");
   props.searchable = media_property<bool>(properties, "Searchable");
   props.playlist = media_property<sdbus::ObjectPath>(properties, "Playlist");
+  props.obexPort = media_property<uint16_t>(properties, "ObexPort");
 
   return glz::encode(props);
 }

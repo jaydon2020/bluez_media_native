@@ -58,6 +58,7 @@ class GlazeCodec {
       browsable: r.readBool(),
       searchable: r.readBool(),
       playlist: r.readString(),
+      obexPort: r.readUint16(),
     );
   }
 

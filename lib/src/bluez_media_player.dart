@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:isolate';
 
 import 'bluez_media_client.dart' show BluezMediaClient;
 import 'ffi/types.dart';
@@ -43,6 +42,7 @@ class BluezMediaPlayer {
   bool get browsable => _props.browsable;
   bool get searchable => _props.searchable;
   String get playlist => _props.playlist;
+  int get obexPort => _props.obexPort;
 
   /// Emits property names after [refresh] or future native event routing.
   Stream<List<String>> get propertiesChanged => _propertiesChangedCtrl.stream;
@@ -64,19 +64,9 @@ class BluezMediaPlayer {
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
   }) {
-    final playerPath = objectPath;
-    return Isolate.run(() {
-      final client = BluezMediaClient.create();
-      try {
-        return client.getPlayerCoverArt(
-          playerPath,
-          targetFile,
-          timeout: timeout,
-        );
-      } finally {
-        client.close();
-      }
-    });
+    return Future.sync(
+      () => _client.getPlayerCoverArt(objectPath, targetFile, timeout: timeout),
+    );
   }
 
   /// Fetch the latest player snapshot from BlueZ.
@@ -94,6 +84,7 @@ class BluezMediaPlayer {
     if (props.shuffle != _props.shuffle) changed.add('Shuffle');
     if (props.name != _props.name) changed.add('Name');
     if (props.device != _props.device) changed.add('Device');
+    if (props.obexPort != _props.obexPort) changed.add('ObexPort');
 
     _props = props;
     if (changed.isNotEmpty) {

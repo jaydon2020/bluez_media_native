@@ -2,11 +2,13 @@
 
 // example/media_browsing.dart — browse AVRCP folders and media items.
 
+import 'dart:io';
+
 import 'package:bluez_media_native/bluez_media_native.dart';
 
 import 'media_example_utils.dart';
 
-void main(List<String> args) {
+Future<void> main(List<String> args) async {
   if (isListCommand(args)) {
     final client = createClient();
     try {
@@ -26,7 +28,8 @@ void main(List<String> args) {
 
   if (args.length < 2 || hasFlag(args, '--help')) {
     printUsage('dart run example/media_browsing.dart <path> <command>', [
-      'Player commands: play, pause, stop, next, previous, fast-forward, rewind, player-props',
+      'Player commands: play, pause, stop, next, previous, fast-forward, rewind,',
+      '                 cover-art <target_file>, player-props',
       'Folder commands: folder-props, list, search <text>, cd <folder_path>',
       'Item commands:   item-props, play-item, add-now-playing',
       'Discovery:       list',
@@ -79,6 +82,13 @@ void main(List<String> args) {
       case 'rewind':
         player.rewind();
         print('Sent Rewind to player $path.');
+        break;
+      case 'cover-art':
+        if (args.length < 3) {
+          throw const FormatException('cover-art requires a target file.');
+        }
+        final target = File(args[2]).absolute.path;
+        print('Saved cover art to ${await player.getCoverArt(target)}.');
         break;
       case 'player-props':
         player.refresh();

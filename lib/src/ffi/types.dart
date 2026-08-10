@@ -26,6 +26,7 @@ class BlueZMediaPlayerProps {
   final bool browsable;
   final bool searchable;
   final String playlist;
+  final int obexPort;
 
   const BlueZMediaPlayerProps({
     required this.objectPath,
@@ -43,6 +44,7 @@ class BlueZMediaPlayerProps {
     this.browsable = false,
     this.searchable = false,
     this.playlist = '',
+    this.obexPort = 0,
   });
 }
 

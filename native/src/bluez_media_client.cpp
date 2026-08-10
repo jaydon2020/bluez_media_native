@@ -11,7 +11,7 @@
 #include <exception>
 #include <memory>
 
-#include "cover_art_client.h"
+#include "cover_art_service.h"
 #include "media_browser_proxy.h"
 #include "media_client.h"
 #include "media_control_proxy.h"
@@ -35,6 +35,7 @@ void log_exception(const char* function_name, const std::exception& e) {
 struct BluezMediaClientContext {
   std::unique_ptr<sdbus::IConnection> conn;
   std::unique_ptr<MediaClient> client;
+  std::unique_ptr<CoverArtService> cover_art;
   std::unique_ptr<MediaObjectManager> object_manager;
 };
 
@@ -49,8 +50,9 @@ void* bluez_media_client_create(int64_t events_port) {
     auto ctx = std::make_unique<BluezMediaClientContext>();
     ctx->conn = sdbus::createSystemBusConnection();
     ctx->client = std::make_unique<MediaClient>(*ctx->conn);
-    ctx->object_manager =
-        std::make_unique<MediaObjectManager>(*ctx->conn, events_port);
+    ctx->cover_art = std::make_unique<CoverArtService>(*ctx->conn);
+    ctx->object_manager = std::make_unique<MediaObjectManager>(
+        *ctx->conn, events_port, *ctx->cover_art);
     ctx->object_manager->get_managed_objects();
     ctx->conn->enterEventLoopAsync();
     return ctx.release();
@@ -276,8 +278,8 @@ int bluez_media_player_get_cover_art(void* handle,
   }
   try {
     auto* ctx = static_cast<BluezMediaClientContext*>(handle);
-    return bluez_media::get_cover_art(*ctx->conn, player_path, target_file,
-                                      std::chrono::milliseconds{timeout_ms});
+    return ctx->cover_art->get(player_path, target_file,
+                               std::chrono::milliseconds{timeout_ms});
   } catch (const std::exception& e) {
     log_exception("bluez_media_player_get_cover_art", e);
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;

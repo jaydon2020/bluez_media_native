@@ -4,10 +4,12 @@
 #include <vector>
 
 #include "bluez_media_types.h"
+#include "cover_art_service.h"
 #include "media_browser_proxy.h"
 #include "media_control_proxy.h"
 #include "media_player_proxy.h"
 #include "media_transport_proxy.h"
+#include "media_utils.h"
 
 namespace {
 constexpr auto kBluezService = "org.bluez";
@@ -43,8 +45,9 @@ void post_bytes(Dart_Port_DL port,
 }  // namespace
 
 MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
-                                       Dart_Port_DL events_port)
-    : conn_(conn), events_port_(events_port) {
+                                       Dart_Port_DL events_port,
+                                       CoverArtService& cover_art)
+    : conn_(conn), events_port_(events_port), cover_art_(cover_art) {
   root_proxy_ = sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                                    sdbus::ObjectPath{"/"});
   root_proxy_->uponSignal("InterfacesAdded")
@@ -99,6 +102,9 @@ void MediaObjectManager::on_interfaces_removed(
     if (!is_media_interface(interface_name)) {
       continue;
     }
+    if (interface_name == kPlayerIface) {
+      cover_art_.unregister_player(path);
+    }
     post_removed(path, interface_name);
     if (known != interfaces_by_path_.end()) {
       known->second.erase(interface_name);
@@ -150,6 +156,13 @@ void MediaObjectManager::post_properties(const std::string& path,
   }
   const auto& properties = interface_it->second;
   if (interface_name == kPlayerIface) {
+    try {
+      cover_art_.register_player(
+          path, media_property<sdbus::ObjectPath>(properties, "Device"),
+          media_property<uint16_t>(properties, "ObexPort"));
+    } catch (const sdbus::Error&) {
+      // Cover art is optional and must not break media discovery.
+    }
     post_bytes(events_port_, 0x01,
                MediaPlayerProxy::encode_properties(path, properties));
   } else if (interface_name == kControlIface) {
