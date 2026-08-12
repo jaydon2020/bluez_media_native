@@ -331,6 +331,15 @@ int CoverArtService::get(const std::string& player_path,
   auto& bus = session_bus();
   auto image = sdbus::createProxy(bus, sdbus::ServiceName{kObexService},
                                   session->second.object_path);
+
+  try {
+    if (get_thumbnail(bus, *image, target_file, source.image_handle, timeout)) {
+      return BLUEZ_MEDIA_SUCCESS;
+    }
+  } catch (const sdbus::Error&) {
+  }
+  remove_partial_file(target_file);
+
   Properties preferred;
   try {
     preferred = preferred_description(*image, source.image_handle);
@@ -350,14 +359,6 @@ int CoverArtService::get(const std::string& player_path,
 
   try {
     if (get_image(bus, *image, target_file, source.image_handle, {}, timeout)) {
-      return BLUEZ_MEDIA_SUCCESS;
-    }
-  } catch (const sdbus::Error&) {
-  }
-  remove_partial_file(target_file);
-
-  try {
-    if (get_thumbnail(bus, *image, target_file, source.image_handle, timeout)) {
       return BLUEZ_MEDIA_SUCCESS;
     }
   } catch (const sdbus::Error&) {
