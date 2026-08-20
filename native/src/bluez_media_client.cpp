@@ -387,12 +387,22 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
         case BLUEZ_MEDIA_OP_TRANSPORT_SET_VOLUME: {
           MediaTransportProxy proxy{*context->conn, object_path};
           switch (operation) {
-            case BLUEZ_MEDIA_OP_TRANSPORT_ACQUIRE:
-              payload = glz::encode(proxy.acquire());
+            case BLUEZ_MEDIA_OP_TRANSPORT_ACQUIRE: {
+              // Guard the raw fd with UnixFd so it is closed if glz::encode
+              // throws (e.g. OOM), preventing a file-descriptor leak.
+              auto result = proxy.acquire();
+              sdbus::UnixFd guard{result.fd, sdbus::adopt_fd};
+              payload = glz::encode(result);
+              guard.release();  // ownership transferred into payload bytes
               break;
-            case BLUEZ_MEDIA_OP_TRANSPORT_TRY_ACQUIRE:
-              payload = glz::encode(proxy.try_acquire());
+            }
+            case BLUEZ_MEDIA_OP_TRANSPORT_TRY_ACQUIRE: {
+              auto result = proxy.try_acquire();
+              sdbus::UnixFd guard{result.fd, sdbus::adopt_fd};
+              payload = glz::encode(result);
+              guard.release();
               break;
+            }
             case BLUEZ_MEDIA_OP_TRANSPORT_RELEASE:
               status = proxy.release();
               break;
@@ -483,10 +493,9 @@ void bluez_media_client_destroy(void* handle) {
   // A D-Bus call already queued for this client may still be waiting for its
   // reply. Reap it away from the Dart isolate so close() never inherits that
   // wait; retiring the token above still rejects every new call immediately.
-  std::thread([ctx = std::move(ctx)]() mutable {
-    ctx->operations.stop();
-    ctx.reset();
-  }).detach();
+  // Note: BluezMediaClientContext::~BluezMediaClientContext already calls
+  // operations.stop(), so we must not call it again here.
+  std::thread([ctx = std::move(ctx)]() mutable { ctx.reset(); }).detach();
 }
 
 void bluez_media_buffer_free(BluezMediaBuffer* buffer) {

@@ -342,19 +342,27 @@ int CoverArtService::get(const std::string& player_path,
     return BLUEZ_MEDIA_ERROR_NOT_FOUND;
   }
 
-  const std::scoped_lock lock(mutex_);
-  const auto player = players_.find(player_path);
-  if (player == players_.end()) {
-    return BLUEZ_MEDIA_ERROR_NOT_FOUND;
-  }
-  const auto session = sessions_.find(player->second.device_address);
-  if (session == sessions_.end()) {
-    return BLUEZ_MEDIA_ERROR_NOT_FOUND;
-  }
+  // Copy the session path under the lock, then release it before any blocking
+  // D-Bus calls. Holding mutex_ across get_thumbnail/get_image (which contain
+  // synchronous D-Bus round-trips and a 100ms sleep loop) would deadlock with
+  // ~CoverArtService which also acquires mutex_ to clean up sessions.
+  sdbus::ObjectPath session_path;
+  {
+    const std::scoped_lock lock(mutex_);
+    const auto player = players_.find(player_path);
+    if (player == players_.end()) {
+      return BLUEZ_MEDIA_ERROR_NOT_FOUND;
+    }
+    const auto session = sessions_.find(player->second.device_address);
+    if (session == sessions_.end()) {
+      return BLUEZ_MEDIA_ERROR_NOT_FOUND;
+    }
+    session_path = session->second.object_path;
+  }  // mutex_ released here — no lock held during D-Bus calls below.
 
   auto& bus = session_bus();
-  auto image = sdbus::createProxy(bus, sdbus::ServiceName{kObexService},
-                                  session->second.object_path);
+  auto image =
+      sdbus::createProxy(bus, sdbus::ServiceName{kObexService}, session_path);
 
   try {
     if (get_thumbnail(bus, *image, target_file, source.image_handle,

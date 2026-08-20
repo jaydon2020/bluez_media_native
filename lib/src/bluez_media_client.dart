@@ -478,10 +478,12 @@ class BluezMediaClient {
     if (message is! Uint8List || message.isEmpty || _closed) return;
     try {
       _dispatchEvent(message);
-    } on Exception catch (error) {
+    } catch (error, stack) {
       // A malformed native event must not terminate the ReceivePort listener.
+      // Catch Object (not just Exception) so Dart Errors from codec reads are
+      // also logged rather than silently swallowed.
       // ignore: avoid_print
-      print('[bluez_media] event decode failed: $error');
+      print('[bluez_media] event decode failed: $error\n$stack');
     }
   }
 
@@ -559,7 +561,9 @@ class BluezMediaClient {
   // ── Error handling ─────────────────────────────────────────────────────────
 
   void _ensureOpen() {
-    if (_handle == nullptr) {
+    // Check _closed first: close() sets it before nulling _handle, so this
+    // prevents calls from slipping through the window between the two.
+    if (_closed || _handle == nullptr) {
       throw StateError('BluezMediaClient is closed.');
     }
   }
