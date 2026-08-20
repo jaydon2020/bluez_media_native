@@ -48,7 +48,7 @@ sudo dnf install cmake ninja-build clang systemd-devel pkgconf-pkg-config
 
 ```yaml
 dependencies:
-  bluez_media_native: ^0.0.1
+  bluez_media_native: ^0.2.0
 ```
 
 ### 3. Build the native library manually (optional)
@@ -93,10 +93,8 @@ repeat/shuffle modes, and inspect transport metadata.
 import 'package:bluez_media_native/bluez_media_native.dart';
 
 Future<void> main() async {
-  final client = BluezMediaClient.create();
+  final client = await BluezMediaClient.create();
   try {
-    await client.ready;
-
     for (final player in client.players) {
       print('${player.name}: ${player.status}');
       print(player.track.map((p) => '${p.key}=${p.value}').join(', '));
@@ -104,14 +102,14 @@ Future<void> main() async {
 
     if (client.players.isNotEmpty) {
       final player = client.players.first;
-      player.play();
-      player.refresh();
+      await player.play();
+      await player.refresh();
       if (player.imageHandle.isNotEmpty) {
         await player.getCoverArt('/tmp/bluez-cover-art');
       }
     }
   } finally {
-    client.close();
+    await client.close();
   }
 }
 ```
@@ -120,9 +118,9 @@ Future<void> main() async {
 
 ### BluezMediaClient
 
-Top-level entry point. `BluezMediaClient.create()` initializes the Dart Native
-DL API, opens a BlueZ system bus connection, starts the native event loop, and
-caches media objects from BlueZ ObjectManager updates.
+Top-level entry point. `await BluezMediaClient.create()` initializes the Dart
+Native DL API, opens a BlueZ system bus connection, starts the native event
+loop, and returns after caching the initial ObjectManager snapshot.
 
 | Property / Method | Description |
 |---|---|
@@ -132,7 +130,7 @@ caches media objects from BlueZ ObjectManager updates.
 | `folders` | Cached `MediaFolder1` proxies |
 | `items` | Cached `MediaItem1` proxies |
 | `transports` | Cached `MediaTransport1` proxies |
-| `transportAdded` / `transportRemoved` | Streams for transport lifecycle events |
+| `playerAdded` / `playerRemoved`, etc. | Streams for player, control, folder, item, and transport lifecycle events |
 | `registerPlayer()` / `unregisterPlayer()` | Register or remove a local MPRIS player |
 | `getManagedObjects()` | Return a snapshot of known BlueZ media objects |
 | `close()` | Stop native event processing and release cached proxies |
@@ -151,9 +149,9 @@ Local browsing/searching flags are rejected until the package exports a local
 import 'package:bluez_media_native/bluez_media_native.dart';
 
 Future<void> main() async {
-  final client = BluezMediaClient.create();
+  final client = await BluezMediaClient.create();
   try {
-    client.registerPlayer(
+    await client.registerPlayer(
       const BluezMediaPlayerRegistrationConfig(
         adapterPath: '/org/bluez/hci0',
         playerPath: '/bluez_media/player0',
@@ -165,12 +163,12 @@ Future<void> main() async {
     // Keep the process alive while the player is registered.
     await Future<void>.delayed(const Duration(seconds: 30));
 
-    client.unregisterPlayer(
+    await client.unregisterPlayer(
       adapterPath: '/org/bluez/hci0',
       playerPath: '/bluez_media/player0',
     );
   } finally {
-    client.close();
+    await client.close();
   }
 }
 ```
@@ -245,12 +243,16 @@ The C ABI uses package-owned status codes, not D-Bus numeric error codes:
 | Code | Name | Meaning |
 |---|---|---|
 | `0` | `BLUEZ_MEDIA_SUCCESS` | Operation succeeded |
-| `-1` | `BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT` | Null handle/path, invalid capacity, or invalid input |
-| `-2` | `BLUEZ_MEDIA_ERROR_BUFFER_TOO_SMALL` | Caller-provided output buffer is too small |
+| `-1` | `BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT` | Unknown/retired handle, null path/buffer, or invalid input |
+| `-2` | `BLUEZ_MEDIA_ERROR_BUFFER_TOO_SMALL` | Reserved for ABI compatibility |
 | `-3` | `BLUEZ_MEDIA_ERROR_OPERATION_FAILED` | D-Bus or native operation failed |
 | `-4` | `BLUEZ_MEDIA_ERROR_UNSUPPORTED_SETTING` | BlueZ rejected repeat/shuffle setting |
 | `-5` | `BLUEZ_MEDIA_ERROR_ALREADY_EXISTS` | Local player path is already registered |
 | `-6` | `BLUEZ_MEDIA_ERROR_NOT_FOUND` | Local player path is not registered |
+
+Variable-length C ABI results are returned in a `BluezMediaBuffer`. Call
+`bluez_media_buffer_free()` after copying the payload. The Dart API handles
+this ownership automatically.
 
 ## Examples
 
@@ -309,8 +311,8 @@ dart run ffigen --config ffigen.yaml
 Cover art requires `ImgHandle` in `MediaPlayer1.Track` and a running BlueZ
 `obexd` with its experimental Image API enabled. The destination passed to
 `getCoverArt` must be an absolute path that does not already exist.
-`bluez_media_native` keeps the required BIP session open while its client is
-alive, so BlueZ's separate `mpris-proxy` process is not required.
+`bluez_media_native` owns the required BIP session for the duration of each
+download, so BlueZ's separate `mpris-proxy` process is not required.
 
 ### BlueZ is not running
 

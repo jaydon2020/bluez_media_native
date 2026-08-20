@@ -36,6 +36,7 @@ class MediaProxyDashboard extends StatefulWidget {
 
 class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   late final BluezMediaClient _client;
+  bool _clientInitialized = false;
   final _subscriptions = <StreamSubscription<List<String>>>[];
   final _messages = <String>[];
   var _loading = true;
@@ -71,7 +72,6 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   @override
   void initState() {
     super.initState();
-    _client = BluezMediaClient.create();
     unawaited(_loadObjects());
   }
 
@@ -84,7 +84,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     if (coverArtDirectory != null) {
       unawaited(_deleteDirectory(coverArtDirectory));
     }
-    _client.close();
+    if (_clientInitialized) unawaited(_client.close());
     super.dispose();
   }
 
@@ -95,8 +95,9 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     });
 
     try {
-      await _client.ready.timeout(const Duration(seconds: 2), onTimeout: () {});
-      final objects = _client.getManagedObjects();
+      _client = await BluezMediaClient.create();
+      _clientInitialized = true;
+      final objects = await _client.getManagedObjects();
       final players = objects.players.map(_client.player).toList();
       final controls = objects.controls.map(_client.control).toList();
       final transports = objects.transports.map(_client.transport).toList();
@@ -159,17 +160,17 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   Future<void> _refreshSelected() async {
     final device = _selectedDevice;
     try {
-      device?.player?.refresh();
-      device?.control?.refresh();
+      await device?.player?.refresh();
+      await device?.control?.refresh();
       for (final folder in device?.folders ?? const <BluezMediaFolder>[]) {
-        folder.refresh();
+        await folder.refresh();
       }
       for (final item in device?.items ?? const <BluezMediaItem>[]) {
-        item.refresh();
+        await item.refresh();
       }
       for (final transport
           in device?.transports ?? const <BluezMediaTransport>[]) {
-        transport.refresh();
+        await transport.refresh();
       }
       _pushMessage('Refreshed selected device');
       _refreshView();
@@ -178,20 +179,22 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     }
   }
 
-  void _runCommand(String label, VoidCallback command) {
-    try {
-      command();
-      _pushMessage(label);
-      _refreshView();
-    } catch (error) {
-      _pushMessage('$error');
-    }
+  void _runCommand(String label, FutureOr<void> Function() command) {
+    unawaited(() async {
+      try {
+        await command();
+        _pushMessage(label);
+        _refreshView();
+      } catch (error) {
+        _pushMessage('$error');
+      }
+    }());
   }
 
   Future<void> _listFolderItems(BluezMediaFolder folder) async {
     try {
       final knownPaths = _items.map((item) => item.objectPath).toSet();
-      final children = folder.listItems();
+      final children = await folder.listItems();
       for (final child in children) {
         if (knownPaths.add(child.objectPath)) {
           _subscriptions.add(
@@ -216,9 +219,9 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       _pushMessage('Selected device has no MediaPlayer1 support');
       return;
     }
-    _runCommand('MediaPlayer1 Repeat: $repeat', () {
-      player.setRepeat(repeat);
-      player.refresh();
+    _runCommand('MediaPlayer1 Repeat: $repeat', () async {
+      await player.setRepeat(repeat);
+      await player.refresh();
     });
   }
 
@@ -228,9 +231,9 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       _pushMessage('Selected device has no MediaPlayer1 support');
       return;
     }
-    _runCommand('MediaPlayer1 Shuffle: $shuffle', () {
-      player.setShuffle(shuffle);
-      player.refresh();
+    _runCommand('MediaPlayer1 Shuffle: $shuffle', () async {
+      await player.setShuffle(shuffle);
+      await player.refresh();
     });
   }
 
@@ -275,9 +278,10 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   void _setTransportVolume(double value) {
     final transport = _selectedDevice?.transport;
     if (transport == null) return;
-    _runCommand('MediaTransport1 Volume: ${value.round()}', () {
-      transport.volume = value.round().clamp(0, 127);
-    });
+    _runCommand(
+      'MediaTransport1 Volume: ${value.round()}',
+      () => transport.setVolume(value.round().clamp(0, 127)),
+    );
     setState(() => _transportVolumeDraft = null);
   }
 
@@ -559,7 +563,8 @@ class _ProxyPanels extends StatelessWidget {
   final double? transportVolumeDraft;
   final ValueChanged<double> onTransportVolumePreview;
   final ValueChanged<double> onTransportVolumeChanged;
-  final void Function(String label, VoidCallback command) onCommand;
+  final void Function(String label, FutureOr<void> Function() command)
+  onCommand;
 
   const _ProxyPanels({
     required this.device,
@@ -647,7 +652,8 @@ class _PlayerProxyPanel extends StatelessWidget {
   final String? coverArtPath;
   final bool coverArtLoading;
   final VoidCallback onGetCoverArt;
-  final void Function(String label, VoidCallback command) onCommand;
+  final void Function(String label, FutureOr<void> Function() command)
+  onCommand;
 
   const _PlayerProxyPanel({
     required this.player,
@@ -864,7 +870,8 @@ class _BrowseProxyPanel extends StatelessWidget {
   final List<BluezMediaFolder> folders;
   final List<BluezMediaItem> items;
   final ValueChanged<BluezMediaFolder> onListFolderItems;
-  final void Function(String label, VoidCallback command) onCommand;
+  final void Function(String label, FutureOr<void> Function() command)
+  onCommand;
 
   const _BrowseProxyPanel({
     required this.folders,
@@ -972,7 +979,8 @@ class _FolderRow extends StatelessWidget {
 
 class _ItemRow extends StatelessWidget {
   final BluezMediaItem item;
-  final void Function(String label, VoidCallback command) onCommand;
+  final void Function(String label, FutureOr<void> Function() command)
+  onCommand;
 
   const _ItemRow({required this.item, required this.onCommand});
 
@@ -1055,7 +1063,8 @@ class _ItemRow extends StatelessWidget {
 
 class _ControlProxyPanel extends StatelessWidget {
   final BluezMediaControl? control;
-  final void Function(String label, VoidCallback command) onCommand;
+  final void Function(String label, FutureOr<void> Function() command)
+  onCommand;
 
   const _ControlProxyPanel({required this.control, required this.onCommand});
 
@@ -1181,7 +1190,8 @@ class _TransportProxyPanel extends StatelessWidget {
   final double? volumeDraft;
   final ValueChanged<double> onVolumePreview;
   final ValueChanged<double> onVolumeChanged;
-  final void Function(String label, VoidCallback command) onCommand;
+  final void Function(String label, FutureOr<void> Function() command)
+  onCommand;
 
   const _TransportProxyPanel({
     required this.transport,
@@ -1289,8 +1299,8 @@ class _TransportProxyPanel extends StatelessWidget {
                 icon: Icons.output,
                 onPressed: transport == null
                     ? null
-                    : () => onCommand('MediaTransport1 TryAcquire', () {
-                        final acquired = transport!.tryAcquire();
+                    : () => onCommand('MediaTransport1 TryAcquire', () async {
+                        final acquired = await transport!.tryAcquire();
                         acquired.close();
                       }),
               ),

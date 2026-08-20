@@ -8,11 +8,14 @@ import 'media_example_utils.dart';
 
 Future<void> main(List<String> args) async {
   if (isListCommand(args)) {
-    final client = createClient();
+    final client = await createClient();
     try {
-      printManagedMediaObjects(client, interfaces: {'org.bluez.MediaPlayer1'});
+      await printManagedMediaObjects(
+        client,
+        interfaces: {'org.bluez.MediaPlayer1'},
+      );
     } finally {
-      client.close();
+      await client.close();
     }
     return;
   }
@@ -32,31 +35,31 @@ Future<void> main(List<String> args) async {
 
   final playerPath = args[0];
   final command = args[1].toLowerCase();
-  final client = createClient();
+  final client = await createClient();
   final player = client.player(playerPath);
 
   try {
     switch (command) {
       case 'play':
-        player.play();
+        await player.play();
         break;
       case 'pause':
-        player.pause();
+        await player.pause();
         break;
       case 'stop':
-        player.stop();
+        await player.stop();
         break;
       case 'next':
-        player.next();
+        await player.next();
         break;
       case 'previous':
-        player.previous();
+        await player.previous();
         break;
       case 'fast-forward':
-        player.fastForward();
+        await player.fastForward();
         break;
       case 'rewind':
-        player.rewind();
+        await player.rewind();
         break;
       case 'cover-art':
         if (args.length < 3) {
@@ -66,7 +69,7 @@ Future<void> main(List<String> args) async {
         print('Saved cover art to ${await player.getCoverArt(target)}.');
         return;
       case 'props':
-        player.refresh();
+        await player.refresh();
         print('Player: ${player.objectPath}');
         print('  Status:   ${player.status}');
         print('  Position: ${player.position} ms');
@@ -81,6 +84,6 @@ Future<void> main(List<String> args) async {
     }
     print('Sent $command to $playerPath.');
   } finally {
-    client.close();
+    await client.close();
   }
 }

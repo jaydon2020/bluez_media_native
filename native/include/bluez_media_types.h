@@ -165,6 +165,19 @@ struct glz::meta<BlueZMediaFolderItems> {
 
 // ── Method results/errors ──────────────────────────────────────────────────
 
+struct BlueZMediaError {
+  std::string objectPath;
+  std::string name;
+  std::string message;
+};
+template <>
+struct glz::meta<BlueZMediaError> {
+  static constexpr auto fields =
+      std::make_tuple(glz::field("objectPath", &BlueZMediaError::objectPath),
+                      glz::field("name", &BlueZMediaError::name),
+                      glz::field("message", &BlueZMediaError::message));
+};
+
 struct BlueZMediaAcquireResult {
   std::string transportPath;
   int32_t fd{-1};

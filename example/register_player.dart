@@ -10,11 +10,11 @@ import 'media_example_utils.dart';
 
 Future<void> main(List<String> args) async {
   if (isListCommand(args)) {
-    final client = createClient();
+    final client = await createClient();
     try {
-      printManagedMediaObjects(client, interfaces: {'org.bluez.Media1'});
+      await printManagedMediaObjects(client, interfaces: {'org.bluez.Media1'});
     } finally {
-      client.close();
+      await client.close();
     }
     return;
   }
@@ -44,9 +44,9 @@ Future<void> main(List<String> args) async {
   final holdSeconds =
       int.tryParse(optionValue(args, '--hold', fallback: '30')) ?? 30;
 
-  final client = createClient();
+  final client = await createClient();
   try {
-    client.registerPlayer(
+    await client.registerPlayer(
       BluezMediaPlayerRegistrationConfig(
         adapterPath: adapterPath,
         playerPath: playerPath,
@@ -58,9 +58,12 @@ Future<void> main(List<String> args) async {
     print('Keeping registration alive for $holdSeconds seconds...');
     await Future<void>.delayed(Duration(seconds: holdSeconds));
 
-    client.unregisterPlayer(adapterPath: adapterPath, playerPath: playerPath);
+    await client.unregisterPlayer(
+      adapterPath: adapterPath,
+      playerPath: playerPath,
+    );
     print('Unregistered player.');
   } finally {
-    client.close();
+    await client.close();
   }
 }

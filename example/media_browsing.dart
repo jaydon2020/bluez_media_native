@@ -10,9 +10,9 @@ import 'media_example_utils.dart';
 
 Future<void> main(List<String> args) async {
   if (isListCommand(args)) {
-    final client = createClient();
+    final client = await createClient();
     try {
-      printManagedMediaObjects(
+      await printManagedMediaObjects(
         client,
         interfaces: {
           'org.bluez.MediaPlayer1',
@@ -21,7 +21,7 @@ Future<void> main(List<String> args) async {
         },
       );
     } finally {
-      client.close();
+      await client.close();
     }
     return;
   }
@@ -48,7 +48,7 @@ Future<void> main(List<String> args) async {
 
   final path = args[0];
   final command = args[1].toLowerCase();
-  final client = createClient();
+  final client = await createClient();
   final player = client.player(path);
   final folder = client.folder(path);
   final item = client.item(path);
@@ -56,31 +56,31 @@ Future<void> main(List<String> args) async {
   try {
     switch (command) {
       case 'play':
-        player.play();
+        await player.play();
         print('Sent Play to player $path.');
         break;
       case 'pause':
-        player.pause();
+        await player.pause();
         print('Sent Pause to player $path.');
         break;
       case 'stop':
-        player.stop();
+        await player.stop();
         print('Sent Stop to player $path.');
         break;
       case 'next':
-        player.next();
+        await player.next();
         print('Sent Next to player $path.');
         break;
       case 'previous':
-        player.previous();
+        await player.previous();
         print('Sent Previous to player $path.');
         break;
       case 'fast-forward':
-        player.fastForward();
+        await player.fastForward();
         print('Sent FastForward to player $path.');
         break;
       case 'rewind':
-        player.rewind();
+        await player.rewind();
         print('Sent Rewind to player $path.');
         break;
       case 'cover-art':
@@ -91,7 +91,7 @@ Future<void> main(List<String> args) async {
         print('Saved cover art to ${await player.getCoverArt(target)}.');
         break;
       case 'player-props':
-        player.refresh();
+        await player.refresh();
         print('Player: ${player.objectPath}');
         print('  Status:   ${player.status}');
         print('  Position: ${player.position} ms');
@@ -102,13 +102,13 @@ Future<void> main(List<String> args) async {
         printProperties(player.track, indent: '    ');
         break;
       case 'folder-props':
-        folder.refresh();
+        await folder.refresh();
         print('Folder: ${folder.objectPath}');
         print('  Name:           ${folder.name}');
         print('  NumberOfItems:  ${folder.numberOfItems}');
         break;
       case 'list':
-        final items = folder.listItems();
+        final items = await folder.listItems();
         print('Folder: ${folder.objectPath}');
         print('Items: ${items.length}');
         for (final item in items) {
@@ -119,33 +119,33 @@ Future<void> main(List<String> args) async {
         if (args.length < 3) {
           throw const FormatException('search requires a text value.');
         }
-        final result = folder.search(args.sublist(2).join(' '));
+        final result = await folder.search(args.sublist(2).join(' '));
         print('Search result folder: ${result.objectPath}');
         break;
       case 'cd':
         if (args.length < 3) {
           throw const FormatException('cd requires a target folder path.');
         }
-        folder.changeFolderPath(args[2]);
+        await folder.changeFolderPath(args[2]);
         print('Changed $path to folder ${args[2]}.');
         break;
       case 'item-props':
-        item.refresh();
+        await item.refresh();
         _printItemDetails(item);
         break;
       case 'play-item':
-        item.play();
+        await item.play();
         print('Sent Play to item $path.');
         break;
       case 'add-now-playing':
-        item.addToNowPlaying();
+        await item.addToNowPlaying();
         print('Added item $path to now playing.');
         break;
       default:
         throw FormatException('Unknown command: $command.');
     }
   } finally {
-    client.close();
+    await client.close();
   }
 }
 

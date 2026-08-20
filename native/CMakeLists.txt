@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(bluez_media_native_library VERSION 0.0.1 LANGUAGES CXX C)
+project(bluez_media_native_library VERSION 0.2.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_EXTENSIONS OFF)

@@ -13,7 +13,9 @@ class GlazeCodec {
   static T decode<T>(Uint8List data, int offset) {
     final r = _Reader(data, offset);
 
-    if (T == BlueZMediaProperty) {
+    if (T == BlueZMediaError) {
+      return _decodeMediaError(r) as T;
+    } else if (T == BlueZMediaProperty) {
       return _decodeMediaProperty(r) as T;
     } else if (T == BlueZMediaPlayerProps) {
       return _decodeMediaPlayerProps(r) as T;
@@ -35,6 +37,14 @@ class GlazeCodec {
       return _decodeMediaObjectRemoved(r) as T;
     }
     throw ArgumentError('Unknown type: $T');
+  }
+
+  static BlueZMediaError _decodeMediaError(_Reader r) {
+    return BlueZMediaError(
+      objectPath: r.readString(),
+      name: r.readString(),
+      message: r.readString(),
+    );
   }
 
   static BlueZMediaProperty _decodeMediaProperty(_Reader r) {

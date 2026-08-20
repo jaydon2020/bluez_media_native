@@ -25,14 +25,14 @@ Future<void> main(List<String> args) async {
   final command = args[0].toLowerCase();
 
   if (command == 'list') {
-    final client = createClient();
+    final client = await createClient();
     try {
-      printManagedMediaObjects(
+      await printManagedMediaObjects(
         client,
         interfaces: {'org.bluez.MediaTransport1'},
       );
     } finally {
-      client.close();
+      await client.close();
     }
     return;
   }
@@ -43,13 +43,13 @@ Future<void> main(List<String> args) async {
   }
 
   final transportPath = args[1];
-  final client = createClient();
+  final client = await createClient();
   final transport = client.transport(transportPath);
 
   try {
     switch (command) {
       case 'props':
-        transport.refresh();
+        await transport.refresh();
         print('Transport: ${transport.objectPath}');
         print('  Device: ${transport.device}');
         print('  UUID:   ${transport.uuid}');
@@ -59,7 +59,7 @@ Future<void> main(List<String> args) async {
         print('  Volume: ${transport.volume}');
         return;
       case 'acquire':
-        final result = transport.acquire();
+        final result = await transport.acquire();
         try {
           print('Acquired transport.');
           print('  FD:        ${result.fd}');
@@ -70,7 +70,7 @@ Future<void> main(List<String> args) async {
         }
         break;
       case 'try_acquire':
-        final result = transport.tryAcquire();
+        final result = await transport.tryAcquire();
         try {
           print('Tried to acquire transport.');
           print('  FD:        ${result.fd}');
@@ -81,7 +81,7 @@ Future<void> main(List<String> args) async {
         }
         break;
       case 'release':
-        transport.release();
+        await transport.release();
         print('Released transport.');
         break;
       case 'set_volume':
@@ -91,13 +91,13 @@ Future<void> main(List<String> args) async {
           );
         }
         final volume = int.parse(args[2]);
-        transport.volume = volume;
+        await transport.setVolume(volume);
         print('Set volume to $volume.');
         break;
       default:
         throw FormatException('Unknown command: $command.');
     }
   } finally {
-    client.close();
+    await client.close();
   }
 }

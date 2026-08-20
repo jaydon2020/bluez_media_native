@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
 #include <vector>
 
 namespace {
@@ -233,6 +234,19 @@ void test_cover_art_validates_arguments() {
          BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
 }
 
+void test_native_buffer_cleanup() {
+  BluezMediaBuffer buffer{
+      .data = static_cast<uint8_t*>(std::malloc(8)),
+      .length = 8,
+  };
+  assert(buffer.data != nullptr);
+  bluez_media_buffer_free(&buffer);
+  assert(buffer.data == nullptr);
+  assert(buffer.length == 0);
+  bluez_media_buffer_free(&buffer);
+  bluez_media_buffer_free(nullptr);
+}
+
 void test_object_manager_roundtrips() {
   BlueZMediaManagedObjects objects;
   objects.media = {"/org/bluez/hci0"};
@@ -280,6 +294,7 @@ int main() {
   test_method_result_roundtrips();
   test_player_properties_from_object_manager_payload();
   test_cover_art_validates_arguments();
+  test_native_buffer_cleanup();
   test_object_manager_roundtrips();
   return 0;
 }

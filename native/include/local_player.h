@@ -22,6 +22,8 @@ class LocalPlayer {
               const BluezMediaPlayerRegistration& registration);
   ~LocalPlayer();
 
+  const std::string& adapter_path() const { return state_.adapter_path; }
+
  private:
   static constexpr auto kBluezService = "org.bluez";
   static constexpr auto kMediaIface = "org.bluez.Media1";

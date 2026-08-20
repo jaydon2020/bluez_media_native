@@ -49,6 +49,17 @@ class BluezMediaNativeBindings {
   late final _bluez_media_client_create = _bluez_media_client_createPtr
       .asFunction<ffi.Pointer<ffi.Void> Function(int)>();
 
+  void bluez_media_client_create_async(int events_port, int result_port) {
+    return _bluez_media_client_create_async(events_port, result_port);
+  }
+
+  late final _bluez_media_client_create_asyncPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Int64)>>(
+        'bluez_media_client_create_async',
+      );
+  late final _bluez_media_client_create_async =
+      _bluez_media_client_create_asyncPtr.asFunction<void Function(int, int)>();
+
   void bluez_media_client_destroy(ffi.Pointer<ffi.Void> handle) {
     return _bluez_media_client_destroy(handle);
   }
@@ -59,6 +70,61 @@ class BluezMediaNativeBindings {
       );
   late final _bluez_media_client_destroy = _bluez_media_client_destroyPtr
       .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  /// Releases data returned through any BluezMediaBuffer and resets its fields.
+  void bluez_media_buffer_free(ffi.Pointer<BluezMediaBuffer> buffer) {
+    return _bluez_media_buffer_free(buffer);
+  }
+
+  late final _bluez_media_buffer_freePtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Void Function(ffi.Pointer<BluezMediaBuffer>)>
+      >('bluez_media_buffer_free');
+  late final _bluez_media_buffer_free = _bluez_media_buffer_freePtr
+      .asFunction<void Function(ffi.Pointer<BluezMediaBuffer>)>();
+
+  void bluez_media_call_async(
+    ffi.Pointer<ffi.Void> handle,
+    int operation,
+    ffi.Pointer<ffi.Char> object_path,
+    ffi.Pointer<ffi.Char> argument,
+    int value,
+    int result_port,
+  ) {
+    return _bluez_media_call_async(
+      handle,
+      operation,
+      object_path,
+      argument,
+      value,
+      result_port,
+    );
+  }
+
+  late final _bluez_media_call_asyncPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Pointer<ffi.Void>,
+            BluezMediaOperation,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Int32,
+            ffi.Int64,
+          )
+        >
+      >('bluez_media_call_async');
+  late final _bluez_media_call_async = _bluez_media_call_asyncPtr
+      .asFunction<
+        void Function(
+          ffi.Pointer<ffi.Void>,
+          int,
+          ffi.Pointer<ffi.Char>,
+          ffi.Pointer<ffi.Char>,
+          int,
+          int,
+        )
+      >();
 
   /// ── org.bluez.Media1 registration ──────────────────────────────────────────
   int bluez_media_register_player(
@@ -84,6 +150,38 @@ class BluezMediaNativeBindings {
           ffi.Pointer<BluezMediaPlayerRegistration>,
         )
       >();
+
+  void bluez_media_register_player_async(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<BluezMediaPlayerRegistration> registration,
+    int result_port,
+  ) {
+    return _bluez_media_register_player_async(
+      handle,
+      registration,
+      result_port,
+    );
+  }
+
+  late final _bluez_media_register_player_asyncPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<BluezMediaPlayerRegistration>,
+            ffi.Int64,
+          )
+        >
+      >('bluez_media_register_player_async');
+  late final _bluez_media_register_player_async =
+      _bluez_media_register_player_asyncPtr
+          .asFunction<
+            void Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<BluezMediaPlayerRegistration>,
+              int,
+            )
+          >();
 
   int bluez_media_unregister_player(
     ffi.Pointer<ffi.Void> handle,
@@ -286,15 +384,9 @@ class BluezMediaNativeBindings {
   int bluez_media_player_get_properties(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> player_path,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_player_get_properties(
-      handle,
-      player_path,
-      out,
-      capacity,
-    );
+    return _bluez_media_player_get_properties(handle, player_path, out);
   }
 
   late final _bluez_media_player_get_propertiesPtr =
@@ -303,8 +395,7 @@ class BluezMediaNativeBindings {
           ffi.Int Function(
             ffi.Pointer<ffi.Void>,
             ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
+            ffi.Pointer<BluezMediaBuffer>,
           )
         >
       >('bluez_media_player_get_properties');
@@ -314,8 +405,7 @@ class BluezMediaNativeBindings {
             int Function(
               ffi.Pointer<ffi.Void>,
               ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Uint8>,
-              int,
+              ffi.Pointer<BluezMediaBuffer>,
             )
           >();
 
@@ -509,15 +599,9 @@ class BluezMediaNativeBindings {
   int bluez_media_control_get_properties(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> control_path,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_control_get_properties(
-      handle,
-      control_path,
-      out,
-      capacity,
-    );
+    return _bluez_media_control_get_properties(handle, control_path, out);
   }
 
   late final _bluez_media_control_get_propertiesPtr =
@@ -526,8 +610,7 @@ class BluezMediaNativeBindings {
           ffi.Int Function(
             ffi.Pointer<ffi.Void>,
             ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
+            ffi.Pointer<BluezMediaBuffer>,
           )
         >
       >('bluez_media_control_get_properties');
@@ -537,8 +620,7 @@ class BluezMediaNativeBindings {
             int Function(
               ffi.Pointer<ffi.Void>,
               ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Uint8>,
-              int,
+              ffi.Pointer<BluezMediaBuffer>,
             )
           >();
 
@@ -547,16 +629,9 @@ class BluezMediaNativeBindings {
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> folder_path,
     ffi.Pointer<ffi.Char> value,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_folder_search(
-      handle,
-      folder_path,
-      value,
-      out,
-      capacity,
-    );
+    return _bluez_media_folder_search(handle, folder_path, value, out);
   }
 
   late final _bluez_media_folder_searchPtr =
@@ -566,8 +641,7 @@ class BluezMediaNativeBindings {
             ffi.Pointer<ffi.Void>,
             ffi.Pointer<ffi.Char>,
             ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
+            ffi.Pointer<BluezMediaBuffer>,
           )
         >
       >('bluez_media_folder_search');
@@ -577,18 +651,16 @@ class BluezMediaNativeBindings {
           ffi.Pointer<ffi.Void>,
           ffi.Pointer<ffi.Char>,
           ffi.Pointer<ffi.Char>,
-          ffi.Pointer<ffi.Uint8>,
-          int,
+          ffi.Pointer<BluezMediaBuffer>,
         )
       >();
 
   int bluez_media_folder_list_items(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> folder_path,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_folder_list_items(handle, folder_path, out, capacity);
+    return _bluez_media_folder_list_items(handle, folder_path, out);
   }
 
   late final _bluez_media_folder_list_itemsPtr =
@@ -597,8 +669,7 @@ class BluezMediaNativeBindings {
           ffi.Int Function(
             ffi.Pointer<ffi.Void>,
             ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
+            ffi.Pointer<BluezMediaBuffer>,
           )
         >
       >('bluez_media_folder_list_items');
@@ -607,8 +678,7 @@ class BluezMediaNativeBindings {
         int Function(
           ffi.Pointer<ffi.Void>,
           ffi.Pointer<ffi.Char>,
-          ffi.Pointer<ffi.Uint8>,
-          int,
+          ffi.Pointer<BluezMediaBuffer>,
         )
       >();
 
@@ -647,15 +717,9 @@ class BluezMediaNativeBindings {
   int bluez_media_folder_get_properties(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> folder_path,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_folder_get_properties(
-      handle,
-      folder_path,
-      out,
-      capacity,
-    );
+    return _bluez_media_folder_get_properties(handle, folder_path, out);
   }
 
   late final _bluez_media_folder_get_propertiesPtr =
@@ -664,8 +728,7 @@ class BluezMediaNativeBindings {
           ffi.Int Function(
             ffi.Pointer<ffi.Void>,
             ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
+            ffi.Pointer<BluezMediaBuffer>,
           )
         >
       >('bluez_media_folder_get_properties');
@@ -675,8 +738,7 @@ class BluezMediaNativeBindings {
             int Function(
               ffi.Pointer<ffi.Void>,
               ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Uint8>,
-              int,
+              ffi.Pointer<BluezMediaBuffer>,
             )
           >();
 
@@ -719,10 +781,9 @@ class BluezMediaNativeBindings {
   int bluez_media_item_get_properties(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> item_path,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_item_get_properties(handle, item_path, out, capacity);
+    return _bluez_media_item_get_properties(handle, item_path, out);
   }
 
   late final _bluez_media_item_get_propertiesPtr =
@@ -731,8 +792,7 @@ class BluezMediaNativeBindings {
           ffi.Int Function(
             ffi.Pointer<ffi.Void>,
             ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
+            ffi.Pointer<BluezMediaBuffer>,
           )
         >
       >('bluez_media_item_get_properties');
@@ -742,8 +802,7 @@ class BluezMediaNativeBindings {
             int Function(
               ffi.Pointer<ffi.Void>,
               ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Uint8>,
-              int,
+              ffi.Pointer<BluezMediaBuffer>,
             )
           >();
 
@@ -751,15 +810,9 @@ class BluezMediaNativeBindings {
   int bluez_media_transport_acquire(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> transport_path,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_transport_acquire(
-      handle,
-      transport_path,
-      out,
-      capacity,
-    );
+    return _bluez_media_transport_acquire(handle, transport_path, out);
   }
 
   late final _bluez_media_transport_acquirePtr =
@@ -768,8 +821,7 @@ class BluezMediaNativeBindings {
           ffi.Int Function(
             ffi.Pointer<ffi.Void>,
             ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
+            ffi.Pointer<BluezMediaBuffer>,
           )
         >
       >('bluez_media_transport_acquire');
@@ -778,23 +830,16 @@ class BluezMediaNativeBindings {
         int Function(
           ffi.Pointer<ffi.Void>,
           ffi.Pointer<ffi.Char>,
-          ffi.Pointer<ffi.Uint8>,
-          int,
+          ffi.Pointer<BluezMediaBuffer>,
         )
       >();
 
   int bluez_media_transport_try_acquire(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> transport_path,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_transport_try_acquire(
-      handle,
-      transport_path,
-      out,
-      capacity,
-    );
+    return _bluez_media_transport_try_acquire(handle, transport_path, out);
   }
 
   late final _bluez_media_transport_try_acquirePtr =
@@ -803,8 +848,7 @@ class BluezMediaNativeBindings {
           ffi.Int Function(
             ffi.Pointer<ffi.Void>,
             ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
+            ffi.Pointer<BluezMediaBuffer>,
           )
         >
       >('bluez_media_transport_try_acquire');
@@ -814,8 +858,7 @@ class BluezMediaNativeBindings {
             int Function(
               ffi.Pointer<ffi.Void>,
               ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Uint8>,
-              int,
+              ffi.Pointer<BluezMediaBuffer>,
             )
           >();
 
@@ -838,15 +881,9 @@ class BluezMediaNativeBindings {
   int bluez_media_transport_get_properties(
     ffi.Pointer<ffi.Void> handle,
     ffi.Pointer<ffi.Char> transport_path,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_transport_get_properties(
-      handle,
-      transport_path,
-      out,
-      capacity,
-    );
+    return _bluez_media_transport_get_properties(handle, transport_path, out);
   }
 
   late final _bluez_media_transport_get_propertiesPtr =
@@ -855,8 +892,7 @@ class BluezMediaNativeBindings {
           ffi.Int Function(
             ffi.Pointer<ffi.Void>,
             ffi.Pointer<ffi.Char>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
+            ffi.Pointer<BluezMediaBuffer>,
           )
         >
       >('bluez_media_transport_get_properties');
@@ -866,8 +902,7 @@ class BluezMediaNativeBindings {
             int Function(
               ffi.Pointer<ffi.Void>,
               ffi.Pointer<ffi.Char>,
-              ffi.Pointer<ffi.Uint8>,
-              int,
+              ffi.Pointer<BluezMediaBuffer>,
             )
           >();
 
@@ -909,26 +944,21 @@ class BluezMediaNativeBindings {
   /// ── ObjectManager queries ──────────────────────────────────────────────────
   int bluez_media_get_managed_objects(
     ffi.Pointer<ffi.Void> handle,
-    ffi.Pointer<ffi.Uint8> out,
-    int capacity,
+    ffi.Pointer<BluezMediaBuffer> out,
   ) {
-    return _bluez_media_get_managed_objects(handle, out, capacity);
+    return _bluez_media_get_managed_objects(handle, out);
   }
 
   late final _bluez_media_get_managed_objectsPtr =
       _lookup<
         ffi.NativeFunction<
-          ffi.Int Function(
-            ffi.Pointer<ffi.Void>,
-            ffi.Pointer<ffi.Uint8>,
-            ffi.Int32,
-          )
+          ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<BluezMediaBuffer>)
         >
       >('bluez_media_get_managed_objects');
   late final _bluez_media_get_managed_objects =
       _bluez_media_get_managed_objectsPtr
           .asFunction<
-            int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Uint8>, int)
+            int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<BluezMediaBuffer>)
           >();
 }
 
@@ -973,3 +1003,83 @@ enum BluezMediaStatusCode {
     _ => throw ArgumentError("Unknown value for BluezMediaStatusCode: $value"),
   };
 }
+
+final class BluezMediaBuffer extends ffi.Struct {
+  external ffi.Pointer<ffi.Uint8> data;
+
+  @ffi.Int32()
+  external int length;
+}
+
+typedef BluezMediaOperation = ffi.Int32;
+typedef DartBluezMediaOperation = int;
+
+const int BLUEZ_MEDIA_OP_PLAYER_PLAY = 0;
+
+const int BLUEZ_MEDIA_OP_PLAYER_PAUSE = 1;
+
+const int BLUEZ_MEDIA_OP_PLAYER_STOP = 2;
+
+const int BLUEZ_MEDIA_OP_PLAYER_NEXT = 3;
+
+const int BLUEZ_MEDIA_OP_PLAYER_PREVIOUS = 4;
+
+const int BLUEZ_MEDIA_OP_PLAYER_FAST_FORWARD = 5;
+
+const int BLUEZ_MEDIA_OP_PLAYER_REWIND = 6;
+
+const int BLUEZ_MEDIA_OP_PLAYER_SET_REPEAT = 7;
+
+const int BLUEZ_MEDIA_OP_PLAYER_SET_SHUFFLE = 8;
+
+const int BLUEZ_MEDIA_OP_PLAYER_GET_PROPERTIES = 9;
+
+const int BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART = 10;
+
+const int BLUEZ_MEDIA_OP_CONTROL_PLAY = 11;
+
+const int BLUEZ_MEDIA_OP_CONTROL_PAUSE = 12;
+
+const int BLUEZ_MEDIA_OP_CONTROL_STOP = 13;
+
+const int BLUEZ_MEDIA_OP_CONTROL_NEXT = 14;
+
+const int BLUEZ_MEDIA_OP_CONTROL_PREVIOUS = 15;
+
+const int BLUEZ_MEDIA_OP_CONTROL_VOLUME_UP = 16;
+
+const int BLUEZ_MEDIA_OP_CONTROL_VOLUME_DOWN = 17;
+
+const int BLUEZ_MEDIA_OP_CONTROL_FAST_FORWARD = 18;
+
+const int BLUEZ_MEDIA_OP_CONTROL_REWIND = 19;
+
+const int BLUEZ_MEDIA_OP_CONTROL_GET_PROPERTIES = 20;
+
+const int BLUEZ_MEDIA_OP_FOLDER_SEARCH = 21;
+
+const int BLUEZ_MEDIA_OP_FOLDER_LIST_ITEMS = 22;
+
+const int BLUEZ_MEDIA_OP_FOLDER_CHANGE_FOLDER = 23;
+
+const int BLUEZ_MEDIA_OP_FOLDER_GET_PROPERTIES = 24;
+
+const int BLUEZ_MEDIA_OP_ITEM_PLAY = 25;
+
+const int BLUEZ_MEDIA_OP_ITEM_ADD_TO_NOW_PLAYING = 26;
+
+const int BLUEZ_MEDIA_OP_ITEM_GET_PROPERTIES = 27;
+
+const int BLUEZ_MEDIA_OP_TRANSPORT_ACQUIRE = 28;
+
+const int BLUEZ_MEDIA_OP_TRANSPORT_TRY_ACQUIRE = 29;
+
+const int BLUEZ_MEDIA_OP_TRANSPORT_RELEASE = 30;
+
+const int BLUEZ_MEDIA_OP_TRANSPORT_GET_PROPERTIES = 31;
+
+const int BLUEZ_MEDIA_OP_TRANSPORT_SET_VOLUME = 32;
+
+const int BLUEZ_MEDIA_OP_GET_MANAGED_OBJECTS = 33;
+
+const int BLUEZ_MEDIA_OP_UNREGISTER_PLAYER = 34;

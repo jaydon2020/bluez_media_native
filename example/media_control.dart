@@ -10,11 +10,14 @@ import 'media_example_utils.dart';
 
 Future<void> main(List<String> args) async {
   if (isListCommand(args)) {
-    final client = createClient();
+    final client = await createClient();
     try {
-      printManagedMediaObjects(client, interfaces: {'org.bluez.MediaControl1'});
+      await printManagedMediaObjects(
+        client,
+        interfaces: {'org.bluez.MediaControl1'},
+      );
     } finally {
-      client.close();
+      await client.close();
     }
     return;
   }
@@ -34,46 +37,46 @@ Future<void> main(List<String> args) async {
 
   final controlPath = args[0];
   final command = args[1].toLowerCase();
-  final client = createClient();
+  final client = await createClient();
   final control = client.control(controlPath);
 
   try {
     switch (command) {
       case 'play':
-        control.play();
+        await control.play();
         break;
       case 'pause':
-        control.pause();
+        await control.pause();
         break;
       case 'stop':
-        control.stop();
+        await control.stop();
         break;
       case 'next':
-        control.next();
+        await control.next();
         break;
       case 'previous':
-        control.previous();
+        await control.previous();
         break;
       case 'volume-up':
-        control.volumeUp();
+        await control.volumeUp();
         break;
       case 'volume-down':
-        control.volumeDown();
+        await control.volumeDown();
         break;
       case 'fast-forward':
-        control.fastForward();
+        await control.fastForward();
         break;
       case 'rewind':
-        control.rewind();
+        await control.rewind();
         break;
       case 'props':
-        _printControlProperties(control);
+        await _printControlProperties(control);
         return;
       case 'watch':
         final seconds =
             int.tryParse(optionValue(args, '--seconds', fallback: '30')) ?? 30;
         for (var i = 0; i < seconds; i++) {
-          _printControlProperties(control);
+          await _printControlProperties(control);
           await Future<void>.delayed(const Duration(seconds: 1));
         }
         return;
@@ -82,12 +85,12 @@ Future<void> main(List<String> args) async {
     }
     print('Sent $command to $controlPath.');
   } finally {
-    client.close();
+    await client.close();
   }
 }
 
-void _printControlProperties(BluezMediaControl control) {
-  control.refresh();
+Future<void> _printControlProperties(BluezMediaControl control) async {
+  await control.refresh();
   final timestamp = DateTime.now().toIso8601String().substring(11, 19);
   print('[$timestamp] Control: ${control.objectPath}');
   print('  Connected: ${control.connected}');

@@ -1,8 +1,8 @@
 # Native sources are required by hook/build.dart; exclude only development files.
 build/
 build-*/
-linux/
-src/
+/linux/
+/src/
 native/generated/
 native/build/
 native/build-*/

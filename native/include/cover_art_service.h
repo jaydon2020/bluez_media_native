@@ -17,7 +17,8 @@ class CoverArtService {
 
   void register_player(const std::string& player_path,
                        const sdbus::ObjectPath& device_path,
-                       uint16_t obex_port);
+                       uint16_t obex_port,
+                       std::chrono::steady_clock::time_point deadline);
   void unregister_player(const std::string& player_path) noexcept;
 
   int get(const std::string& player_path,

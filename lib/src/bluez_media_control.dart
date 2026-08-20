@@ -25,19 +25,19 @@ class BluezMediaControl {
   /// Emits property names after [refresh] or future native event routing.
   Stream<List<String>> get propertiesChanged => _propertiesChangedCtrl.stream;
 
-  void play() => _client.controlPlay(objectPath);
-  void pause() => _client.controlPause(objectPath);
-  void stop() => _client.controlStop(objectPath);
-  void next() => _client.controlNext(objectPath);
-  void previous() => _client.controlPrevious(objectPath);
-  void volumeUp() => _client.volumeUp(objectPath);
-  void volumeDown() => _client.volumeDown(objectPath);
-  void fastForward() => _client.fastForward(objectPath);
-  void rewind() => _client.rewind(objectPath);
+  Future<void> play() => _client.controlPlay(objectPath);
+  Future<void> pause() => _client.controlPause(objectPath);
+  Future<void> stop() => _client.controlStop(objectPath);
+  Future<void> next() => _client.controlNext(objectPath);
+  Future<void> previous() => _client.controlPrevious(objectPath);
+  Future<void> volumeUp() => _client.volumeUp(objectPath);
+  Future<void> volumeDown() => _client.volumeDown(objectPath);
+  Future<void> fastForward() => _client.fastForward(objectPath);
+  Future<void> rewind() => _client.rewind(objectPath);
 
   /// Fetch the latest control snapshot from BlueZ.
-  BlueZMediaControlProps refresh() {
-    updateProps(_client.getMediaControlProperties(objectPath));
+  Future<BlueZMediaControlProps> refresh() async {
+    updateProps(await _client.getMediaControlProperties(objectPath));
     return _props;
   }
 

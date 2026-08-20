@@ -27,13 +27,9 @@ int MediaClient::register_player(
     return BLUEZ_MEDIA_ERROR_ALREADY_EXISTS;
   }
 
-  try {
-    players_.emplace(player_path,
-                     std::make_unique<LocalPlayer>(conn_, registration));
-    return BLUEZ_MEDIA_SUCCESS;
-  } catch (const std::exception&) {
-    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
-  }
+  players_.emplace(player_path,
+                   std::make_unique<LocalPlayer>(conn_, registration));
+  return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaClient::unregister_player(const char* adapter_path,
@@ -43,7 +39,7 @@ int MediaClient::unregister_player(const char* adapter_path,
   }
   std::string player{player_path};
   auto it = players_.find(player);
-  if (it == players_.end()) {
+  if (it == players_.end() || it->second->adapter_path() != adapter_path) {
     return BLUEZ_MEDIA_ERROR_NOT_FOUND;
   }
   players_.erase(it);

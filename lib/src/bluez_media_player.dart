@@ -18,6 +18,8 @@ class BluezMediaPlayer {
 
   /// Current playback status, such as `playing`, `paused`, or `stopped`.
   String get status => _props.status;
+  String get equalizer => _props.equalizer;
+  String get scan => _props.scan;
 
   /// Current playback position in milliseconds.
   int get position => _props.position;
@@ -47,15 +49,17 @@ class BluezMediaPlayer {
   /// Emits property names after [refresh] or future native event routing.
   Stream<List<String>> get propertiesChanged => _propertiesChangedCtrl.stream;
 
-  void play() => _client.play(objectPath);
-  void pause() => _client.pause(objectPath);
-  void stop() => _client.stop(objectPath);
-  void next() => _client.next(objectPath);
-  void previous() => _client.previous(objectPath);
-  void fastForward() => _client.playerFastForward(objectPath);
-  void rewind() => _client.playerRewind(objectPath);
-  void setRepeat(String repeat) => _client.setRepeat(objectPath, repeat);
-  void setShuffle(String shuffle) => _client.setShuffle(objectPath, shuffle);
+  Future<void> play() => _client.play(objectPath);
+  Future<void> pause() => _client.pause(objectPath);
+  Future<void> stop() => _client.stop(objectPath);
+  Future<void> next() => _client.next(objectPath);
+  Future<void> previous() => _client.previous(objectPath);
+  Future<void> fastForward() => _client.playerFastForward(objectPath);
+  Future<void> rewind() => _client.playerRewind(objectPath);
+  Future<void> setRepeat(String repeat) =>
+      _client.setRepeat(objectPath, repeat);
+  Future<void> setShuffle(String shuffle) =>
+      _client.setShuffle(objectPath, shuffle);
 
   /// Downloads the current track's cover art through BlueZ OBEX BIP.
   ///
@@ -64,26 +68,31 @@ class BluezMediaPlayer {
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
   }) {
-    return Future.sync(
-      () => _client.getPlayerCoverArt(objectPath, targetFile, timeout: timeout),
-    );
+    return _client.getPlayerCoverArt(objectPath, targetFile, timeout: timeout);
   }
 
   /// Fetch the latest player snapshot from BlueZ.
-  BlueZMediaPlayerProps refresh() {
-    updateProps(_client.getPlayerProperties(objectPath));
+  Future<BlueZMediaPlayerProps> refresh() async {
+    updateProps(await _client.getPlayerProperties(objectPath));
     return _props;
   }
 
   void updateProps(BlueZMediaPlayerProps props) {
     final changed = <String>[];
+    if (props.equalizer != _props.equalizer) changed.add('Equalizer');
     if (props.status != _props.status) changed.add('Status');
     if (props.position != _props.position) changed.add('Position');
     if (!_sameProperties(props.track, _props.track)) changed.add('Track');
     if (props.repeat != _props.repeat) changed.add('Repeat');
     if (props.shuffle != _props.shuffle) changed.add('Shuffle');
+    if (props.scan != _props.scan) changed.add('Scan');
     if (props.name != _props.name) changed.add('Name');
+    if (props.type != _props.type) changed.add('Type');
+    if (props.subtype != _props.subtype) changed.add('Subtype');
     if (props.device != _props.device) changed.add('Device');
+    if (props.browsable != _props.browsable) changed.add('Browsable');
+    if (props.searchable != _props.searchable) changed.add('Searchable');
+    if (props.playlist != _props.playlist) changed.add('Playlist');
     if (props.obexPort != _props.obexPort) changed.add('ObexPort');
 
     _props = props;

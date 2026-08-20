@@ -9,6 +9,19 @@ class BlueZMediaProperty {
   const BlueZMediaProperty({required this.key, required this.value});
 }
 
+/// A native D-Bus operation failure.
+class BlueZMediaError {
+  final String objectPath;
+  final String name;
+  final String message;
+
+  const BlueZMediaError({
+    required this.objectPath,
+    required this.name,
+    required this.message,
+  });
+}
+
 /// MediaPlayer1 properties from BlueZ.
 class BlueZMediaPlayerProps {
   final String objectPath;

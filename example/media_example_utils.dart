@@ -31,11 +31,11 @@ void printUsage(String usage, List<String> details) {
   }
 }
 
-BluezMediaClient createClient() {
+Future<BluezMediaClient> createClient() async {
   try {
-    return BluezMediaClient.create();
-  } on StateError catch (error) {
-    throw StateError(
+    return await BluezMediaClient.create();
+  } on BlueZMediaException catch (error) {
+    throw BlueZMediaException(
       '$error\n'
       'Make sure BlueZ is running and the native library is available. '
       'From the plugin root, run through Flutter tooling or build the native '
@@ -56,11 +56,11 @@ void printProperties(
 bool isListCommand(List<String> args) =>
     args.length == 1 && args.single.toLowerCase() == 'list';
 
-void printManagedMediaObjects(
+Future<void> printManagedMediaObjects(
   BluezMediaClient client, {
   required Set<String> interfaces,
-}) {
-  final objects = client.getManagedObjects();
+}) async {
+  final objects = await client.getManagedObjects();
   final pathsByInterface = <String, List<String>>{
     'org.bluez.Media1': objects.media,
     'org.bluez.MediaPlayer1': objects.players,

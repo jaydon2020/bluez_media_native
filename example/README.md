@@ -47,17 +47,17 @@ dart run example/register_player.dart \
 Send standard player commands to a remote `org.bluez.MediaPlayer1` object:
 
 ```dart
-final client = BluezMediaClient.create();
+final client = await BluezMediaClient.create();
 final player = client.player('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0');
 
-player.play();
-player.pause();
-player.next();
-player.fastForward();
-player.rewind();
+await player.play();
+await player.pause();
+await player.next();
+await player.fastForward();
+await player.rewind();
 final cover = await player.getCoverArt('/tmp/bluez-cover-art');
 
-player.refresh();
+await player.refresh();
 print(player.status);
 print(player.track);
 ```
@@ -87,10 +87,10 @@ surface for volume adjustment and connected/player state snapshots:
 ```dart
 final control = client.control('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF');
 
-control.volumeUp();
-control.volumeDown();
+await control.volumeUp();
+await control.volumeDown();
 
-control.refresh();
+await control.refresh();
 print(control.connected);
 print(control.playerPath);
 ```
@@ -116,12 +116,12 @@ dart run example/media_browsing.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp
 
 ```dart
 final folder = client.folder('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0');
-final items = folder.listItems();
+final items = await folder.listItems();
 
 for (final item in items) {
   print('${item.name}: ${item.objectPath}');
   if (item.playable) {
-    item.play();
+    await item.play();
   }
 }
 ```
@@ -146,14 +146,14 @@ Acquire an active audio stream transport or set the absolute stream volume:
 ```dart
 final transport = client.transport('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/fd0');
 
-transport.volume = 64; // Set volume directly
+await transport.setVolume(64);
 
-final result = transport.acquire();
+final result = await transport.acquire();
 try {
   print(result.fd);
 } finally {
   result.close(); // Close the duplicated file descriptor.
-  transport.release();
+  await transport.release();
 }
 ```
 

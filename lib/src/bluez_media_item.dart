@@ -26,12 +26,12 @@ class BluezMediaItem {
   /// Emits property names after [refresh] or future native event routing.
   Stream<List<String>> get propertiesChanged => _propertiesChangedCtrl.stream;
 
-  void play() => _client.playItem(objectPath);
-  void addToNowPlaying() => _client.addItemToNowPlaying(objectPath);
+  Future<void> play() => _client.playItem(objectPath);
+  Future<void> addToNowPlaying() => _client.addItemToNowPlaying(objectPath);
 
   /// Fetch the latest item snapshot from BlueZ.
-  BlueZMediaItemProps refresh() {
-    updateProps(_client.getMediaItemProperties(objectPath));
+  Future<BlueZMediaItemProps> refresh() async {
+    updateProps(await _client.getMediaItemProperties(objectPath));
     return _props;
   }
 

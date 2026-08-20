@@ -48,35 +48,33 @@ class BluezMediaTransport {
 
   /// Sets the volume of the transport.
   /// Automatically refreshes the property snapshot after the update.
-  set volume(int value) {
-    _client.transportSetVolume(objectPath, value);
-    refresh();
+  Future<void> setVolume(int value) async {
+    await _client.transportSetVolume(objectPath, value);
+    await refresh();
   }
 
   /// Acquires the transport file descriptor.
-  BluezMediaAcquiredTransport acquire() {
+  Future<BluezMediaAcquiredTransport> acquire() async {
     return BluezMediaAcquiredTransport._(
       _client,
-      _client.transportAcquire(objectPath),
+      await _client.transportAcquire(objectPath),
     );
   }
 
   /// Tries to acquire the transport file descriptor without blocking.
-  BluezMediaAcquiredTransport tryAcquire() {
+  Future<BluezMediaAcquiredTransport> tryAcquire() async {
     return BluezMediaAcquiredTransport._(
       _client,
-      _client.transportTryAcquire(objectPath),
+      await _client.transportTryAcquire(objectPath),
     );
   }
 
   /// Releases the transport file descriptor.
-  void release() {
-    _client.transportRelease(objectPath);
-  }
+  Future<void> release() => _client.transportRelease(objectPath);
 
   /// Fetches the latest properties from BlueZ and updates the snapshot.
-  void refresh() {
-    _props = _client.getMediaTransportProperties(objectPath);
+  Future<void> refresh() async {
+    _props = await _client.getMediaTransportProperties(objectPath);
   }
 
   void updateProps(BlueZMediaTransportProps props) {
@@ -114,11 +112,18 @@ bool _sameInts(List<int> left, List<int> right) {
 
 /// Owns a duplicated MediaTransport file descriptor.
 class BluezMediaAcquiredTransport {
+  static final Finalizer<_FdCleanup> _finalizer = Finalizer((cleanup) {
+    cleanup.close();
+  });
+
   final BluezMediaClient _client;
   final BlueZMediaAcquireResult _result;
+  final Object _finalizerDetach = Object();
   bool _closed = false;
 
-  BluezMediaAcquiredTransport._(this._client, this._result);
+  BluezMediaAcquiredTransport._(this._client, this._result) {
+    _finalizer.attach(this, _FdCleanup(_client, fd), detach: _finalizerDetach);
+  }
 
   String get transportPath => _result.transportPath;
   int get fd => _result.fd;
@@ -129,7 +134,23 @@ class BluezMediaAcquiredTransport {
   /// Closes the duplicated file descriptor returned by BlueZ.
   void close() {
     if (_closed) return;
-    _client.closeFileDescriptor(fd);
     _closed = true;
+    _finalizer.detach(_finalizerDetach);
+    _client.closeFileDescriptor(fd);
+  }
+}
+
+class _FdCleanup {
+  final BluezMediaClient client;
+  final int fd;
+
+  const _FdCleanup(this.client, this.fd);
+
+  void close() {
+    try {
+      client.closeFileDescriptor(fd);
+    } on Object {
+      // Finalizers are a best-effort fallback; explicit close reports errors.
+    }
   }
 }

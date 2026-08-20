@@ -11,6 +11,7 @@ import 'bluez_media_folder.dart';
 import 'bluez_media_item.dart';
 import 'bluez_media_player.dart';
 import 'bluez_media_transport.dart';
+import 'exceptions.dart';
 import 'ffi/codec.dart';
 import 'ffi/types.dart';
 import 'internal/library_loader.dart';
@@ -19,6 +20,7 @@ export 'bluez_media_folder.dart';
 export 'bluez_media_item.dart';
 export 'bluez_media_player.dart';
 export 'bluez_media_transport.dart';
+export 'exceptions.dart';
 export 'ffi/types.dart'
     show
         BlueZMediaAcquireResult,
@@ -54,6 +56,7 @@ class BluezMediaPlayerRegistrationConfig {
 
 class BluezMediaClient {
   Pointer<Void> _handle;
+  bool _closed = false;
   final _players = <String, BluezMediaPlayer>{};
   final _controls = <String, BluezMediaControl>{};
   final _folders = <String, BluezMediaFolder>{};
@@ -62,33 +65,48 @@ class BluezMediaClient {
   final _transportAddedCtrl = StreamController<BluezMediaTransport>.broadcast();
   final _transportRemovedCtrl =
       StreamController<BluezMediaTransport>.broadcast();
+  final _playerAddedCtrl = StreamController<BluezMediaPlayer>.broadcast();
+  final _playerRemovedCtrl = StreamController<BluezMediaPlayer>.broadcast();
+  final _controlAddedCtrl = StreamController<BluezMediaControl>.broadcast();
+  final _controlRemovedCtrl = StreamController<BluezMediaControl>.broadcast();
+  final _folderAddedCtrl = StreamController<BluezMediaFolder>.broadcast();
+  final _folderRemovedCtrl = StreamController<BluezMediaFolder>.broadcast();
+  final _itemAddedCtrl = StreamController<BluezMediaItem>.broadcast();
+  final _itemRemovedCtrl = StreamController<BluezMediaItem>.broadcast();
   final _ready = Completer<void>();
   ReceivePort? _eventsPort;
 
-  BluezMediaClient._(this._handle, this._eventsPort) {
+  BluezMediaClient._() : _handle = nullptr {
+    _eventsPort = ReceivePort('bluez_media.events');
     _eventsPort!.listen(_onEvent);
   }
 
-  factory BluezMediaClient.create() {
+  /// Connects to BlueZ and returns after the initial object snapshot is ready.
+  static Future<BluezMediaClient> create() async {
     _initializeNativeApi();
-    final eventsPort = ReceivePort('bluez_media.events');
-    final handle = _bindings.bluez_media_client_create(
-      eventsPort.sendPort.nativePort,
+    final client = BluezMediaClient._();
+    final resultPort = ReceivePort('bluez_media.connect');
+    _bindings.bluez_media_client_create_async(
+      client._eventsPort!.sendPort.nativePort,
+      resultPort.sendPort.nativePort,
     );
-    if (handle == nullptr) {
-      eventsPort.close();
-      throw StateError('Unable to connect to BlueZ on the system bus.');
+    final result = await resultPort.first;
+    resultPort.close();
+    if (result case final int address when address != 0) {
+      client._handle = Pointer<Void>.fromAddress(address);
+      await client.ready;
+      return client;
     }
-    return BluezMediaClient._(handle, eventsPort);
+    client._eventsPort?.close();
+    client._eventsPort = null;
+    throw _exceptionFromResult(result, serviceUnavailable: true);
   }
 
-  void close() {
-    if (_handle == nullptr) {
-      return;
-    }
-    _bindings.bluez_media_client_destroy(_handle);
+  Future<void> close() async {
+    if (_closed) return;
+    _closed = true;
+    if (_handle != nullptr) _bindings.bluez_media_client_destroy(_handle);
     _handle = nullptr;
-    if (!_ready.isCompleted) _ready.complete();
     _eventsPort?.close();
     _eventsPort = null;
     for (final player in _players.values) {
@@ -111,8 +129,18 @@ class BluezMediaClient {
     _folders.clear();
     _items.clear();
     _transports.clear();
-    _transportAddedCtrl.close();
-    _transportRemovedCtrl.close();
+    await Future.wait([
+      _transportAddedCtrl.close(),
+      _transportRemovedCtrl.close(),
+      _playerAddedCtrl.close(),
+      _playerRemovedCtrl.close(),
+      _controlAddedCtrl.close(),
+      _controlRemovedCtrl.close(),
+      _folderAddedCtrl.close(),
+      _folderRemovedCtrl.close(),
+      _itemAddedCtrl.close(),
+      _itemRemovedCtrl.close(),
+    ]);
   }
 
   List<BluezMediaPlayer> get players => List.unmodifiable(_players.values);
@@ -128,6 +156,14 @@ class BluezMediaClient {
   Stream<BluezMediaTransport> get transportAdded => _transportAddedCtrl.stream;
   Stream<BluezMediaTransport> get transportRemoved =>
       _transportRemovedCtrl.stream;
+  Stream<BluezMediaPlayer> get playerAdded => _playerAddedCtrl.stream;
+  Stream<BluezMediaPlayer> get playerRemoved => _playerRemovedCtrl.stream;
+  Stream<BluezMediaControl> get controlAdded => _controlAddedCtrl.stream;
+  Stream<BluezMediaControl> get controlRemoved => _controlRemovedCtrl.stream;
+  Stream<BluezMediaFolder> get folderAdded => _folderAddedCtrl.stream;
+  Stream<BluezMediaFolder> get folderRemoved => _folderRemovedCtrl.stream;
+  Stream<BluezMediaItem> get itemAdded => _itemAddedCtrl.stream;
+  Stream<BluezMediaItem> get itemRemoved => _itemRemovedCtrl.stream;
 
   /// Return a cached proxy for a remote `org.bluez.MediaPlayer1` object.
   BluezMediaPlayer player(String objectPath) {
@@ -177,7 +213,7 @@ class BluezMediaClient {
     return item(props.objectPath)..updateProps(props);
   }
 
-  void registerPlayer(BluezMediaPlayerRegistrationConfig config) {
+  Future<void> registerPlayer(BluezMediaPlayerRegistrationConfig config) async {
     _ensureOpen();
     _validateRegistrationConfig(config);
 
@@ -200,11 +236,13 @@ class BluezMediaClient {
         ..browsable = config.browsable ? 1 : 0
         ..searchable = config.searchable ? 1 : 0;
 
-      final result = _bindings.bluez_media_register_player(
+      final resultPort = ReceivePort('bluez_media.register_player');
+      _bindings.bluez_media_register_player_async(
         _handle,
         registration,
+        resultPort.sendPort.nativePort,
       );
-      _checkResult(result, 'register player');
+      await _awaitNativeResult(resultPort);
     } finally {
       for (final pointer in strings) {
         calloc.free(pointer);
@@ -213,143 +251,63 @@ class BluezMediaClient {
     }
   }
 
-  void unregisterPlayer({
+  Future<void> unregisterPlayer({
     required String adapterPath,
     required String playerPath,
-  }) {
-    _ensureOpen();
+  }) => _callAsync(
+    BLUEZ_MEDIA_OP_UNREGISTER_PLAYER,
+    objectPath: adapterPath,
+    argument: playerPath,
+  );
 
-    final adapterPathPtr = adapterPath.toNativeUtf8();
-    final playerPathPtr = playerPath.toNativeUtf8();
-    try {
-      final result = _bindings.bluez_media_unregister_player(
-        _handle,
-        adapterPathPtr.cast<Char>(),
-        playerPathPtr.cast<Char>(),
-      );
-      _checkResult(result, 'unregister player');
-    } finally {
-      calloc.free(adapterPathPtr);
-      calloc.free(playerPathPtr);
-    }
-  }
+  Future<void> play(String playerPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_PLAYER_PLAY, objectPath: playerPath);
 
-  void play(String playerPath) {
-    _callPlayerControl(playerPath, _bindings.bluez_media_player_play, 'play');
-  }
+  Future<void> pause(String playerPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_PLAYER_PAUSE, objectPath: playerPath);
 
-  void pause(String playerPath) {
-    _callPlayerControl(playerPath, _bindings.bluez_media_player_pause, 'pause');
-  }
+  Future<void> stop(String playerPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_PLAYER_STOP, objectPath: playerPath);
 
-  void stop(String playerPath) {
-    _callPlayerControl(playerPath, _bindings.bluez_media_player_stop, 'stop');
-  }
+  Future<void> next(String playerPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_PLAYER_NEXT, objectPath: playerPath);
 
-  void next(String playerPath) {
-    _callPlayerControl(playerPath, _bindings.bluez_media_player_next, 'next');
-  }
+  Future<void> previous(String playerPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_PLAYER_PREVIOUS, objectPath: playerPath);
 
-  void previous(String playerPath) {
-    _callPlayerControl(
-      playerPath,
-      _bindings.bluez_media_player_previous,
-      'previous',
-    );
-  }
+  Future<void> playerFastForward(String playerPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_PLAYER_FAST_FORWARD, objectPath: playerPath);
 
-  void playerFastForward(String playerPath) {
-    _callPlayerControl(
-      playerPath,
-      _bindings.bluez_media_player_fast_forward,
-      'fast forward',
-    );
-  }
+  Future<void> playerRewind(String playerPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_PLAYER_REWIND, objectPath: playerPath);
 
-  void playerRewind(String playerPath) {
-    _callPlayerControl(
-      playerPath,
-      _bindings.bluez_media_player_rewind,
-      'rewind',
-    );
-  }
-
-  void setRepeat(String playerPath, String repeat) {
-    _ensureOpen();
+  Future<void> setRepeat(String playerPath, String repeat) {
     _checkMediaPlayerMode(repeat, _repeatModes, 'Repeat');
-
-    final playerPathPtr = playerPath.toNativeUtf8();
-    final repeatPtr = repeat.toNativeUtf8();
-    try {
-      final result = _bindings.bluez_media_player_set_repeat(
-        _handle,
-        playerPathPtr.cast<Char>(),
-        repeatPtr.cast<Char>(),
-      );
-      _checkMediaPlayerSettingResult(result, 'Repeat', repeat);
-    } finally {
-      calloc.free(repeatPtr);
-      calloc.free(playerPathPtr);
-    }
+    return _callAsync(
+      BLUEZ_MEDIA_OP_PLAYER_SET_REPEAT,
+      objectPath: playerPath,
+      argument: repeat,
+    );
   }
 
-  void setShuffle(String playerPath, String shuffle) {
-    _ensureOpen();
+  Future<void> setShuffle(String playerPath, String shuffle) {
     _checkMediaPlayerMode(shuffle, _shuffleModes, 'Shuffle');
-
-    final playerPathPtr = playerPath.toNativeUtf8();
-    final shufflePtr = shuffle.toNativeUtf8();
-    try {
-      final result = _bindings.bluez_media_player_set_shuffle(
-        _handle,
-        playerPathPtr.cast<Char>(),
-        shufflePtr.cast<Char>(),
-      );
-      _checkMediaPlayerSettingResult(result, 'Shuffle', shuffle);
-    } finally {
-      calloc.free(shufflePtr);
-      calloc.free(playerPathPtr);
-    }
+    return _callAsync(
+      BLUEZ_MEDIA_OP_PLAYER_SET_SHUFFLE,
+      objectPath: playerPath,
+      argument: shuffle,
+    );
   }
 
-  BlueZMediaPlayerProps getPlayerProperties(String playerPath) {
-    _ensureOpen();
-
-    final playerPathPtr = playerPath.toNativeUtf8();
-    try {
-      final size = _bindings.bluez_media_player_get_properties(
-        _handle,
-        playerPathPtr.cast<Char>(),
-        nullptr,
-        0,
-      );
-      if (size < 0) {
-        _checkResult(size, 'get player properties size');
-      }
-
-      final out = calloc<Uint8>(size);
-      try {
-        final result = _bindings.bluez_media_player_get_properties(
-          _handle,
-          playerPathPtr.cast<Char>(),
-          out,
-          size,
-        );
-        if (result < 0) {
-          _checkResult(result, 'get player properties');
-        }
-
-        final bytes = Uint8List.fromList(out.asTypedList(result));
-        return GlazeCodec.decode<BlueZMediaPlayerProps>(bytes, 0);
-      } finally {
-        calloc.free(out);
-      }
-    } finally {
-      calloc.free(playerPathPtr);
-    }
+  Future<BlueZMediaPlayerProps> getPlayerProperties(String playerPath) async {
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_PLAYER_GET_PROPERTIES,
+      objectPath: playerPath,
+    );
+    return GlazeCodec.decode<BlueZMediaPlayerProps>(payload!, 0);
   }
 
-  String getPlayerCoverArt(
+  Future<String> getPlayerCoverArt(
     String playerPath,
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
@@ -366,435 +324,149 @@ class BluezMediaClient {
       );
     }
 
-    final playerPathPtr = playerPath.toNativeUtf8();
-    final targetFilePtr = targetFile.toNativeUtf8();
-    try {
-      final result = _bindings.bluez_media_player_get_cover_art(
-        _handle,
-        playerPathPtr.cast<Char>(),
-        targetFilePtr.cast<Char>(),
-        timeout.inMilliseconds,
+    return _callAsync(
+      BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART,
+      objectPath: playerPath,
+      argument: targetFile,
+      value: timeout.inMilliseconds,
+    ).then((_) => targetFile);
+  }
+
+  Future<void> controlPlay(String controlPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_CONTROL_PLAY, objectPath: controlPath);
+
+  Future<void> controlPause(String controlPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_CONTROL_PAUSE, objectPath: controlPath);
+
+  Future<void> controlStop(String controlPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_CONTROL_STOP, objectPath: controlPath);
+
+  Future<void> controlNext(String controlPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_CONTROL_NEXT, objectPath: controlPath);
+
+  Future<void> controlPrevious(String controlPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_CONTROL_PREVIOUS, objectPath: controlPath);
+
+  Future<void> volumeUp(String controlPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_CONTROL_VOLUME_UP, objectPath: controlPath);
+
+  Future<void> volumeDown(String controlPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_CONTROL_VOLUME_DOWN, objectPath: controlPath);
+
+  Future<void> fastForward(String controlPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_CONTROL_FAST_FORWARD, objectPath: controlPath);
+
+  Future<void> rewind(String controlPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_CONTROL_REWIND, objectPath: controlPath);
+
+  Future<BlueZMediaControlProps> getMediaControlProperties(
+    String controlPath,
+  ) async {
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_CONTROL_GET_PROPERTIES,
+      objectPath: controlPath,
+    );
+    return GlazeCodec.decode<BlueZMediaControlProps>(payload!, 0);
+  }
+
+  Future<BlueZMediaFolderProps> searchFolder(
+    String folderPath,
+    String value,
+  ) async {
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_FOLDER_SEARCH,
+      objectPath: folderPath,
+      argument: value,
+    );
+    return GlazeCodec.decode<BlueZMediaFolderProps>(payload!, 0);
+  }
+
+  Future<BlueZMediaFolderItems> listFolderItems(String folderPath) async {
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_FOLDER_LIST_ITEMS,
+      objectPath: folderPath,
+    );
+    return GlazeCodec.decode<BlueZMediaFolderItems>(payload!, 0);
+  }
+
+  Future<void> changeFolder(String folderPath, String targetFolderPath) =>
+      _callAsync(
+        BLUEZ_MEDIA_OP_FOLDER_CHANGE_FOLDER,
+        objectPath: folderPath,
+        argument: targetFolderPath,
       );
-      if (result == -6) {
-        throw StateError(
-          'Cover art is unavailable: MediaPlayer1 has no ObexPort or the '
-          'current track did not publish ImgHandle.',
-        );
-      }
-      _checkResult(result, 'get player cover art');
-      return targetFile;
-    } finally {
-      calloc.free(targetFilePtr);
-      calloc.free(playerPathPtr);
-    }
-  }
 
-  void controlPlay(String controlPath) {
-    _callControl(
-      controlPath,
-      _bindings.bluez_media_control_play,
-      'play media control',
+  Future<BlueZMediaFolderProps> getMediaFolderProperties(
+    String folderPath,
+  ) async {
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_FOLDER_GET_PROPERTIES,
+      objectPath: folderPath,
     );
+    return GlazeCodec.decode<BlueZMediaFolderProps>(payload!, 0);
   }
 
-  void controlPause(String controlPath) {
-    _callControl(
-      controlPath,
-      _bindings.bluez_media_control_pause,
-      'pause media control',
+  Future<void> playItem(String itemPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_ITEM_PLAY, objectPath: itemPath);
+
+  Future<void> addItemToNowPlaying(String itemPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_ITEM_ADD_TO_NOW_PLAYING, objectPath: itemPath);
+
+  Future<BlueZMediaItemProps> getMediaItemProperties(String itemPath) async {
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_ITEM_GET_PROPERTIES,
+      objectPath: itemPath,
     );
-  }
-
-  void controlStop(String controlPath) {
-    _callControl(
-      controlPath,
-      _bindings.bluez_media_control_stop,
-      'stop media control',
-    );
-  }
-
-  void controlNext(String controlPath) {
-    _callControl(
-      controlPath,
-      _bindings.bluez_media_control_next,
-      'next media control',
-    );
-  }
-
-  void controlPrevious(String controlPath) {
-    _callControl(
-      controlPath,
-      _bindings.bluez_media_control_previous,
-      'previous media control',
-    );
-  }
-
-  void volumeUp(String controlPath) {
-    _callControl(
-      controlPath,
-      _bindings.bluez_media_control_volume_up,
-      'volume up',
-    );
-  }
-
-  void volumeDown(String controlPath) {
-    _callControl(
-      controlPath,
-      _bindings.bluez_media_control_volume_down,
-      'volume down',
-    );
-  }
-
-  void fastForward(String controlPath) {
-    _callControl(
-      controlPath,
-      _bindings.bluez_media_control_fast_forward,
-      'fast forward',
-    );
-  }
-
-  void rewind(String controlPath) {
-    _callControl(controlPath, _bindings.bluez_media_control_rewind, 'rewind');
-  }
-
-  BlueZMediaControlProps getMediaControlProperties(String controlPath) {
-    _ensureOpen();
-
-    final controlPathPtr = controlPath.toNativeUtf8();
-    try {
-      final size = _bindings.bluez_media_control_get_properties(
-        _handle,
-        controlPathPtr.cast<Char>(),
-        nullptr,
-        0,
-      );
-      if (size < 0) {
-        _checkResult(size, 'get media control properties size');
-      }
-
-      final out = calloc<Uint8>(size);
-      try {
-        final result = _bindings.bluez_media_control_get_properties(
-          _handle,
-          controlPathPtr.cast<Char>(),
-          out,
-          size,
-        );
-        if (result < 0) {
-          _checkResult(result, 'get media control properties');
-        }
-
-        final bytes = Uint8List.fromList(out.asTypedList(result));
-        return GlazeCodec.decode<BlueZMediaControlProps>(bytes, 0);
-      } finally {
-        calloc.free(out);
-      }
-    } finally {
-      calloc.free(controlPathPtr);
-    }
-  }
-
-  BlueZMediaFolderProps searchFolder(String folderPath, String value) {
-    _ensureOpen();
-
-    final folderPathPtr = folderPath.toNativeUtf8();
-    final valuePtr = value.toNativeUtf8();
-    final out = calloc<Uint8>(_methodResultCapacity);
-    try {
-      final result = _bindings.bluez_media_folder_search(
-        _handle,
-        folderPathPtr.cast<Char>(),
-        valuePtr.cast<Char>(),
-        out,
-        _methodResultCapacity,
-      );
-      if (result < 0) {
-        _checkResult(result, 'search media folder');
-      }
-
-      final bytes = Uint8List.fromList(out.asTypedList(result));
-      return GlazeCodec.decode<BlueZMediaFolderProps>(bytes, 0);
-    } finally {
-      calloc.free(out);
-      calloc.free(valuePtr);
-      calloc.free(folderPathPtr);
-    }
-  }
-
-  BlueZMediaFolderItems listFolderItems(String folderPath) {
-    _ensureOpen();
-
-    final folderPathPtr = folderPath.toNativeUtf8();
-    try {
-      final size = _bindings.bluez_media_folder_list_items(
-        _handle,
-        folderPathPtr.cast<Char>(),
-        nullptr,
-        0,
-      );
-      if (size < 0) {
-        _checkResult(size, 'list media folder items size');
-      }
-
-      final out = calloc<Uint8>(size);
-      try {
-        final result = _bindings.bluez_media_folder_list_items(
-          _handle,
-          folderPathPtr.cast<Char>(),
-          out,
-          size,
-        );
-        if (result < 0) {
-          _checkResult(result, 'list media folder items');
-        }
-
-        final bytes = Uint8List.fromList(out.asTypedList(result));
-        return GlazeCodec.decode<BlueZMediaFolderItems>(bytes, 0);
-      } finally {
-        calloc.free(out);
-      }
-    } finally {
-      calloc.free(folderPathPtr);
-    }
-  }
-
-  void changeFolder(String folderPath, String targetFolderPath) {
-    _ensureOpen();
-
-    final folderPathPtr = folderPath.toNativeUtf8();
-    final targetFolderPathPtr = targetFolderPath.toNativeUtf8();
-    try {
-      final result = _bindings.bluez_media_folder_change_folder(
-        _handle,
-        folderPathPtr.cast<Char>(),
-        targetFolderPathPtr.cast<Char>(),
-      );
-      _checkResult(result, 'change media folder');
-    } finally {
-      calloc.free(targetFolderPathPtr);
-      calloc.free(folderPathPtr);
-    }
-  }
-
-  BlueZMediaFolderProps getMediaFolderProperties(String folderPath) {
-    _ensureOpen();
-
-    final folderPathPtr = folderPath.toNativeUtf8();
-    try {
-      final size = _bindings.bluez_media_folder_get_properties(
-        _handle,
-        folderPathPtr.cast<Char>(),
-        nullptr,
-        0,
-      );
-      if (size < 0) {
-        _checkResult(size, 'get media folder properties size');
-      }
-
-      final out = calloc<Uint8>(size);
-      try {
-        final result = _bindings.bluez_media_folder_get_properties(
-          _handle,
-          folderPathPtr.cast<Char>(),
-          out,
-          size,
-        );
-        if (result < 0) {
-          _checkResult(result, 'get media folder properties');
-        }
-
-        final bytes = Uint8List.fromList(out.asTypedList(result));
-        return GlazeCodec.decode<BlueZMediaFolderProps>(bytes, 0);
-      } finally {
-        calloc.free(out);
-      }
-    } finally {
-      calloc.free(folderPathPtr);
-    }
-  }
-
-  void playItem(String itemPath) {
-    _callItem(itemPath, _bindings.bluez_media_item_play, 'play media item');
-  }
-
-  void addItemToNowPlaying(String itemPath) {
-    _callItem(
-      itemPath,
-      _bindings.bluez_media_item_add_to_now_playing,
-      'add media item to now playing',
-    );
-  }
-
-  BlueZMediaItemProps getMediaItemProperties(String itemPath) {
-    _ensureOpen();
-
-    final itemPathPtr = itemPath.toNativeUtf8();
-    try {
-      final size = _bindings.bluez_media_item_get_properties(
-        _handle,
-        itemPathPtr.cast<Char>(),
-        nullptr,
-        0,
-      );
-      if (size < 0) {
-        _checkResult(size, 'get media item properties size');
-      }
-
-      final out = calloc<Uint8>(size);
-      try {
-        final result = _bindings.bluez_media_item_get_properties(
-          _handle,
-          itemPathPtr.cast<Char>(),
-          out,
-          size,
-        );
-        if (result < 0) {
-          _checkResult(result, 'get media item properties');
-        }
-
-        final bytes = Uint8List.fromList(out.asTypedList(result));
-        return GlazeCodec.decode<BlueZMediaItemProps>(bytes, 0);
-      } finally {
-        calloc.free(out);
-      }
-    } finally {
-      calloc.free(itemPathPtr);
-    }
+    return GlazeCodec.decode<BlueZMediaItemProps>(payload!, 0);
   }
 
   // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
 
-  BlueZMediaAcquireResult transportAcquire(String transportPath) {
-    _ensureOpen();
-    final transportPathPtr = transportPath.toNativeUtf8();
-    final out = calloc<Uint8>(_methodResultCapacity);
-    try {
-      final result = _bindings.bluez_media_transport_acquire(
-        _handle,
-        transportPathPtr.cast<Char>(),
-        out,
-        _methodResultCapacity,
-      );
-      if (result < 0) {
-        _checkResult(result, 'acquire media transport');
-      }
-
-      final bytes = Uint8List.fromList(out.asTypedList(result));
-      return GlazeCodec.decode<BlueZMediaAcquireResult>(bytes, 0);
-    } finally {
-      calloc.free(out);
-      calloc.free(transportPathPtr);
-    }
-  }
-
-  BlueZMediaAcquireResult transportTryAcquire(String transportPath) {
-    _ensureOpen();
-    final transportPathPtr = transportPath.toNativeUtf8();
-    final out = calloc<Uint8>(_methodResultCapacity);
-    try {
-      final result = _bindings.bluez_media_transport_try_acquire(
-        _handle,
-        transportPathPtr.cast<Char>(),
-        out,
-        _methodResultCapacity,
-      );
-      if (result < 0) {
-        _checkResult(result, 'try acquire media transport');
-      }
-
-      final bytes = Uint8List.fromList(out.asTypedList(result));
-      return GlazeCodec.decode<BlueZMediaAcquireResult>(bytes, 0);
-    } finally {
-      calloc.free(out);
-      calloc.free(transportPathPtr);
-    }
-  }
-
-  void transportRelease(String transportPath) {
-    _callTransport(
-      transportPath,
-      _bindings.bluez_media_transport_release,
-      'release media transport',
+  Future<BlueZMediaAcquireResult> transportAcquire(String transportPath) async {
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_TRANSPORT_ACQUIRE,
+      objectPath: transportPath,
     );
+    return GlazeCodec.decode<BlueZMediaAcquireResult>(payload!, 0);
   }
 
-  BlueZMediaTransportProps getMediaTransportProperties(String transportPath) {
-    _ensureOpen();
-    final transportPathPtr = transportPath.toNativeUtf8();
-    try {
-      final size = _bindings.bluez_media_transport_get_properties(
-        _handle,
-        transportPathPtr.cast<Char>(),
-        nullptr,
-        0,
-      );
-      if (size < 0) {
-        _checkResult(size, 'get media transport properties size');
-      }
-
-      final out = calloc<Uint8>(size);
-      try {
-        final result = _bindings.bluez_media_transport_get_properties(
-          _handle,
-          transportPathPtr.cast<Char>(),
-          out,
-          size,
-        );
-        if (result < 0) {
-          _checkResult(result, 'get media transport properties');
-        }
-
-        final bytes = Uint8List.fromList(out.asTypedList(result));
-        return GlazeCodec.decode<BlueZMediaTransportProps>(bytes, 0);
-      } finally {
-        calloc.free(out);
-      }
-    } finally {
-      calloc.free(transportPathPtr);
-    }
+  Future<BlueZMediaAcquireResult> transportTryAcquire(
+    String transportPath,
+  ) async {
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_TRANSPORT_TRY_ACQUIRE,
+      objectPath: transportPath,
+    );
+    return GlazeCodec.decode<BlueZMediaAcquireResult>(payload!, 0);
   }
 
-  void transportSetVolume(String transportPath, int volume) {
-    _ensureOpen();
+  Future<void> transportRelease(String transportPath) =>
+      _callAsync(BLUEZ_MEDIA_OP_TRANSPORT_RELEASE, objectPath: transportPath);
+
+  Future<BlueZMediaTransportProps> getMediaTransportProperties(
+    String transportPath,
+  ) async {
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_TRANSPORT_GET_PROPERTIES,
+      objectPath: transportPath,
+    );
+    return GlazeCodec.decode<BlueZMediaTransportProps>(payload!, 0);
+  }
+
+  Future<void> transportSetVolume(String transportPath, int volume) {
     if (volume < 0 || volume > 127) {
       throw RangeError.range(volume, 0, 127, 'volume');
     }
-    final transportPathPtr = transportPath.toNativeUtf8();
-    try {
-      final result = _bindings.bluez_media_transport_set_volume(
-        _handle,
-        transportPathPtr.cast<Char>(),
-        volume,
-      );
-      _checkResult(result, 'set media transport volume');
-    } finally {
-      calloc.free(transportPathPtr);
-    }
+    return _callAsync(
+      BLUEZ_MEDIA_OP_TRANSPORT_SET_VOLUME,
+      objectPath: transportPath,
+      value: volume,
+    );
   }
 
-  BlueZMediaManagedObjects getManagedObjects() {
-    _ensureOpen();
-    final size = _bindings.bluez_media_get_managed_objects(_handle, nullptr, 0);
-    if (size < 0) {
-      _checkResult(size, 'get managed media objects size');
-    }
-
-    final out = calloc<Uint8>(size);
-    try {
-      final result = _bindings.bluez_media_get_managed_objects(
-        _handle,
-        out,
-        size,
-      );
-      if (result < 0) {
-        _checkResult(result, 'get managed media objects');
-      }
-
-      final bytes = Uint8List.fromList(out.asTypedList(result));
-      return GlazeCodec.decode<BlueZMediaManagedObjects>(bytes, 0);
-    } finally {
-      calloc.free(out);
-    }
+  Future<BlueZMediaManagedObjects> getManagedObjects() async {
+    final payload = await _callAsync(BLUEZ_MEDIA_OP_GET_MANAGED_OBJECTS);
+    return GlazeCodec.decode<BlueZMediaManagedObjects>(payload!, 0);
   }
 
   void closeFileDescriptor(int fd) {
@@ -803,7 +475,7 @@ class BluezMediaClient {
   }
 
   void _onEvent(dynamic message) {
-    if (message is! Uint8List || message.isEmpty || _handle == nullptr) return;
+    if (message is! Uint8List || message.isEmpty || _closed) return;
     try {
       _dispatchEvent(message);
     } on Exception catch (error) {
@@ -820,10 +492,14 @@ class BluezMediaClient {
         return;
       case 0x01:
         final props = GlazeCodec.decode<BlueZMediaPlayerProps>(message, 1);
-        player(props.objectPath).updateProps(props);
+        final existing = _players[props.objectPath];
+        final proxy = player(props.objectPath)..updateProps(props);
+        if (existing == null) _playerAddedCtrl.add(proxy);
       case 0x02:
         final props = GlazeCodec.decode<BlueZMediaControlProps>(message, 1);
-        control(props.objectPath).updateProps(props);
+        final existing = _controls[props.objectPath];
+        final proxy = control(props.objectPath)..updateProps(props);
+        if (existing == null) _controlAddedCtrl.add(proxy);
       case 0x04:
         final props = GlazeCodec.decode<BlueZMediaTransportProps>(message, 1);
         final existing = _transports[props.objectPath];
@@ -832,10 +508,14 @@ class BluezMediaClient {
         if (existing == null) _transportAddedCtrl.add(proxy);
       case 0x05:
         final props = GlazeCodec.decode<BlueZMediaFolderProps>(message, 1);
-        folder(props.objectPath).updateProps(props);
+        final existing = _folders[props.objectPath];
+        final proxy = folder(props.objectPath)..updateProps(props);
+        if (existing == null) _folderAddedCtrl.add(proxy);
       case 0x06:
         final props = GlazeCodec.decode<BlueZMediaItemProps>(message, 1);
-        item(props.objectPath).updateProps(props);
+        final existing = _items[props.objectPath];
+        final proxy = item(props.objectPath)..updateProps(props);
+        if (existing == null) _itemAddedCtrl.add(proxy);
       case 0x7E:
         _removeObject(GlazeCodec.decode<BlueZMediaObjectRemoved>(message, 1));
     }
@@ -844,13 +524,29 @@ class BluezMediaClient {
   void _removeObject(BlueZMediaObjectRemoved removed) {
     switch (removed.interfaceName) {
       case 'org.bluez.MediaPlayer1':
-        _players.remove(removed.objectPath)?.dispose();
+        final proxy = _players.remove(removed.objectPath);
+        if (proxy != null) {
+          _playerRemovedCtrl.add(proxy);
+          proxy.dispose();
+        }
       case 'org.bluez.MediaControl1':
-        _controls.remove(removed.objectPath)?.dispose();
+        final proxy = _controls.remove(removed.objectPath);
+        if (proxy != null) {
+          _controlRemovedCtrl.add(proxy);
+          proxy.dispose();
+        }
       case 'org.bluez.MediaFolder1':
-        _folders.remove(removed.objectPath)?.dispose();
+        final proxy = _folders.remove(removed.objectPath);
+        if (proxy != null) {
+          _folderRemovedCtrl.add(proxy);
+          proxy.dispose();
+        }
       case 'org.bluez.MediaItem1':
-        _items.remove(removed.objectPath)?.dispose();
+        final proxy = _items.remove(removed.objectPath);
+        if (proxy != null) {
+          _itemRemovedCtrl.add(proxy);
+          proxy.dispose();
+        }
       case 'org.bluez.MediaTransport1':
         final proxy = _transports.remove(removed.objectPath);
         if (proxy != null) {
@@ -868,67 +564,80 @@ class BluezMediaClient {
     }
   }
 
-  void _callPlayerControl(
-    String playerPath,
-    int Function(Pointer<Void>, Pointer<Char>) call,
-    String operation,
-  ) {
+  Future<Uint8List?> _callAsync(
+    int operation, {
+    String? objectPath,
+    String? argument,
+    int value = 0,
+  }) async {
     _ensureOpen();
-
-    final playerPathPtr = playerPath.toNativeUtf8();
+    final resultPort = ReceivePort('bluez_media.operation');
+    final objectPathPtr = objectPath?.toNativeUtf8();
+    final argumentPtr = argument?.toNativeUtf8();
     try {
-      final result = call(_handle, playerPathPtr.cast<Char>());
-      _checkResult(result, '$operation player');
+      _bindings.bluez_media_call_async(
+        _handle,
+        operation,
+        objectPathPtr?.cast<Char>() ?? nullptr.cast<Char>(),
+        argumentPtr?.cast<Char>() ?? nullptr.cast<Char>(),
+        value,
+        resultPort.sendPort.nativePort,
+      );
+      return await _awaitNativeResult(resultPort);
     } finally {
-      calloc.free(playerPathPtr);
+      if (argumentPtr != null) calloc.free(argumentPtr);
+      if (objectPathPtr != null) calloc.free(objectPathPtr);
     }
   }
 
-  void _callControl(
-    String controlPath,
-    int Function(Pointer<Void>, Pointer<Char>) call,
-    String operation,
-  ) {
-    _ensureOpen();
-
-    final controlPathPtr = controlPath.toNativeUtf8();
+  static Future<Uint8List?> _awaitNativeResult(ReceivePort port) async {
     try {
-      final result = call(_handle, controlPathPtr.cast<Char>());
-      _checkResult(result, operation);
+      final result = await port.first;
+      if (result is! Uint8List || result.isEmpty) {
+        throw const BlueZMediaOperationException(
+          'Native media operation returned an invalid result.',
+          name: 'org.bluez.Error.Failed',
+        );
+      }
+      switch (result[0]) {
+        case 0xFF:
+          return null;
+        case 0x10:
+          return Uint8List.sublistView(result, 1);
+        case 0x20:
+          throw _exceptionFromResult(result);
+        default:
+          throw const BlueZMediaOperationException(
+            'Native media operation returned an unknown result.',
+            name: 'org.bluez.Error.Failed',
+          );
+      }
     } finally {
-      calloc.free(controlPathPtr);
+      port.close();
     }
   }
 
-  void _callItem(
-    String itemPath,
-    int Function(Pointer<Void>, Pointer<Char>) call,
-    String operation,
-  ) {
-    _ensureOpen();
-
-    final itemPathPtr = itemPath.toNativeUtf8();
-    try {
-      final result = call(_handle, itemPathPtr.cast<Char>());
-      _checkResult(result, operation);
-    } finally {
-      calloc.free(itemPathPtr);
+  static BlueZMediaException _exceptionFromResult(
+    Object? result, {
+    bool serviceUnavailable = false,
+  }) {
+    if (result is Uint8List && result.isNotEmpty && result[0] == 0x20) {
+      final error = GlazeCodec.decode<BlueZMediaError>(result, 1);
+      if (serviceUnavailable) {
+        return BlueZMediaServiceUnavailableException(error.message);
+      }
+      return BlueZMediaOperationException(
+        error.message,
+        name: error.name,
+        objectPath: error.objectPath,
+      );
     }
-  }
-
-  void _callTransport(
-    String path,
-    int Function(Pointer<Void>, Pointer<Char>) func,
-    String operation,
-  ) {
-    _ensureOpen();
-    final pathPtr = path.toNativeUtf8();
-    try {
-      final result = func(_handle, pathPtr.cast<Char>());
-      _checkResult(result, operation);
-    } finally {
-      calloc.free(pathPtr);
-    }
+    return serviceUnavailable
+        ? const BlueZMediaServiceUnavailableException()
+        : const BlueZMediaOperationException(
+            'Native media operation failed.',
+            name: 'org.bluez.Error.Failed',
+          );
   }
 
   static void _checkResult(int result, String operation) {
@@ -983,20 +692,6 @@ class BluezMediaClient {
       );
     }
   }
-
-  static void _checkMediaPlayerSettingResult(
-    int result,
-    String property,
-    String value,
-  ) {
-    if (result == -4) {
-      throw UnsupportedError(
-        'BlueZ rejected MediaPlayer1.$property "$value". '
-        'The remote player may not support changing this setting.',
-      );
-    }
-    _checkResult(result, 'set player ${property.toLowerCase()}');
-  }
 }
 
 /// The dynamic library in which the symbols for [BluezMediaNativeBindings] can be found.
@@ -1015,7 +710,6 @@ const _localPlayerTypes = {
   'Video Broadcasting',
 };
 const _localPlayerSubtypes = {'Audio Book', 'Podcast'};
-const _methodResultCapacity = 4096;
 
 void _initializeNativeApi() {
   if (_nativeApiInitialized) return;

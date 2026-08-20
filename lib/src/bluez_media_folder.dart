@@ -24,32 +24,30 @@ class BluezMediaFolder {
   Stream<List<String>> get propertiesChanged => _propertiesChangedCtrl.stream;
 
   /// Fetch the latest folder snapshot from BlueZ.
-  BlueZMediaFolderProps refresh() {
-    updateProps(_client.getMediaFolderProperties(objectPath));
+  Future<BlueZMediaFolderProps> refresh() async {
+    updateProps(await _client.getMediaFolderProperties(objectPath));
     return _props;
   }
 
   /// Search this folder and return the result folder proxy.
-  BluezMediaFolder search(String value) {
-    final props = _client.searchFolder(objectPath, value);
+  Future<BluezMediaFolder> search(String value) async {
+    final props = await _client.searchFolder(objectPath, value);
     return _client.folder(props.objectPath)..updateProps(props);
   }
 
   /// List child items/folders under this folder.
-  List<BluezMediaItem> listItems() {
-    final result = _client.listFolderItems(objectPath);
+  Future<List<BluezMediaItem>> listItems() async {
+    final result = await _client.listFolderItems(objectPath);
     return result.items.map(_client.itemFromProps).toList(growable: false);
   }
 
   /// Change this player folder to [targetFolder].
-  void changeFolder(BluezMediaFolder targetFolder) {
-    _client.changeFolder(objectPath, targetFolder.objectPath);
-  }
+  Future<void> changeFolder(BluezMediaFolder targetFolder) =>
+      _client.changeFolder(objectPath, targetFolder.objectPath);
 
   /// Change this player folder to [targetFolderPath].
-  void changeFolderPath(String targetFolderPath) {
-    _client.changeFolder(objectPath, targetFolderPath);
-  }
+  Future<void> changeFolderPath(String targetFolderPath) =>
+      _client.changeFolder(objectPath, targetFolderPath);
 
   void updateProps(BlueZMediaFolderProps props) {
     final changed = <String>[];

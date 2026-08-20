@@ -4,9 +4,25 @@
 #include "bluez_media_types.h"
 #include "media_utils.h"
 
+#include <fcntl.h>
 #include <unistd.h>
 #include <cerrno>
 #include <system_error>
+
+namespace {
+int take_fd(sdbus::UnixFd& fd) {
+  const int result = fd.release();
+  if (result < 0 || fcntl(result, F_SETFD, FD_CLOEXEC) != 0) {
+    const int error = result < 0 ? EBADF : errno;
+    if (result >= 0) {
+      close(result);
+    }
+    throw std::system_error(error, std::generic_category(),
+                            "Failed to own transport file descriptor");
+  }
+  return result;
+}
+}  // namespace
 
 MediaTransportProxy::MediaTransportProxy(sdbus::IConnection& conn,
                                          const std::string& transport_path)
@@ -19,7 +35,7 @@ MediaTransportProxy::MediaTransportProxy(sdbus::IConnection& conn,
                               sdbus::ObjectPath{transport_path_});
 }
 
-std::vector<uint8_t> MediaTransportProxy::acquire() const {
+BlueZMediaAcquireResult MediaTransportProxy::acquire() const {
   sdbus::UnixFd fd;
   uint16_t read_mtu = 0;
   uint16_t write_mtu = 0;
@@ -27,21 +43,15 @@ std::vector<uint8_t> MediaTransportProxy::acquire() const {
       .onInterface(kMediaTransportIface)
       .storeResultsTo(fd, read_mtu, write_mtu);
 
-  const int duplicated_fd = dup(fd.get());
-  if (duplicated_fd < 0) {
-    throw std::system_error(errno, std::generic_category(),
-                            "Failed to duplicate transport file descriptor");
-  }
-
   BlueZMediaAcquireResult result;
   result.transportPath = transport_path_;
-  result.fd = duplicated_fd;
+  result.fd = take_fd(fd);
   result.readMtu = read_mtu;
   result.writeMtu = write_mtu;
-  return glz::encode(result);
+  return result;
 }
 
-std::vector<uint8_t> MediaTransportProxy::try_acquire() const {
+BlueZMediaAcquireResult MediaTransportProxy::try_acquire() const {
   sdbus::UnixFd fd;
   uint16_t read_mtu = 0;
   uint16_t write_mtu = 0;
@@ -49,18 +59,12 @@ std::vector<uint8_t> MediaTransportProxy::try_acquire() const {
       .onInterface(kMediaTransportIface)
       .storeResultsTo(fd, read_mtu, write_mtu);
 
-  const int duplicated_fd = dup(fd.get());
-  if (duplicated_fd < 0) {
-    throw std::system_error(errno, std::generic_category(),
-                            "Failed to duplicate transport file descriptor");
-  }
-
   BlueZMediaAcquireResult result;
   result.transportPath = transport_path_;
-  result.fd = duplicated_fd;
+  result.fd = take_fd(fd);
   result.readMtu = read_mtu;
   result.writeMtu = write_mtu;
-  return glz::encode(result);
+  return result;
 }
 
 int MediaTransportProxy::release() const {
