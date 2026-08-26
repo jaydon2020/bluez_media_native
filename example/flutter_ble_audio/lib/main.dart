@@ -35,8 +35,7 @@ class MediaProxyDashboard extends StatefulWidget {
 }
 
 class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
-  late final BluezMediaClient _client;
-  bool _clientInitialized = false;
+  BluezMediaClient? _client;
   final _subscriptions = <StreamSubscription<List<String>>>[];
   final _messages = <String>[];
   var _loading = true;
@@ -84,7 +83,8 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     if (coverArtDirectory != null) {
       unawaited(_deleteDirectory(coverArtDirectory));
     }
-    if (_clientInitialized) unawaited(_client.close());
+    final client = _client;
+    if (client != null) unawaited(client.close());
     super.dispose();
   }
 
@@ -95,14 +95,14 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     });
 
     try {
-      _client = await BluezMediaClient.create();
-      _clientInitialized = true;
-      final objects = await _client.getManagedObjects();
-      final players = objects.players.map(_client.player).toList();
-      final controls = objects.controls.map(_client.control).toList();
-      final transports = objects.transports.map(_client.transport).toList();
-      final folders = objects.folders.map(_client.folder).toList();
-      final items = objects.items.map(_client.item).toList();
+      final client = _client ?? await BluezMediaClient.create();
+      _client = client;
+      final objects = await client.getManagedObjects();
+      final players = objects.players.map(client.player).toList();
+      final controls = objects.controls.map(client.control).toList();
+      final transports = objects.transports.map(client.transport).toList();
+      final folders = objects.folders.map(client.folder).toList();
+      final items = objects.items.map(client.item).toList();
 
       for (final subscription in _subscriptions) {
         await subscription.cancel();
