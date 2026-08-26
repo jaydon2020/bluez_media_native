@@ -1073,54 +1073,63 @@ class _ItemRow extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Icon(
-                item.type == 'folder' || item.folderType.isNotEmpty
-                    ? Icons.folder
-                    : Icons.music_note,
-                size: 20,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
+              Row(
+                children: [
+                  Icon(
+                    item.type == 'folder' || item.folderType.isNotEmpty
+                        ? Icons.folder
+                        : Icons.music_note,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                        Text(
+                          subtitleParts.isEmpty
+                              ? item.objectPath
+                              : '${subtitleParts.join(' - ')} - ${item.objectPath}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
                     ),
-                    Text(
-                      subtitleParts.isEmpty
-                          ? item.objectPath
-                          : '${subtitleParts.join(' - ')} - ${item.objectPath}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
+                  ),
+                  _CommandButton(
+                    tooltip: 'Play item',
+                    icon: Icons.play_arrow,
+                    onPressed: item.playable
+                        ? () => onCommand('MediaItem1 Play', item.play)
+                        : null,
+                  ),
+                  const SizedBox(width: 6),
+                  _CommandButton(
+                    tooltip: 'Add to now playing',
+                    icon: Icons.playlist_add,
+                    onPressed: item.playable
+                        ? () => onCommand(
+                            'MediaItem1 Add to now playing',
+                            item.addToNowPlaying,
+                          )
+                        : null,
+                  ),
+                ],
               ),
-              _CommandButton(
-                tooltip: 'Play item',
-                icon: Icons.play_arrow,
-                onPressed: item.playable
-                    ? () => onCommand('MediaItem1 Play', item.play)
-                    : null,
-              ),
-              const SizedBox(width: 6),
-              _CommandButton(
-                tooltip: 'Add to now playing',
-                icon: Icons.playlist_add,
-                onPressed: item.playable
-                    ? () => onCommand(
-                        'MediaItem1 Add to now playing',
-                        item.addToNowPlaying,
-                      )
-                    : null,
-              ),
+              const Divider(height: 24),
+              Text('Metadata', style: Theme.of(context).textTheme.labelLarge),
+              const SizedBox(height: 8),
+              _MetadataTable(properties: item.metadata),
             ],
           ),
         ),
@@ -1629,33 +1638,43 @@ class _MetadataTable extends StatelessWidget {
       return const Text('No metadata');
     }
 
-    return Table(
-      columnWidths: const {0: FixedColumnWidth(150), 1: FlexColumnWidth()},
-      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-      children: [
-        for (final property in properties)
-          TableRow(
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(right: 12, bottom: 8),
-                child: Text(
-                  property.key,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final keyWidth = constraints.maxWidth < 360
+            ? constraints.maxWidth * 0.35
+            : 150.0;
+        return Table(
+          columnWidths: {
+            0: FixedColumnWidth(keyWidth),
+            1: const FlexColumnWidth(),
+          },
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: [
+            for (final property in properties)
+              TableRow(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12, bottom: 8),
+                    child: Text(
+                      property.key,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      property.value,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  property.value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
