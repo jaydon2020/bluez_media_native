@@ -47,6 +47,12 @@ bool file_has_data(const std::string& path) {
          std::filesystem::file_size(path, error) > 0;
 }
 
+bool file_has_size(const std::string& path, uint64_t expected_size) {
+  std::error_code error;
+  return expected_size > 0 && std::filesystem::is_regular_file(path, error) &&
+         std::filesystem::file_size(path, error) == expected_size;
+}
+
 void remove_partial_file(const std::string& path) {
   std::error_code error;
   std::filesystem::remove(path, error);
@@ -177,6 +183,7 @@ Properties preferred_description(sdbus::IProxy& image,
 bool wait_for_transfer(sdbus::IConnection& session_bus,
                        const sdbus::ObjectPath& transfer_path,
                        const std::string& target_file,
+                       uint64_t expected_size,
                        Deadline deadline) {
   auto transfer = sdbus::createProxy(
       session_bus, sdbus::ServiceName{kObexService}, transfer_path);
@@ -197,8 +204,9 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
           return false;
         }
       }
-    } catch (const sdbus::Error&) {
-      return file_has_data(target_file);
+    } catch (const sdbus::Error& error) {
+      return error.getName() == "org.freedesktop.DBus.Error.UnknownObject" &&
+             file_has_size(target_file, expected_size);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
   }
@@ -223,7 +231,9 @@ bool get_image(sdbus::IConnection& session_bus,
       .withArguments(target_file, image_handle, description)
       .withTimeout(remaining_timeout(deadline))
       .storeResultsTo(transfer, transfer_properties);
-  return wait_for_transfer(session_bus, transfer, target_file, deadline);
+  return wait_for_transfer(
+      session_bus, transfer, target_file,
+      media_property<uint64_t>(transfer_properties, "Size"), deadline);
 }
 
 }  // namespace
@@ -290,12 +300,17 @@ void CoverArtService::register_player(const std::string& player_path,
   auto session = sessions_.find(device_address);
   if (session != sessions_.end() && session->second.port != obex_port) {
     const auto users = session->second.users;
-    const auto replacement =
-        create_session(session_bus(), device_address, obex_port, deadline);
+    auto replacement =
+        find_session(session_bus(), device_address, obex_port, deadline);
+    const bool owned = replacement.empty();
+    if (owned) {
+      replacement =
+          create_session(session_bus(), device_address, obex_port, deadline);
+    }
     if (session->second.owned) {
       remove_session(session_bus(), session->second.object_path);
     }
-    session->second = {replacement, obex_port, users, true};
+    session->second = {replacement, obex_port, users, owned};
   }
   if (session == sessions_.end()) {
     auto path =
@@ -316,6 +331,30 @@ void CoverArtService::unregister_player(
     const std::string& player_path) noexcept {
   const std::scoped_lock lock(mutex_);
   unregister_player_locked(player_path);
+}
+
+void CoverArtService::invalidate_player_session(
+    const std::string& player_path) noexcept {
+  const std::scoped_lock lock(mutex_);
+  const auto player = players_.find(player_path);
+  if (player == players_.end()) {
+    return;
+  }
+  const auto address = player->second.device_address;
+  for (auto current = players_.begin(); current != players_.end();) {
+    if (current->second.device_address == address) {
+      current = players_.erase(current);
+    } else {
+      ++current;
+    }
+  }
+  const auto session = sessions_.find(address);
+  if (session != sessions_.end()) {
+    if (session->second.owned) {
+      remove_session(session_bus(), session->second.object_path);
+    }
+    sessions_.erase(session);
+  }
 }
 
 void CoverArtService::unregister_player_locked(
@@ -340,6 +379,20 @@ void CoverArtService::unregister_player_locked(
 int CoverArtService::get(const std::string& player_path,
                          const std::string& target_file,
                          std::chrono::milliseconds timeout) {
+  return get_impl(player_path, target_file, timeout, false);
+}
+
+int CoverArtService::get_from_existing_session(
+    const std::string& player_path,
+    const std::string& target_file,
+    std::chrono::milliseconds timeout) {
+  return get_impl(player_path, target_file, timeout, true);
+}
+
+int CoverArtService::get_impl(const std::string& player_path,
+                              const std::string& target_file,
+                              std::chrono::milliseconds timeout,
+                              bool existing_session_only) {
   if (player_path.empty() || target_file.empty() || timeout.count() <= 0 ||
       !std::filesystem::path{target_file}.is_absolute() ||
       std::filesystem::exists(target_file)) {
@@ -351,8 +404,6 @@ int CoverArtService::get(const std::string& player_path,
   if (source.device_path.empty() || source.obex_port == 0) {
     return BLUEZ_MEDIA_ERROR_NOT_FOUND;
   }
-  register_player(player_path, source.device_path, source.obex_port, deadline);
-
   if (source.image_handle.empty()) {
     source.image_handle =
         wait_for_image_handle(system_bus_, player_path, deadline);
@@ -361,41 +412,49 @@ int CoverArtService::get(const std::string& player_path,
     return BLUEZ_MEDIA_ERROR_NOT_FOUND;
   }
 
-  // Copy the session path under the lock, then release it before blocking
-  // D-Bus calls so destruction can still acquire mutex_.
-  sdbus::ObjectPath session_path;
-  {
-    const std::scoped_lock lock(mutex_);
-    const auto player = players_.find(player_path);
-    if (player == players_.end()) {
-      return BLUEZ_MEDIA_ERROR_NOT_FOUND;
-    }
-    const auto session = sessions_.find(player->second.device_address);
-    if (session == sessions_.end()) {
-      return BLUEZ_MEDIA_ERROR_NOT_FOUND;
-    }
-    session_path = session->second.object_path;
-  }  // mutex_ released here — no lock held during D-Bus calls below.
-
   auto& bus = session_bus();
-  auto image =
-      sdbus::createProxy(bus, sdbus::ServiceName{kObexService}, session_path);
+  const auto device_address =
+      get_device_address(system_bus_, source.device_path, deadline);
+  const int attempts = existing_session_only ? 1 : 2;
+  for (int attempt = 0; attempt < attempts; ++attempt) {
+    sdbus::ObjectPath session_path;
+    if (existing_session_only) {
+      session_path =
+          find_session(bus, device_address, source.obex_port, deadline);
+      if (session_path.empty()) {
+        return BLUEZ_MEDIA_ERROR_NOT_FOUND;
+      }
+    } else {
+      register_player(player_path, source.device_path, source.obex_port,
+                      deadline);
+      const std::scoped_lock lock(mutex_);
+      const auto player = players_.find(player_path);
+      if (player == players_.end()) {
+        return BLUEZ_MEDIA_ERROR_NOT_FOUND;
+      }
+      const auto session = sessions_.find(player->second.device_address);
+      if (session == sessions_.end()) {
+        return BLUEZ_MEDIA_ERROR_NOT_FOUND;
+      }
+      session_path = session->second.object_path;
+    }
 
-  Properties preferred;
-  try {
-    preferred = preferred_description(*image, source.image_handle, deadline);
-  } catch (const sdbus::Error&) {
-  }
-
-  if (!preferred.empty()) {
     try {
-      if (get_image(bus, *image, target_file, source.image_handle, preferred,
+      auto image = sdbus::createProxy(bus, sdbus::ServiceName{kObexService},
+                                      session_path);
+      const auto preferred =
+          preferred_description(*image, source.image_handle, deadline);
+      if (!preferred.empty() &&
+          get_image(bus, *image, target_file, source.image_handle, preferred,
                     deadline)) {
         return BLUEZ_MEDIA_SUCCESS;
       }
     } catch (const sdbus::Error&) {
     }
     remove_partial_file(target_file);
+    if (!existing_session_only) {
+      invalidate_player_session(player_path);
+    }
   }
 
   return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;

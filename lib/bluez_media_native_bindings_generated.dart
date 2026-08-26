@@ -445,6 +445,42 @@ class BluezMediaNativeBindings {
             )
           >();
 
+  int bluez_media_player_get_cover_art_from_existing_session(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> player_path,
+    ffi.Pointer<ffi.Char> target_file,
+    int timeout_ms,
+  ) {
+    return _bluez_media_player_get_cover_art_from_existing_session(
+      handle,
+      player_path,
+      target_file,
+      timeout_ms,
+    );
+  }
+
+  late final _bluez_media_player_get_cover_art_from_existing_sessionPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_player_get_cover_art_from_existing_session');
+  late final _bluez_media_player_get_cover_art_from_existing_session =
+      _bluez_media_player_get_cover_art_from_existing_sessionPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Char>,
+              int,
+            )
+          >();
+
   /// ── org.bluez.MediaControl1 remote controller controls ─────────────────────
   int bluez_media_control_play(
     ffi.Pointer<ffi.Void> handle,
@@ -1083,3 +1119,5 @@ const int BLUEZ_MEDIA_OP_TRANSPORT_SET_VOLUME = 32;
 const int BLUEZ_MEDIA_OP_GET_MANAGED_OBJECTS = 33;
 
 const int BLUEZ_MEDIA_OP_UNREGISTER_PLAYER = 34;
+
+const int BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION = 35;

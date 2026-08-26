@@ -149,6 +149,14 @@ void _expectHandleRefused(
         1,
       ),
     );
+    refused(
+      bindings.bluez_media_player_get_cover_art_from_existing_session(
+        handle,
+        player.cast(),
+        target.cast(),
+        1,
+      ),
+    );
 
     refused(bindings.bluez_media_control_play(handle, control.cast()));
     refused(bindings.bluez_media_control_pause(handle, control.cast()));

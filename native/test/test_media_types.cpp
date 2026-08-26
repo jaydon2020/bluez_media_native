@@ -154,14 +154,14 @@ void test_media_folder_items_roundtrip() {
                           .folderType = "",
                           .playable = true,
                           .metadata = {{"Title", "Blue Train"}}},
-      BlueZMediaItemProps{.objectPath =
-                              "/org/bluez/hci0/dev_AA/player0/folder0",
-                          .player = "/org/bluez/hci0/dev_AA/player0",
-                          .name = "Albums",
-                          .type = "folder",
-                          .folderType = "album",
-                          .playable = false,
-                          .metadata = {}}};
+      BlueZMediaItemProps{
+          .objectPath = "/org/bluez/hci0/dev_AA/player0/folder0",
+          .player = "/org/bluez/hci0/dev_AA/player0",
+          .name = "Albums",
+          .type = "folder",
+          .folderType = "album",
+          .playable = false,
+          .metadata = {}}};
 
   auto buf = glz::encode(orig);
   BlueZMediaFolderItems decoded;
@@ -187,8 +187,8 @@ void test_method_result_roundtrips() {
 
   auto acquire_buf = glz::encode(acquire);
   const auto fd_offset = sizeof(uint32_t) + acquire.transportPath.size();
-  assert(acquire_buf.size() == fd_offset + sizeof(int32_t) +
-                                   (2 * sizeof(uint16_t)));
+  assert(acquire_buf.size() ==
+         fd_offset + sizeof(int32_t) + (2 * sizeof(uint16_t)));
   assert(acquire_buf[fd_offset] == 0xff);
   assert(acquire_buf[fd_offset + 1] == 0xff);
   assert(acquire_buf[fd_offset + 2] == 0xff);
@@ -237,6 +237,9 @@ void test_player_properties_from_object_manager_payload() {
 
 void test_cover_art_validates_arguments() {
   assert(bluez_media_player_get_cover_art(nullptr, "/player", "/tmp/art", 1) ==
+         BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
+  assert(bluez_media_player_get_cover_art_from_existing_session(
+             nullptr, "/player", "/tmp/art", 1) ==
          BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
 }
 
@@ -486,8 +489,7 @@ void test_control_encode_properties_empty_map() {
 
 void test_transport_encode_properties_empty_map() {
   const std::map<std::string, sdbus::Variant> empty;
-  const auto buf =
-      MediaTransportProxy::encode_properties("/transport", empty);
+  const auto buf = MediaTransportProxy::encode_properties("/transport", empty);
 
   BlueZMediaTransportProps decoded;
   const auto end = glz::decode(buf.data(), 0, decoded);
@@ -502,15 +504,12 @@ void test_transport_encode_properties_empty_map() {
 void test_player_encode_properties_type_mismatch_falls_back() {
   // Property exists but with wrong D-Bus type → media_property returns default.
   const std::map<std::string, sdbus::Variant> properties{
-      {"Position",
-       sdbus::Variant{std::string{"not-a-uint32"}}},  // wrong type
+      {"Position", sdbus::Variant{std::string{"not-a-uint32"}}},  // wrong type
       {"Browsable",
        sdbus::Variant{uint32_t{1}}},  // wrong type – should be bool
-      {"ObexPort",
-       sdbus::Variant{std::string{"4097"}}}};  // wrong type
+      {"ObexPort", sdbus::Variant{std::string{"4097"}}}};  // wrong type
 
-  const auto buf =
-      MediaPlayerProxy::encode_properties("/player", properties);
+  const auto buf = MediaPlayerProxy::encode_properties("/player", properties);
   BlueZMediaPlayerProps decoded;
   glz::decode(buf.data(), 0, decoded);
 
@@ -571,9 +570,9 @@ void test_track_to_properties_numeric_and_bool_variants() {
   // variant_to_string must handle non-string D-Bus variants without crashing.
   const std::map<std::string, sdbus::Variant> track{
       {"Duration", sdbus::Variant{uint32_t{643000}}},  // uint32_t path
-      {"Genre", sdbus::Variant{std::string{"Jazz"}}},   // string path
-      {"TrackNumber", sdbus::Variant{uint16_t{1}}},     // uint16_t path
-      {"Loved", sdbus::Variant{true}},                   // bool path
+      {"Genre", sdbus::Variant{std::string{"Jazz"}}},  // string path
+      {"TrackNumber", sdbus::Variant{uint16_t{1}}},    // uint16_t path
+      {"Loved", sdbus::Variant{true}},                 // bool path
   };
 
   const auto props = track_to_properties(track);
@@ -604,8 +603,7 @@ void test_track_to_properties_empty_track() {
 void test_track_to_properties_object_path_variant() {
   // sdbus::ObjectPath must be handled by variant_to_string.
   const std::map<std::string, sdbus::Variant> track{
-      {"AlbumArtURL",
-       sdbus::Variant{sdbus::ObjectPath{"/org/example/art"}}},
+      {"AlbumArtURL", sdbus::Variant{sdbus::ObjectPath{"/org/example/art"}}},
   };
   const auto props = track_to_properties(track);
   assert(props.size() == 1u);
@@ -619,6 +617,9 @@ void test_cover_art_rejects_zero_timeout() {
   assert(bluez_media_player_get_cover_art(nullptr, "/p", "/abs/file", 0) ==
          BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
   assert(bluez_media_player_get_cover_art(nullptr, "/p", "/abs/file", -1) ==
+         BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
+  assert(bluez_media_player_get_cover_art_from_existing_session(
+             nullptr, "/p", "/abs/file", 0) ==
          BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
 }
 

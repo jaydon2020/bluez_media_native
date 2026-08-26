@@ -5,12 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Existing-session-only cover art API for reusing sessions such as the one
+  owned by `mpris-proxy` while leaving file caching to the caller.
+
+### Fixed
+- Revalidate stale OBEX sessions, reject partial fast-finished transfers, and
+  contain native exceptions and acquired file descriptors at the Dart FFI boundary.
+- Keep Dart proxy and Flutter example state synchronized across refreshes,
+  object lifecycle events, widget disposal, and overlapping cover art requests.
+
 ## [0.2.0] - 2026-08-20
 
 ### Added
 - Experimental BlueZ OBEX BIP cover art retrieval service (`CoverArtService`).
 - Exposed `ObexPort` property (uint16) on `MediaPlayer1` interface and FFI bindings.
-- Automatic cover art download support with thumbnail prioritization and format fallbacks.
+- Automatic native-format cover art download support.
 - New C ABI functions for cover art acquisition and native buffer memory management.
 - Unit and lifetime tests for handle safety and cover art property decoding.
 

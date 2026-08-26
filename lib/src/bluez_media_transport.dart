@@ -74,23 +74,22 @@ class BluezMediaTransport {
 
   /// Fetches the latest properties from BlueZ and updates the snapshot.
   Future<void> refresh() async {
-    _props = await _client.getMediaTransportProperties(objectPath);
+    updateProps(await _client.getMediaTransportProperties(objectPath));
   }
 
   void updateProps(BlueZMediaTransportProps props) {
     final changed = <String>[];
-    if (_props case final previous?) {
-      if (props.device != previous.device) changed.add('Device');
-      if (props.uuid != previous.uuid) changed.add('UUID');
-      if (props.codec != previous.codec) changed.add('Codec');
-      if (props.state != previous.state) changed.add('State');
-      if (props.delay != previous.delay) changed.add('Delay');
-      if (props.volume != previous.volume) changed.add('Volume');
-      if (!_sameInts(props.configuration, previous.configuration)) {
-        changed.add('Configuration');
-      }
-      if (props.endpoint != previous.endpoint) changed.add('Endpoint');
+    final previous = _props ?? BlueZMediaTransportProps(objectPath: objectPath);
+    if (props.device != previous.device) changed.add('Device');
+    if (props.uuid != previous.uuid) changed.add('UUID');
+    if (props.codec != previous.codec) changed.add('Codec');
+    if (props.state != previous.state) changed.add('State');
+    if (props.delay != previous.delay) changed.add('Delay');
+    if (props.volume != previous.volume) changed.add('Volume');
+    if (!_sameInts(props.configuration, previous.configuration)) {
+      changed.add('Configuration');
     }
+    if (props.endpoint != previous.endpoint) changed.add('Endpoint');
     _props = props;
     if (changed.isNotEmpty) {
       _propertiesChangedCtrl.add(changed);
@@ -134,9 +133,9 @@ class BluezMediaAcquiredTransport {
   /// Closes the duplicated file descriptor returned by BlueZ.
   void close() {
     if (_closed) return;
+    _client.closeFileDescriptor(fd);
     _closed = true;
     _finalizer.detach(_finalizerDetach);
-    _client.closeFileDescriptor(fd);
   }
 }
 

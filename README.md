@@ -311,8 +311,11 @@ dart run ffigen --config ffigen.yaml
 Cover art requires `ImgHandle` in `MediaPlayer1.Track` and a running BlueZ
 `obexd` with its experimental Image API enabled. The destination passed to
 `getCoverArt` must be an absolute path that does not already exist.
-`bluez_media_native` owns the required BIP session for the duration of each
-download, so BlueZ's separate `mpris-proxy` process is not required.
+`getCoverArt` reuses a matching session owned by `mpris-proxy` when available
+and otherwise creates a temporary session that the client owns.
+`getCoverArtFromExistingSession` never creates or removes a session and fails
+when no matching session exists. Both APIs write only to the caller-provided
+path; the caller remains responsible for image caching and cleanup.
 
 ### BlueZ is not running
 

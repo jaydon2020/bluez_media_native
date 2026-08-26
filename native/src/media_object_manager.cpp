@@ -28,18 +28,21 @@ bool is_media_interface(const std::string& interface_name) {
 
 void post_bytes(Dart_Port_DL port,
                 uint8_t tag,
-                const std::vector<uint8_t>& payload = {}) {
-  std::vector<uint8_t> message;
-  message.reserve(payload.size() + 1);
-  message.push_back(tag);
-  message.insert(message.end(), payload.begin(), payload.end());
+                const std::vector<uint8_t>& payload = {}) noexcept {
+  try {
+    std::vector<uint8_t> message;
+    message.reserve(payload.size() + 1);
+    message.push_back(tag);
+    message.insert(message.end(), payload.begin(), payload.end());
 
-  Dart_CObject object;
-  object.type = Dart_CObject_kTypedData;
-  object.value.as_typed_data.type = Dart_TypedData_kUint8;
-  object.value.as_typed_data.length = static_cast<intptr_t>(message.size());
-  object.value.as_typed_data.values = message.data();
-  Dart_PostCObject_DL(port, &object);
+    Dart_CObject object;
+    object.type = Dart_CObject_kTypedData;
+    object.value.as_typed_data.type = Dart_TypedData_kUint8;
+    object.value.as_typed_data.length = static_cast<intptr_t>(message.size());
+    object.value.as_typed_data.values = message.data();
+    Dart_PostCObject_DL(port, &object);
+  } catch (...) {
+  }
 }
 }  // namespace
 
@@ -96,17 +99,21 @@ void MediaObjectManager::on_interfaces_removed(
     const sdbus::ObjectPath& path,
     const std::vector<std::string>& interfaces) {
   auto known = interfaces_by_path_.find(path);
+  if (known == interfaces_by_path_.end()) {
+    return;
+  }
+  auto properties = properties_by_path_.find(path);
   for (const auto& interface_name : interfaces) {
-    if (!is_media_interface(interface_name)) {
+    if (!is_media_interface(interface_name) ||
+        known->second.erase(interface_name) == 0) {
       continue;
     }
     post_removed(path, interface_name);
-    if (known != interfaces_by_path_.end()) {
-      known->second.erase(interface_name);
+    if (properties != properties_by_path_.end()) {
+      properties->second.erase(interface_name);
     }
-    properties_by_path_[path].erase(interface_name);
   }
-  if (known != interfaces_by_path_.end() && known->second.empty()) {
+  if (known->second.empty()) {
     interfaces_by_path_.erase(known);
     property_proxies_.erase(path);
     properties_by_path_.erase(path);
@@ -127,7 +134,12 @@ void MediaObjectManager::subscribe_properties(const std::string& path) {
         if (!is_media_interface(interface_name)) {
           return;
         }
-        auto& properties = properties_by_path_[path][interface_name];
+        const auto known = interfaces_by_path_.find(path);
+        if (known == interfaces_by_path_.end() ||
+            !known->second.contains(interface_name)) {
+          return;
+        }
+        auto& properties = properties_by_path_.at(path).at(interface_name);
         for (const auto& [name, value] : changed) {
           properties.insert_or_assign(name, value);
         }

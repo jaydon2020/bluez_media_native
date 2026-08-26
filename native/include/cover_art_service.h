@@ -24,6 +24,9 @@ class CoverArtService {
   int get(const std::string& player_path,
           const std::string& target_file,
           std::chrono::milliseconds timeout);
+  int get_from_existing_session(const std::string& player_path,
+                                const std::string& target_file,
+                                std::chrono::milliseconds timeout);
 
  private:
   struct Player {
@@ -39,6 +42,11 @@ class CoverArtService {
   };
 
   sdbus::IConnection& session_bus();
+  int get_impl(const std::string& player_path,
+               const std::string& target_file,
+               std::chrono::milliseconds timeout,
+               bool existing_session_only);
+  void invalidate_player_session(const std::string& player_path) noexcept;
   void unregister_player_locked(const std::string& player_path) noexcept;
 
   sdbus::IConnection& system_bus_;

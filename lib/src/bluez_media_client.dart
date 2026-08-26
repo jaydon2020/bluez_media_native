@@ -167,6 +167,11 @@ class BluezMediaClient {
 
   /// Return a cached proxy for a remote `org.bluez.MediaPlayer1` object.
   BluezMediaPlayer player(String objectPath) {
+    _ensureOpen();
+    return _player(objectPath);
+  }
+
+  BluezMediaPlayer _player(String objectPath) {
     return _players.putIfAbsent(
       objectPath,
       () => BluezMediaPlayer.internal(this, objectPath),
@@ -175,6 +180,11 @@ class BluezMediaClient {
 
   /// Return a cached proxy for a remote `org.bluez.MediaControl1` object.
   BluezMediaControl control(String objectPath) {
+    _ensureOpen();
+    return _control(objectPath);
+  }
+
+  BluezMediaControl _control(String objectPath) {
     return _controls.putIfAbsent(
       objectPath,
       () => BluezMediaControl.internal(this, objectPath),
@@ -183,6 +193,11 @@ class BluezMediaClient {
 
   /// Return a cached proxy for a remote `org.bluez.MediaFolder1` object.
   BluezMediaFolder folder(String objectPath) {
+    _ensureOpen();
+    return _folder(objectPath);
+  }
+
+  BluezMediaFolder _folder(String objectPath) {
     return _folders.putIfAbsent(
       objectPath,
       () => BluezMediaFolder.internal(this, objectPath),
@@ -191,6 +206,11 @@ class BluezMediaClient {
 
   /// Return a cached proxy for a remote `org.bluez.MediaItem1` object.
   BluezMediaItem item(String objectPath) {
+    _ensureOpen();
+    return _item(objectPath);
+  }
+
+  BluezMediaItem _item(String objectPath) {
     return _items.putIfAbsent(
       objectPath,
       () => BluezMediaItem.internal(this, objectPath),
@@ -199,6 +219,11 @@ class BluezMediaClient {
 
   /// Return a cached proxy for a remote `org.bluez.MediaTransport1` object.
   BluezMediaTransport transport(String objectPath) {
+    _ensureOpen();
+    return _transport(objectPath);
+  }
+
+  BluezMediaTransport _transport(String objectPath) {
     return _transports.putIfAbsent(
       objectPath,
       () => BluezMediaTransport.internal(this, objectPath),
@@ -312,6 +337,30 @@ class BluezMediaClient {
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
   }) {
+    _validateCoverArtRequest(targetFile, timeout);
+    return _callAsync(
+      BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART,
+      objectPath: playerPath,
+      argument: targetFile,
+      value: timeout.inMilliseconds,
+    ).then((_) => targetFile);
+  }
+
+  Future<String> getPlayerCoverArtFromExistingSession(
+    String playerPath,
+    String targetFile, {
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    _validateCoverArtRequest(targetFile, timeout);
+    return _callAsync(
+      BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION,
+      objectPath: playerPath,
+      argument: targetFile,
+      value: timeout.inMilliseconds,
+    ).then((_) => targetFile);
+  }
+
+  void _validateCoverArtRequest(String targetFile, Duration timeout) {
     _ensureOpen();
     if (!targetFile.startsWith('/')) {
       throw ArgumentError.value(targetFile, 'targetFile', 'Must be absolute.');
@@ -323,13 +372,6 @@ class BluezMediaClient {
         'Must fit a positive int32.',
       );
     }
-
-    return _callAsync(
-      BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART,
-      objectPath: playerPath,
-      argument: targetFile,
-      value: timeout.inMilliseconds,
-    ).then((_) => targetFile);
   }
 
   Future<void> controlPlay(String controlPath) =>
@@ -494,31 +536,37 @@ class BluezMediaClient {
         return;
       case 0x01:
         final props = GlazeCodec.decode<BlueZMediaPlayerProps>(message, 1);
+        if (_closed) return;
         final existing = _players[props.objectPath];
-        final proxy = player(props.objectPath)..updateProps(props);
+        final proxy = _player(props.objectPath)..updateProps(props);
         if (existing == null) _playerAddedCtrl.add(proxy);
       case 0x02:
         final props = GlazeCodec.decode<BlueZMediaControlProps>(message, 1);
+        if (_closed) return;
         final existing = _controls[props.objectPath];
-        final proxy = control(props.objectPath)..updateProps(props);
+        final proxy = _control(props.objectPath)..updateProps(props);
         if (existing == null) _controlAddedCtrl.add(proxy);
       case 0x04:
         final props = GlazeCodec.decode<BlueZMediaTransportProps>(message, 1);
+        if (_closed) return;
         final existing = _transports[props.objectPath];
-        final proxy = transport(props.objectPath);
+        final proxy = _transport(props.objectPath);
         proxy.updateProps(props);
         if (existing == null) _transportAddedCtrl.add(proxy);
       case 0x05:
         final props = GlazeCodec.decode<BlueZMediaFolderProps>(message, 1);
+        if (_closed) return;
         final existing = _folders[props.objectPath];
-        final proxy = folder(props.objectPath)..updateProps(props);
+        final proxy = _folder(props.objectPath)..updateProps(props);
         if (existing == null) _folderAddedCtrl.add(proxy);
       case 0x06:
         final props = GlazeCodec.decode<BlueZMediaItemProps>(message, 1);
+        if (_closed) return;
         final existing = _items[props.objectPath];
-        final proxy = item(props.objectPath)..updateProps(props);
+        final proxy = _item(props.objectPath)..updateProps(props);
         if (existing == null) _itemAddedCtrl.add(proxy);
       case 0x7E:
+        if (_closed) return;
         _removeObject(GlazeCodec.decode<BlueZMediaObjectRemoved>(message, 1));
     }
   }
