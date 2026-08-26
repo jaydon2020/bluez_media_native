@@ -35,6 +35,7 @@ class CoverArtService {
     sdbus::ObjectPath object_path;
     uint16_t port{};
     std::size_t users{};
+    bool owned{};
   };
 
   sdbus::IConnection& session_bus();

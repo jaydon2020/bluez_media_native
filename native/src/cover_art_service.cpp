@@ -18,7 +18,9 @@ constexpr auto kPlayerIface = "org.bluez.MediaPlayer1";
 constexpr auto kDeviceIface = "org.bluez.Device1";
 constexpr auto kObexClientIface = "org.bluez.obex.Client1";
 constexpr auto kObexImageIface = "org.bluez.obex.Image1";
+constexpr auto kObexSessionIface = "org.bluez.obex.Session1";
 constexpr auto kObexTransferIface = "org.bluez.obex.Transfer1";
+constexpr auto kObjectManagerIface = "org.freedesktop.DBus.ObjectManager";
 
 using Properties = std::map<std::string, sdbus::Variant>;
 using Clock = std::chrono::steady_clock;
@@ -118,6 +120,30 @@ sdbus::ObjectPath create_session(sdbus::IConnection& session_bus,
   return session;
 }
 
+sdbus::ObjectPath find_session(sdbus::IConnection& session_bus,
+                               const std::string& device_address,
+                               uint16_t obex_port,
+                               Deadline deadline) {
+  using Interfaces = std::map<std::string, Properties>;
+  std::map<sdbus::ObjectPath, Interfaces> objects;
+  auto proxy = sdbus::createProxy(session_bus, sdbus::ServiceName{kObexService},
+                                  sdbus::ObjectPath{"/"});
+  proxy->callMethod("GetManagedObjects")
+      .onInterface(kObjectManagerIface)
+      .withTimeout(remaining_timeout(deadline))
+      .storeResultsTo(objects);
+  for (const auto& [path, interfaces] : objects) {
+    const auto session = interfaces.find(kObexSessionIface);
+    if (session != interfaces.end() &&
+        media_property<std::string>(session->second, "Destination") ==
+            device_address &&
+        media_property<uint16_t>(session->second, "PSM") == obex_port) {
+      return path;
+    }
+  }
+  return {};
+}
+
 void remove_session(sdbus::IConnection& session_bus,
                     const sdbus::ObjectPath& session) noexcept {
   try {
@@ -141,8 +167,7 @@ Properties preferred_description(sdbus::IProxy& image,
       .withTimeout(remaining_timeout(deadline))
       .storeResultsTo(descriptions);
   for (const auto& description : descriptions) {
-    if (media_property<std::string>(description, "type") == "variant" &&
-        media_property<std::string>(description, "encoding") == "PNG") {
+    if (media_property<std::string>(description, "type") == "native") {
       return description;
     }
   }
@@ -173,7 +198,7 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
         }
       }
     } catch (const sdbus::Error&) {
-      return false;
+      return file_has_data(target_file);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
   }
@@ -201,21 +226,6 @@ bool get_image(sdbus::IConnection& session_bus,
   return wait_for_transfer(session_bus, transfer, target_file, deadline);
 }
 
-bool get_thumbnail(sdbus::IConnection& session_bus,
-                   sdbus::IProxy& image,
-                   const std::string& target_file,
-                   const std::string& image_handle,
-                   Deadline deadline) {
-  sdbus::ObjectPath transfer;
-  Properties transfer_properties;
-  image.callMethod("GetThumbnail")
-      .onInterface(kObexImageIface)
-      .withArguments(target_file, image_handle)
-      .withTimeout(remaining_timeout(deadline))
-      .storeResultsTo(transfer, transfer_properties);
-  return wait_for_transfer(session_bus, transfer, target_file, deadline);
-}
-
 }  // namespace
 
 CoverArtService::CoverArtService(sdbus::IConnection& system_bus)
@@ -227,7 +237,9 @@ CoverArtService::~CoverArtService() {
     return;
   }
   for (const auto& [device_address, session] : sessions_) {
-    remove_session(*session_bus_, session.object_path);
+    if (session.owned) {
+      remove_session(*session_bus_, session.object_path);
+    }
   }
 }
 
@@ -280,16 +292,21 @@ void CoverArtService::register_player(const std::string& player_path,
     const auto users = session->second.users;
     const auto replacement =
         create_session(session_bus(), device_address, obex_port, deadline);
-    remove_session(session_bus(), session->second.object_path);
-    session->second = {replacement, obex_port, users};
+    if (session->second.owned) {
+      remove_session(session_bus(), session->second.object_path);
+    }
+    session->second = {replacement, obex_port, users, true};
   }
   if (session == sessions_.end()) {
-    session = sessions_
-                  .emplace(device_address,
-                           Session{create_session(session_bus(), device_address,
-                                                  obex_port, deadline),
-                                   obex_port, 0})
-                  .first;
+    auto path =
+        find_session(session_bus(), device_address, obex_port, deadline);
+    const bool owned = path.empty();
+    if (owned) {
+      path = create_session(session_bus(), device_address, obex_port, deadline);
+    }
+    session =
+        sessions_.emplace(device_address, Session{path, obex_port, 0, owned})
+            .first;
   }
   ++session->second.users;
   players_.emplace(player_path, Player{device_path, device_address});
@@ -314,7 +331,9 @@ void CoverArtService::unregister_player_locked(
   if (session == sessions_.end() || --session->second.users != 0) {
     return;
   }
-  remove_session(session_bus(), session->second.object_path);
+  if (session->second.owned) {
+    remove_session(session_bus(), session->second.object_path);
+  }
   sessions_.erase(session);
 }
 
@@ -342,10 +361,8 @@ int CoverArtService::get(const std::string& player_path,
     return BLUEZ_MEDIA_ERROR_NOT_FOUND;
   }
 
-  // Copy the session path under the lock, then release it before any blocking
-  // D-Bus calls. Holding mutex_ across get_thumbnail/get_image (which contain
-  // synchronous D-Bus round-trips and a 100ms sleep loop) would deadlock with
-  // ~CoverArtService which also acquires mutex_ to clean up sessions.
+  // Copy the session path under the lock, then release it before blocking
+  // D-Bus calls so destruction can still acquire mutex_.
   sdbus::ObjectPath session_path;
   {
     const std::scoped_lock lock(mutex_);
@@ -364,15 +381,6 @@ int CoverArtService::get(const std::string& player_path,
   auto image =
       sdbus::createProxy(bus, sdbus::ServiceName{kObexService}, session_path);
 
-  try {
-    if (get_thumbnail(bus, *image, target_file, source.image_handle,
-                      deadline)) {
-      return BLUEZ_MEDIA_SUCCESS;
-    }
-  } catch (const sdbus::Error&) {
-  }
-  remove_partial_file(target_file);
-
   Properties preferred;
   try {
     preferred = preferred_description(*image, source.image_handle, deadline);
@@ -390,13 +398,5 @@ int CoverArtService::get(const std::string& player_path,
     remove_partial_file(target_file);
   }
 
-  try {
-    if (get_image(bus, *image, target_file, source.image_handle, {},
-                  deadline)) {
-      return BLUEZ_MEDIA_SUCCESS;
-    }
-  } catch (const sdbus::Error&) {
-  }
-  remove_partial_file(target_file);
   return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
 }
