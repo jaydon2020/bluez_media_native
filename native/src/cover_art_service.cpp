@@ -198,7 +198,9 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
       if (value.containsValueOfType<std::string>()) {
         const auto status = value.get<std::string>();
         if (status == "complete") {
-          return file_has_data(target_file);
+          if (file_has_data(target_file)) {
+            return true;
+          }
         }
         if (status == "error") {
           return false;
@@ -206,7 +208,8 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
       }
     } catch (const sdbus::Error& error) {
       return error.getName() == "org.freedesktop.DBus.Error.UnknownObject" &&
-             file_has_size(target_file, expected_size);
+             (file_has_size(target_file, expected_size) ||
+              (expected_size == 0 && file_has_data(target_file)));
     }
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
   }
@@ -229,6 +232,23 @@ bool get_image(sdbus::IConnection& session_bus,
   image.callMethod("Get")
       .onInterface(kObexImageIface)
       .withArguments(target_file, image_handle, description)
+      .withTimeout(remaining_timeout(deadline))
+      .storeResultsTo(transfer, transfer_properties);
+  return wait_for_transfer(
+      session_bus, transfer, target_file,
+      media_property<uint64_t>(transfer_properties, "Size"), deadline);
+}
+
+bool get_thumbnail(sdbus::IConnection& session_bus,
+                   sdbus::IProxy& image,
+                   const std::string& target_file,
+                   const std::string& image_handle,
+                   Deadline deadline) {
+  sdbus::ObjectPath transfer;
+  Properties transfer_properties;
+  image.callMethod("GetThumbnail")
+      .onInterface(kObexImageIface)
+      .withArguments(target_file, image_handle)
       .withTimeout(remaining_timeout(deadline))
       .storeResultsTo(transfer, transfer_properties);
   return wait_for_transfer(
@@ -442,6 +462,16 @@ int CoverArtService::get_impl(const std::string& player_path,
     try {
       auto image = sdbus::createProxy(bus, sdbus::ServiceName{kObexService},
                                       session_path);
+
+      try {
+        if (get_thumbnail(bus, *image, target_file, source.image_handle,
+                          deadline)) {
+          return BLUEZ_MEDIA_SUCCESS;
+        }
+      } catch (const sdbus::Error&) {
+      }
+      remove_partial_file(target_file);
+
       const auto preferred =
           preferred_description(*image, source.image_handle, deadline);
       if (!preferred.empty() &&
