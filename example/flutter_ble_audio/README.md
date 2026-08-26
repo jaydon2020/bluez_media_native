@@ -26,7 +26,8 @@ The UI follows ObjectManager property signals and provides an explicit refresh
 action for properties that BlueZ does not signal.
 
 The media items panel lists `MediaFolder1` folders and all `MediaItem1` objects
-reported by BlueZ for the selected player, including trees such as
+reported by BlueZ for the selected player, including each item's metadata and
+trees such as
 `NowPlaying/item1`, `NowPlaying/item2`, and `NowPlaying/item3`. Use the list
 button on a folder to call `ListItems()` and merge any returned children into
 the visible item tree.
