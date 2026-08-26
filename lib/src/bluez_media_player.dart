@@ -71,6 +71,19 @@ class BluezMediaPlayer {
     return _client.getPlayerCoverArt(objectPath, targetFile, timeout: timeout);
   }
 
+  /// Downloads cover art through an existing OBEX BIP session, such as the
+  /// session owned by `mpris-proxy`, without creating or removing a session.
+  Future<String> getCoverArtFromExistingSession(
+    String targetFile, {
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    return _client.getPlayerCoverArtFromExistingSession(
+      objectPath,
+      targetFile,
+      timeout: timeout,
+    );
+  }
+
   /// Fetch the latest player snapshot from BlueZ.
   Future<BlueZMediaPlayerProps> refresh() async {
     updateProps(await _client.getPlayerProperties(objectPath));

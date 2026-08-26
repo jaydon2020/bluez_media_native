@@ -105,9 +105,35 @@ void main() {
     expect(transport.configuration, [1, 3]);
     transport.dispose();
   });
+
+  test('transport refresh reports changed properties', () async {
+    final transport = BluezMediaTransport.internal(client, '/transport');
+    final changed = expectLater(
+      transport.propertiesChanged,
+      emits(['State', 'Volume']),
+    );
+
+    await transport.refresh();
+
+    await changed;
+    expect(transport.state, 'active');
+    expect(transport.volume, 64);
+    transport.dispose();
+  });
 }
 
 class _FakeClient implements BluezMediaClient {
+  @override
+  Future<BlueZMediaTransportProps> getMediaTransportProperties(
+    String transportPath,
+  ) async {
+    return BlueZMediaTransportProps(
+      objectPath: transportPath,
+      state: 'active',
+      volume: 64,
+    );
+  }
+
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

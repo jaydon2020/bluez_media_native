@@ -16,6 +16,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <unordered_map>
 
@@ -177,7 +178,7 @@ std::shared_ptr<BluezMediaClientContext> create_context(int64_t events_port) {
   return ctx;
 }
 
-void post_bytes(int64_t port,
+bool post_bytes(int64_t port,
                 uint8_t tag,
                 const std::vector<uint8_t>& payload = {}) {
   std::vector<uint8_t> message;
@@ -190,46 +191,54 @@ void post_bytes(int64_t port,
   object.value.as_typed_data.type = Dart_TypedData_kUint8;
   object.value.as_typed_data.length = static_cast<intptr_t>(message.size());
   object.value.as_typed_data.values = message.data();
-  Dart_PostCObject_DL(port, &object);
+  return Dart_PostCObject_DL(port, &object);
 }
 
 void post_error(int64_t port,
                 const std::string& object_path,
                 const std::string& name,
-                const std::string& message) {
-  post_bytes(port, 0x20,
-             glz::encode(BlueZMediaError{object_path, name, message}));
+                const std::string& message) noexcept {
+  try {
+    post_bytes(port, 0x20,
+               glz::encode(BlueZMediaError{object_path, name, message}));
+  } catch (...) {
+  }
 }
 
-void post_status(int64_t port, const std::string& object_path, int status) {
-  if (status == BLUEZ_MEDIA_SUCCESS) {
-    post_bytes(port, 0xFF);
-    return;
-  }
+void post_status(int64_t port,
+                 const std::string& object_path,
+                 int status) noexcept {
+  try {
+    if (status == BLUEZ_MEDIA_SUCCESS) {
+      post_bytes(port, 0xFF);
+      return;
+    }
 
-  const char* name = "org.bluez.Error.Failed";
-  const char* message = "BlueZ media operation failed";
-  switch (status) {
-    case BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT:
-      name = "org.bluez.Error.InvalidArguments";
-      message = "Invalid media operation argument or retired client handle";
-      break;
-    case BLUEZ_MEDIA_ERROR_UNSUPPORTED_SETTING:
-      name = "org.bluez.Error.NotSupported";
-      message = "The media setting is not supported";
-      break;
-    case BLUEZ_MEDIA_ERROR_ALREADY_EXISTS:
-      name = "org.bluez.Error.AlreadyExists";
-      message = "The media object is already registered";
-      break;
-    case BLUEZ_MEDIA_ERROR_NOT_FOUND:
-      name = "org.bluez.Error.DoesNotExist";
-      message = "The media object was not found";
-      break;
-    default:
-      break;
+    const char* name = "org.bluez.Error.Failed";
+    const char* message = "BlueZ media operation failed";
+    switch (status) {
+      case BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT:
+        name = "org.bluez.Error.InvalidArguments";
+        message = "Invalid media operation argument or retired client handle";
+        break;
+      case BLUEZ_MEDIA_ERROR_UNSUPPORTED_SETTING:
+        name = "org.bluez.Error.NotSupported";
+        message = "The media setting is not supported";
+        break;
+      case BLUEZ_MEDIA_ERROR_ALREADY_EXISTS:
+        name = "org.bluez.Error.AlreadyExists";
+        message = "The media object is already registered";
+        break;
+      case BLUEZ_MEDIA_ERROR_NOT_FOUND:
+        name = "org.bluez.Error.DoesNotExist";
+        message = "The media object was not found";
+        break;
+      default:
+        break;
+    }
+    post_error(port, object_path, name, message);
+  } catch (...) {
   }
-  post_error(port, object_path, name, message);
 }
 
 void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
@@ -245,6 +254,7 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
     try {
       int status = BLUEZ_MEDIA_SUCCESS;
       std::vector<uint8_t> payload;
+      std::optional<sdbus::UnixFd> acquired_fd;
 
       switch (operation) {
         case BLUEZ_MEDIA_OP_PLAYER_PLAY:
@@ -297,6 +307,10 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
         case BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART:
           status = context->cover_art->get(object_path, argument,
                                            std::chrono::milliseconds{value});
+          break;
+        case BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION:
+          status = context->cover_art->get_from_existing_session(
+              object_path, argument, std::chrono::milliseconds{value});
           break;
         case BLUEZ_MEDIA_OP_CONTROL_PLAY:
         case BLUEZ_MEDIA_OP_CONTROL_PAUSE:
@@ -391,16 +405,14 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
               // Guard the raw fd with UnixFd so it is closed if glz::encode
               // throws (e.g. OOM), preventing a file-descriptor leak.
               auto result = proxy.acquire();
-              sdbus::UnixFd guard{result.fd, sdbus::adopt_fd};
+              acquired_fd.emplace(result.fd, sdbus::adopt_fd);
               payload = glz::encode(result);
-              guard.release();  // ownership transferred into payload bytes
               break;
             }
             case BLUEZ_MEDIA_OP_TRANSPORT_TRY_ACQUIRE: {
               auto result = proxy.try_acquire();
-              sdbus::UnixFd guard{result.fd, sdbus::adopt_fd};
+              acquired_fd.emplace(result.fd, sdbus::adopt_fd);
               payload = glz::encode(result);
-              guard.release();
               break;
             }
             case BLUEZ_MEDIA_OP_TRANSPORT_RELEASE:
@@ -429,18 +441,26 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
           break;
       }
 
+      bool posted;
       if (status != BLUEZ_MEDIA_SUCCESS) {
         post_status(result_port, object_path, status);
+        posted = true;
       } else if (payload.empty()) {
-        post_bytes(result_port, 0xFF);
+        posted = post_bytes(result_port, 0xFF);
       } else {
-        post_bytes(result_port, 0x10, payload);
+        posted = post_bytes(result_port, 0x10, payload);
+      }
+      if (posted && acquired_fd) {
+        acquired_fd->release();
       }
     } catch (const sdbus::Error& error) {
       post_error(result_port, object_path, error.getName(), error.getMessage());
     } catch (const std::exception& error) {
       post_error(result_port, object_path, "org.bluez.Error.Failed",
                  error.what());
+    } catch (...) {
+      post_error(result_port, object_path, "org.bluez.Error.Failed",
+                 "Unknown C++ exception");
     }
   });
 }
@@ -462,40 +482,57 @@ void* bluez_media_client_create(int64_t events_port) {
   } catch (const std::exception& e) {
     log_exception("bluez_media_client_create", e);
     return nullptr;
+  } catch (...) {
+    fprintf(stderr, "bluez_media_client_create: unknown C++ exception\n");
+    return nullptr;
   }
 }
 
 void bluez_media_client_create_async(int64_t events_port, int64_t result_port) {
-  std::thread([events_port, result_port]() {
-    try {
-      void* handle = register_context(create_context(events_port));
-      Dart_CObject result;
-      result.type = Dart_CObject_kInt64;
-      result.value.as_int64 =
-          static_cast<int64_t>(reinterpret_cast<uintptr_t>(handle));
-      if (!Dart_PostCObject_DL(result_port, &result)) {
-        retire_context(handle);
+  try {
+    std::thread([events_port, result_port]() {
+      try {
+        void* handle = register_context(create_context(events_port));
+        Dart_CObject result;
+        result.type = Dart_CObject_kInt64;
+        result.value.as_int64 =
+            static_cast<int64_t>(reinterpret_cast<uintptr_t>(handle));
+        if (!Dart_PostCObject_DL(result_port, &result)) {
+          retire_context(handle);
+        }
+      } catch (const sdbus::Error& error) {
+        post_error(result_port, "", error.getName(), error.getMessage());
+      } catch (const std::exception& error) {
+        post_error(result_port, "", "org.bluez.Error.Failed", error.what());
+      } catch (...) {
+        post_error(result_port, "", "org.bluez.Error.Failed",
+                   "Unknown C++ exception");
       }
-    } catch (const sdbus::Error& error) {
-      post_error(result_port, "", error.getName(), error.getMessage());
-    } catch (const std::exception& error) {
-      post_error(result_port, "", "org.bluez.Error.Failed", error.what());
-    }
-  }).detach();
+    }).detach();
+  } catch (const std::exception& error) {
+    post_error(result_port, "", "org.bluez.Error.Failed", error.what());
+  } catch (...) {
+    post_error(result_port, "", "org.bluez.Error.Failed",
+               "Unknown C++ exception");
+  }
 }
 
 void bluez_media_client_destroy(void* handle) {
-  auto ctx = retire_context(handle);
-  if (!ctx) {
-    return;
-  }
+  try {
+    auto ctx = retire_context(handle);
+    if (!ctx) {
+      return;
+    }
 
-  // A D-Bus call already queued for this client may still be waiting for its
-  // reply. Reap it away from the Dart isolate so close() never inherits that
-  // wait; retiring the token above still rejects every new call immediately.
-  // Note: BluezMediaClientContext::~BluezMediaClientContext already calls
-  // operations.stop(), so we must not call it again here.
-  std::thread([ctx = std::move(ctx)]() mutable { ctx.reset(); }).detach();
+    // A D-Bus call already queued for this client may still be waiting for its
+    // reply. Reap it away from the Dart isolate so close() never inherits that
+    // wait; retiring the token above still rejects every new call immediately.
+    // Note: BluezMediaClientContext::~BluezMediaClientContext already calls
+    // operations.stop(), so we must not call it again here.
+    std::thread([ctx = std::move(ctx)]() mutable { ctx.reset(); }).detach();
+  } catch (...) {
+    // The retired context is destroyed locally if the reaper cannot start.
+  }
 }
 
 void bluez_media_buffer_free(BluezMediaBuffer* buffer) {
@@ -513,14 +550,22 @@ void bluez_media_call_async(void* handle,
                             const char* argument,
                             int32_t value,
                             int64_t result_port) {
-  const auto ctx = get_context(handle);
-  if (!ctx) {
-    post_status(result_port, object_path == nullptr ? "" : object_path,
-                BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
-    return;
+  try {
+    const auto ctx = get_context(handle);
+    if (!ctx) {
+      post_status(result_port, object_path == nullptr ? "" : object_path,
+                  BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
+      return;
+    }
+    dispatch_async(ctx, operation, object_path == nullptr ? "" : object_path,
+                   argument == nullptr ? "" : argument, value, result_port);
+  } catch (const std::exception& error) {
+    post_error(result_port, object_path == nullptr ? "" : object_path,
+               "org.bluez.Error.Failed", error.what());
+  } catch (...) {
+    post_error(result_port, object_path == nullptr ? "" : object_path,
+               "org.bluez.Error.Failed", "Unknown C++ exception");
   }
-  dispatch_async(ctx, operation, object_path == nullptr ? "" : object_path,
-                 argument == nullptr ? "" : argument, value, result_port);
 }
 
 int bluez_media_register_player(
@@ -542,6 +587,9 @@ int bluez_media_register_player(
   } catch (const std::exception& e) {
     log_exception("bluez_media_register_player", e);
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -549,39 +597,50 @@ void bluez_media_register_player_async(
     void* handle,
     const BluezMediaPlayerRegistration* registration,
     int64_t result_port) {
-  const auto ctx = get_context(handle);
-  if (!ctx || registration == nullptr ||
-      registration->adapter_path == nullptr ||
-      registration->player_path == nullptr || registration->name == nullptr ||
-      registration->type == nullptr || registration->subtype == nullptr) {
-    post_status(result_port, "", BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
-    return;
-  }
-
-  const std::string adapter_path{registration->adapter_path};
-  const std::string player_path{registration->player_path};
-  const std::string name{registration->name};
-  const std::string type{registration->type};
-  const std::string subtype{registration->subtype};
-  const uint8_t browsable = registration->browsable;
-  const uint8_t searchable = registration->searchable;
-
-  auto* context = ctx.get();
-  ctx->operations.post([context, adapter_path, player_path, name, type, subtype,
-                        browsable, searchable, result_port]() {
-    BluezMediaPlayerRegistration owned{
-        adapter_path.c_str(), player_path.c_str(), name.c_str(), type.c_str(),
-        subtype.c_str(),      browsable,           searchable};
-    try {
-      post_status(result_port, player_path,
-                  context->client->register_player(owned));
-    } catch (const sdbus::Error& error) {
-      post_error(result_port, player_path, error.getName(), error.getMessage());
-    } catch (const std::exception& error) {
-      post_error(result_port, player_path, "org.bluez.Error.Failed",
-                 error.what());
+  try {
+    const auto ctx = get_context(handle);
+    if (!ctx || registration == nullptr ||
+        registration->adapter_path == nullptr ||
+        registration->player_path == nullptr || registration->name == nullptr ||
+        registration->type == nullptr || registration->subtype == nullptr) {
+      post_status(result_port, "", BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT);
+      return;
     }
-  });
+
+    const std::string adapter_path{registration->adapter_path};
+    const std::string player_path{registration->player_path};
+    const std::string name{registration->name};
+    const std::string type{registration->type};
+    const std::string subtype{registration->subtype};
+    const uint8_t browsable = registration->browsable;
+    const uint8_t searchable = registration->searchable;
+
+    auto* context = ctx.get();
+    ctx->operations.post([context, adapter_path, player_path, name, type,
+                          subtype, browsable, searchable, result_port]() {
+      BluezMediaPlayerRegistration owned{
+          adapter_path.c_str(), player_path.c_str(), name.c_str(), type.c_str(),
+          subtype.c_str(),      browsable,           searchable};
+      try {
+        post_status(result_port, player_path,
+                    context->client->register_player(owned));
+      } catch (const sdbus::Error& error) {
+        post_error(result_port, player_path, error.getName(),
+                   error.getMessage());
+      } catch (const std::exception& error) {
+        post_error(result_port, player_path, "org.bluez.Error.Failed",
+                   error.what());
+      } catch (...) {
+        post_error(result_port, player_path, "org.bluez.Error.Failed",
+                   "Unknown C++ exception");
+      }
+    });
+  } catch (const std::exception& error) {
+    post_error(result_port, "", "org.bluez.Error.Failed", error.what());
+  } catch (...) {
+    post_error(result_port, "", "org.bluez.Error.Failed",
+               "Unknown C++ exception");
+  }
 }
 
 int bluez_media_unregister_player(void* handle,
@@ -600,6 +659,12 @@ int bluez_media_unregister_player(void* handle,
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_unregister_player: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -616,6 +681,12 @@ int bluez_media_player_play(void* handle, const char* player_path) {
     return proxy.play();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_player_play: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -634,6 +705,12 @@ int bluez_media_player_pause(void* handle, const char* player_path) {
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_player_pause: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -650,6 +727,12 @@ int bluez_media_player_stop(void* handle, const char* player_path) {
     return proxy.stop();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_player_stop: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -668,6 +751,12 @@ int bluez_media_player_next(void* handle, const char* player_path) {
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_player_next: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -684,6 +773,12 @@ int bluez_media_player_previous(void* handle, const char* player_path) {
     return proxy.previous();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_player_previous: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -702,6 +797,12 @@ int bluez_media_player_fast_forward(void* handle, const char* player_path) {
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_player_fast_forward: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -718,6 +819,12 @@ int bluez_media_player_rewind(void* handle, const char* player_path) {
     return proxy.rewind();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_player_rewind: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -741,6 +848,12 @@ int bluez_media_player_set_repeat(void* handle,
     }
     fprintf(stderr, "bluez_media_player_set_repeat: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -763,6 +876,12 @@ int bluez_media_player_set_shuffle(void* handle,
     }
     fprintf(stderr, "bluez_media_player_set_shuffle: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -782,6 +901,12 @@ int bluez_media_player_get_properties(void* handle,
     return write_payload(proxy.properties(), out);
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_player_get_properties: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -804,6 +929,34 @@ int bluez_media_player_get_cover_art(void* handle,
   } catch (const std::exception& e) {
     log_exception("bluez_media_player_get_cover_art", e);
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  }
+}
+
+int bluez_media_player_get_cover_art_from_existing_session(
+    void* handle,
+    const char* player_path,
+    const char* target_file,
+    int32_t timeout_ms) {
+  if (handle == nullptr || player_path == nullptr || target_file == nullptr ||
+      timeout_ms <= 0) {
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+  }
+  try {
+    const auto ctx = get_context(handle);
+    if (!ctx) {
+      return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+    }
+    return ctx->cover_art->get_from_existing_session(
+        player_path, target_file, std::chrono::milliseconds{timeout_ms});
+  } catch (const std::exception& e) {
+    log_exception("bluez_media_player_get_cover_art_from_existing_session", e);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -820,6 +973,12 @@ int bluez_media_control_play(void* handle, const char* control_path) {
     return proxy.play();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_play: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -838,6 +997,12 @@ int bluez_media_control_pause(void* handle, const char* control_path) {
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_pause: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -854,6 +1019,12 @@ int bluez_media_control_stop(void* handle, const char* control_path) {
     return proxy.stop();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_stop: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -872,6 +1043,12 @@ int bluez_media_control_next(void* handle, const char* control_path) {
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_next: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -888,6 +1065,12 @@ int bluez_media_control_previous(void* handle, const char* control_path) {
     return proxy.previous();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_previous: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -906,6 +1089,12 @@ int bluez_media_control_volume_up(void* handle, const char* control_path) {
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_volume_up: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -922,6 +1111,12 @@ int bluez_media_control_volume_down(void* handle, const char* control_path) {
     return proxy.volume_down();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_volume_down: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -940,6 +1135,12 @@ int bluez_media_control_fast_forward(void* handle, const char* control_path) {
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_fast_forward: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -956,6 +1157,12 @@ int bluez_media_control_rewind(void* handle, const char* control_path) {
     return proxy.rewind();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_rewind: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -976,6 +1183,12 @@ int bluez_media_control_get_properties(void* handle,
     return write_payload(proxy.properties(), out);
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_control_get_properties: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -999,6 +1212,12 @@ int bluez_media_folder_search(void* handle,
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_folder_search: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -1018,6 +1237,12 @@ int bluez_media_folder_list_items(void* handle,
     return write_payload(proxy.folder_list_items(folder_path), out);
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_folder_list_items: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -1040,6 +1265,12 @@ int bluez_media_folder_change_folder(void* handle,
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_folder_change_folder: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -1060,6 +1291,12 @@ int bluez_media_folder_get_properties(void* handle,
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_folder_get_properties: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -1078,6 +1315,12 @@ int bluez_media_item_play(void* handle, const char* item_path) {
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_item_play: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -1095,6 +1338,12 @@ int bluez_media_item_add_to_now_playing(void* handle, const char* item_path) {
     return proxy.item_add_to_now_playing(item_path);
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_item_add_to_now_playing: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -1115,6 +1364,12 @@ int bluez_media_item_get_properties(void* handle,
     return write_payload(proxy.item_properties(item_path), out);
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_item_get_properties: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -1152,6 +1407,9 @@ int bluez_media_transport_acquire(void* handle,
   } catch (const std::exception& e) {
     log_exception("bluez_media_transport_acquire", e);
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -1186,6 +1444,9 @@ int bluez_media_transport_try_acquire(void* handle,
   } catch (const std::exception& e) {
     log_exception("bluez_media_transport_try_acquire", e);
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -1202,6 +1463,12 @@ int bluez_media_transport_release(void* handle, const char* transport_path) {
     return proxy.release();
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_transport_release: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
@@ -1222,6 +1489,12 @@ int bluez_media_transport_get_properties(void* handle,
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_transport_get_properties: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -1241,6 +1514,12 @@ int bluez_media_transport_set_volume(void* handle,
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_transport_set_volume: %s\n", e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }
 
@@ -1255,6 +1534,9 @@ int bluez_media_get_managed_objects(void* handle, BluezMediaBuffer* out) {
     return write_payload(ctx->client->get_managed_objects(), out);
   } catch (const std::exception& e) {
     fprintf(stderr, "bluez_media_get_managed_objects: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   }
 }

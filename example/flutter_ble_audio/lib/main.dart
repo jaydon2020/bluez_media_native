@@ -36,7 +36,7 @@ class MediaProxyDashboard extends StatefulWidget {
 
 class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   BluezMediaClient? _client;
-  final _subscriptions = <StreamSubscription<List<String>>>[];
+  final _subscriptions = <StreamSubscription<dynamic>>[];
   final _messages = <String>[];
   var _loading = true;
   String? _error;
@@ -52,6 +52,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   String? _coverArtTrackKey;
   String? _coverArtPath;
   var _coverArtLoading = false;
+  var _coverArtPending = false;
   double? _transportVolumeDraft;
 
   List<_MediaDevice> get _devices =>
@@ -95,46 +96,78 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     });
 
     try {
-      final client = _client ?? await BluezMediaClient.create();
+      final existingClient = _client;
+      final client = existingClient ?? await BluezMediaClient.create();
+      if (!mounted) {
+        if (existingClient == null) await client.close();
+        return;
+      }
       _client = client;
-      final objects = await client.getManagedObjects();
-      final players = objects.players.map(client.player).toList();
-      final controls = objects.controls.map(client.control).toList();
-      final transports = objects.transports.map(client.transport).toList();
-      final folders = objects.folders.map(client.folder).toList();
-      final items = objects.items.map(client.item).toList();
+      await client.getManagedObjects();
+      if (!mounted) return;
 
       for (final subscription in _subscriptions) {
         await subscription.cancel();
       }
+      if (!mounted) return;
       _subscriptions
         ..clear()
         ..addAll([
-          for (final player in players)
-            player.propertiesChanged.listen((changed) {
-              _refreshView();
-              if (changed.contains('Track') &&
-                  player == _selectedDevice?.player &&
-                  player.imageHandle.isNotEmpty) {
-                unawaited(_getCoverArt());
-              }
-            }),
-          for (final control in controls)
+          for (final player in client.players) _playerSubscription(player),
+          for (final control in client.controls)
             control.propertiesChanged.listen((_) => _refreshView()),
-          for (final transport in transports)
+          for (final transport in client.transports)
             transport.propertiesChanged.listen((_) => _refreshView()),
-          for (final folder in folders)
+          for (final folder in client.folders)
             folder.propertiesChanged.listen((_) => _refreshView()),
-          for (final item in items)
+          for (final item in client.items)
             item.propertiesChanged.listen((_) => _refreshView()),
+          client.playerAdded.listen((player) {
+            if (!mounted) return;
+            _subscriptions.add(_playerSubscription(player));
+            _syncObjects(client);
+          }),
+          client.controlAdded.listen((control) {
+            if (!mounted) return;
+            _subscriptions.add(
+              control.propertiesChanged.listen((_) => _refreshView()),
+            );
+            _syncObjects(client);
+          }),
+          client.transportAdded.listen((transport) {
+            if (!mounted) return;
+            _subscriptions.add(
+              transport.propertiesChanged.listen((_) => _refreshView()),
+            );
+            _syncObjects(client);
+          }),
+          client.folderAdded.listen((folder) {
+            if (!mounted) return;
+            _subscriptions.add(
+              folder.propertiesChanged.listen((_) => _refreshView()),
+            );
+            _syncObjects(client);
+          }),
+          client.itemAdded.listen((item) {
+            if (!mounted) return;
+            _subscriptions.add(
+              item.propertiesChanged.listen((_) => _refreshView()),
+            );
+            _syncObjects(client);
+          }),
+          client.playerRemoved.listen((_) => _syncObjects(client)),
+          client.controlRemoved.listen((_) => _syncObjects(client)),
+          client.transportRemoved.listen((_) => _syncObjects(client)),
+          client.folderRemoved.listen((_) => _syncObjects(client)),
+          client.itemRemoved.listen((_) => _syncObjects(client)),
         ]);
 
       setState(() {
-        _players = players;
-        _controls = controls;
-        _transports = transports;
-        _folders = folders;
-        _items = items;
+        _players = client.players;
+        _controls = client.controls;
+        _transports = client.transports;
+        _folders = client.folders;
+        _items = client.items;
         _selectedDevicePath = _keepDeviceSelection(
           _devices,
           _selectedDevicePath,
@@ -151,6 +184,31 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
         _loading = false;
       });
     }
+  }
+
+  StreamSubscription<List<String>> _playerSubscription(
+    BluezMediaPlayer player,
+  ) {
+    return player.propertiesChanged.listen((changed) {
+      _refreshView();
+      if (changed.contains('Track') &&
+          player == _selectedDevice?.player &&
+          player.imageHandle.isNotEmpty) {
+        unawaited(_getCoverArt());
+      }
+    });
+  }
+
+  void _syncObjects(BluezMediaClient client) {
+    if (!mounted) return;
+    setState(() {
+      _players = client.players;
+      _controls = client.controls;
+      _transports = client.transports;
+      _folders = client.folders;
+      _items = client.items;
+      _selectedDevicePath = _keepDeviceSelection(_devices, _selectedDevicePath);
+    });
   }
 
   void _refreshView() {
@@ -239,7 +297,11 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
 
   Future<void> _getCoverArt() async {
     final player = _selectedDevice?.player;
-    if (player == null || _coverArtLoading) {
+    if (player == null) {
+      return;
+    }
+    if (_coverArtLoading) {
+      _coverArtPending = true;
       return;
     }
 
@@ -271,7 +333,13 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       }
       _pushMessage('$error');
     } finally {
-      if (mounted) setState(() => _coverArtLoading = false);
+      if (mounted) {
+        setState(() => _coverArtLoading = false);
+        if (_coverArtPending) {
+          _coverArtPending = false;
+          unawaited(_getCoverArt());
+        }
+      }
     }
   }
 

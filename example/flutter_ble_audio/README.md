@@ -18,7 +18,9 @@ when BlueZ reports support for them.
 When the current `MediaPlayer1.Track` includes an experimental `ImgHandle`, the
 image button downloads and displays cover art through BlueZ OBEX BIP. This
 requires a running `obexd` with its experimental Image API enabled.
-The example owns the BIP session directly; `mpris-proxy` is not required.
+The example reuses a matching `mpris-proxy` session when available and creates
+a temporary owned session otherwise. Its temporary image directory is the
+example's cache and is removed when replaced or when the app closes.
 
 The UI follows ObjectManager property signals and provides an explicit refresh
 action for properties that BlueZ does not signal.
