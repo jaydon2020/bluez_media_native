@@ -15,6 +15,7 @@ constexpr auto kBluezService = "org.bluez";
 constexpr auto kObexService = "org.bluez.obex";
 constexpr auto kPropertiesIface = "org.freedesktop.DBus.Properties";
 constexpr auto kPlayerIface = "org.bluez.MediaPlayer1";
+constexpr auto kItemIface = "org.bluez.MediaItem1";
 constexpr auto kDeviceIface = "org.bluez.Device1";
 constexpr auto kObexClientIface = "org.bluez.obex.Client1";
 constexpr auto kObexImageIface = "org.bluez.obex.Image1";
@@ -39,6 +40,7 @@ struct CoverArtSource {
   sdbus::ObjectPath device_path;
   std::string image_handle;
   uint16_t obex_port{};
+  std::string player_path;
 };
 
 bool file_has_data(const std::string& path) {
@@ -83,24 +85,46 @@ std::string get_device_address(sdbus::IConnection& system_bus,
 }
 
 CoverArtSource get_cover_art_source(sdbus::IConnection& system_bus,
-                                    const std::string& player_path,
-                                    Deadline deadline) {
+                                    const std::string& object_path,
+                                    Deadline deadline,
+                                    bool item) {
+  if (item) {
+    const auto item_properties =
+        get_properties(system_bus, kBluezService,
+                       sdbus::ObjectPath{object_path}, kItemIface, deadline);
+    const auto player_path =
+        media_property<sdbus::ObjectPath>(item_properties, "Player");
+    const auto metadata =
+        media_property<Properties>(item_properties, "Metadata");
+    const auto player_properties = get_properties(
+        system_bus, kBluezService, player_path, kPlayerIface, deadline);
+    return {
+        media_property<sdbus::ObjectPath>(player_properties, "Device"),
+        media_property<std::string>(metadata, "ImgHandle"),
+        media_property<uint16_t>(player_properties, "ObexPort"),
+        player_path,
+    };
+  }
+
   const auto properties =
-      get_properties(system_bus, kBluezService, sdbus::ObjectPath{player_path},
+      get_properties(system_bus, kBluezService, sdbus::ObjectPath{object_path},
                      kPlayerIface, deadline);
   const auto track = media_property<Properties>(properties, "Track");
   return {
       media_property<sdbus::ObjectPath>(properties, "Device"),
       media_property<std::string>(track, "ImgHandle"),
       media_property<uint16_t>(properties, "ObexPort"),
+      object_path,
   };
 }
 
 std::string wait_for_image_handle(sdbus::IConnection& system_bus,
-                                  const std::string& player_path,
-                                  Deadline deadline) {
+                                  const std::string& object_path,
+                                  Deadline deadline,
+                                  bool item) {
   while (Clock::now() < deadline) {
-    const auto source = get_cover_art_source(system_bus, player_path, deadline);
+    const auto source =
+        get_cover_art_source(system_bus, object_path, deadline, item);
     if (!source.image_handle.empty()) {
       return source.image_handle;
     }
@@ -198,9 +222,8 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
       if (value.containsValueOfType<std::string>()) {
         const auto status = value.get<std::string>();
         if (status == "complete") {
-          if (file_has_data(target_file)) {
-            return true;
-          }
+          return expected_size > 0 ? file_has_size(target_file, expected_size)
+                                   : file_has_data(target_file);
         }
         if (status == "error") {
           return false;
@@ -208,8 +231,7 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
       }
     } catch (const sdbus::Error& error) {
       return error.getName() == "org.freedesktop.DBus.Error.UnknownObject" &&
-             (file_has_size(target_file, expected_size) ||
-              (expected_size == 0 && file_has_data(target_file)));
+             file_has_size(target_file, expected_size);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
   }
@@ -396,45 +418,57 @@ void CoverArtService::unregister_player_locked(
   sessions_.erase(session);
 }
 
-int CoverArtService::get(const std::string& player_path,
+int CoverArtService::get(const std::string& object_path,
                          const std::string& target_file,
                          std::chrono::milliseconds timeout) {
-  return get_impl(player_path, target_file, timeout, false);
+  return get_impl(object_path, target_file, timeout, false, ObjectKind::player);
 }
 
 int CoverArtService::get_from_existing_session(
-    const std::string& player_path,
+    const std::string& object_path,
     const std::string& target_file,
     std::chrono::milliseconds timeout) {
-  return get_impl(player_path, target_file, timeout, true);
+  return get_impl(object_path, target_file, timeout, true, ObjectKind::player);
 }
 
-int CoverArtService::get_impl(const std::string& player_path,
+int CoverArtService::get_item(const std::string& object_path,
+                              const std::string& target_file,
+                              std::chrono::milliseconds timeout) {
+  return get_impl(object_path, target_file, timeout, false, ObjectKind::item);
+}
+
+int CoverArtService::get_item_from_existing_session(
+    const std::string& object_path,
+    const std::string& target_file,
+    std::chrono::milliseconds timeout) {
+  return get_impl(object_path, target_file, timeout, true, ObjectKind::item);
+}
+
+int CoverArtService::get_impl(const std::string& object_path,
                               const std::string& target_file,
                               std::chrono::milliseconds timeout,
-                              bool existing_session_only) {
-  if (player_path.empty() || target_file.empty() || timeout.count() <= 0 ||
+                              bool existing_session_only,
+                              ObjectKind object_kind) {
+  const std::scoped_lock transfer_lock(transfer_mutex_);
+  if (object_path.empty() || target_file.empty() || timeout.count() <= 0 ||
       !std::filesystem::path{target_file}.is_absolute() ||
       std::filesystem::exists(target_file)) {
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
 
   const auto deadline = Clock::now() + timeout;
-  auto source = get_cover_art_source(system_bus_, player_path, deadline);
+  const bool item = object_kind == ObjectKind::item;
+  auto source = get_cover_art_source(system_bus_, object_path, deadline, item);
   if (source.device_path.empty() || source.obex_port == 0) {
     return BLUEZ_MEDIA_ERROR_NOT_FOUND;
   }
-  if (source.image_handle.empty()) {
-    source.image_handle =
-        wait_for_image_handle(system_bus_, player_path, deadline);
-  }
-  if (source.image_handle.empty()) {
-    return BLUEZ_MEDIA_ERROR_NOT_FOUND;
-  }
-
   auto& bus = session_bus();
   const auto device_address =
       get_device_address(system_bus_, source.device_path, deadline);
+  if (device_address.empty()) {
+    return BLUEZ_MEDIA_ERROR_NOT_FOUND;
+  }
+
   const int attempts = existing_session_only ? 1 : 2;
   for (int attempt = 0; attempt < attempts; ++attempt) {
     sdbus::ObjectPath session_path;
@@ -445,10 +479,10 @@ int CoverArtService::get_impl(const std::string& player_path,
         return BLUEZ_MEDIA_ERROR_NOT_FOUND;
       }
     } else {
-      register_player(player_path, source.device_path, source.obex_port,
+      register_player(source.player_path, source.device_path, source.obex_port,
                       deadline);
       const std::scoped_lock lock(mutex_);
-      const auto player = players_.find(player_path);
+      const auto player = players_.find(source.player_path);
       if (player == players_.end()) {
         return BLUEZ_MEDIA_ERROR_NOT_FOUND;
       }
@@ -457,6 +491,14 @@ int CoverArtService::get_impl(const std::string& player_path,
         return BLUEZ_MEDIA_ERROR_NOT_FOUND;
       }
       session_path = session->second.object_path;
+    }
+
+    if (source.image_handle.empty()) {
+      source.image_handle =
+          wait_for_image_handle(system_bus_, object_path, deadline, item);
+    }
+    if (source.image_handle.empty()) {
+      return BLUEZ_MEDIA_ERROR_NOT_FOUND;
     }
 
     try {
@@ -483,7 +525,7 @@ int CoverArtService::get_impl(const std::string& player_path,
     }
     remove_partial_file(target_file);
     if (!existing_session_only) {
-      invalidate_player_session(player_path);
+      invalidate_player_session(source.player_path);
     }
   }
 

@@ -842,6 +842,78 @@ class BluezMediaNativeBindings {
             )
           >();
 
+  int bluez_media_item_get_cover_art(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> item_path,
+    ffi.Pointer<ffi.Char> target_file,
+    int timeout_ms,
+  ) {
+    return _bluez_media_item_get_cover_art(
+      handle,
+      item_path,
+      target_file,
+      timeout_ms,
+    );
+  }
+
+  late final _bluez_media_item_get_cover_artPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_item_get_cover_art');
+  late final _bluez_media_item_get_cover_art =
+      _bluez_media_item_get_cover_artPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Char>,
+              int,
+            )
+          >();
+
+  int bluez_media_item_get_cover_art_from_existing_session(
+    ffi.Pointer<ffi.Void> handle,
+    ffi.Pointer<ffi.Char> item_path,
+    ffi.Pointer<ffi.Char> target_file,
+    int timeout_ms,
+  ) {
+    return _bluez_media_item_get_cover_art_from_existing_session(
+      handle,
+      item_path,
+      target_file,
+      timeout_ms,
+    );
+  }
+
+  late final _bluez_media_item_get_cover_art_from_existing_sessionPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(
+            ffi.Pointer<ffi.Void>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Pointer<ffi.Char>,
+            ffi.Int32,
+          )
+        >
+      >('bluez_media_item_get_cover_art_from_existing_session');
+  late final _bluez_media_item_get_cover_art_from_existing_session =
+      _bluez_media_item_get_cover_art_from_existing_sessionPtr
+          .asFunction<
+            int Function(
+              ffi.Pointer<ffi.Void>,
+              ffi.Pointer<ffi.Char>,
+              ffi.Pointer<ffi.Char>,
+              int,
+            )
+          >();
+
   /// ── org.bluez.MediaTransport1 remote transports ────────────────────────────
   int bluez_media_transport_acquire(
     ffi.Pointer<ffi.Void> handle,
@@ -1121,3 +1193,7 @@ const int BLUEZ_MEDIA_OP_GET_MANAGED_OBJECTS = 33;
 const int BLUEZ_MEDIA_OP_UNREGISTER_PLAYER = 34;
 
 const int BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION = 35;
+
+const int BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART = 36;
+
+const int BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION = 37;

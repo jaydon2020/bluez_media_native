@@ -21,14 +21,22 @@ class CoverArtService {
                        std::chrono::steady_clock::time_point deadline);
   void unregister_player(const std::string& player_path) noexcept;
 
-  int get(const std::string& player_path,
+  int get(const std::string& object_path,
           const std::string& target_file,
           std::chrono::milliseconds timeout);
-  int get_from_existing_session(const std::string& player_path,
+  int get_from_existing_session(const std::string& object_path,
                                 const std::string& target_file,
                                 std::chrono::milliseconds timeout);
+  int get_item(const std::string& object_path,
+               const std::string& target_file,
+               std::chrono::milliseconds timeout);
+  int get_item_from_existing_session(const std::string& object_path,
+                                     const std::string& target_file,
+                                     std::chrono::milliseconds timeout);
 
  private:
+  enum class ObjectKind { player, item };
+
   struct Player {
     sdbus::ObjectPath device_path;
     std::string device_address;
@@ -42,10 +50,11 @@ class CoverArtService {
   };
 
   sdbus::IConnection& session_bus();
-  int get_impl(const std::string& player_path,
+  int get_impl(const std::string& object_path,
                const std::string& target_file,
                std::chrono::milliseconds timeout,
-               bool existing_session_only);
+               bool existing_session_only,
+               ObjectKind object_kind);
   void invalidate_player_session(const std::string& player_path) noexcept;
   void unregister_player_locked(const std::string& player_path) noexcept;
 
@@ -54,4 +63,5 @@ class CoverArtService {
   std::map<std::string, Player> players_;
   std::map<std::string, Session> sessions_;
   std::mutex mutex_;
+  std::mutex transfer_mutex_;
 };

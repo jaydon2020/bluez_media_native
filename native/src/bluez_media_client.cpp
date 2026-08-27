@@ -308,8 +308,16 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
           status = context->cover_art->get(object_path, argument,
                                            std::chrono::milliseconds{value});
           break;
+        case BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART:
+          status = context->cover_art->get_item(
+              object_path, argument, std::chrono::milliseconds{value});
+          break;
         case BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION:
           status = context->cover_art->get_from_existing_session(
+              object_path, argument, std::chrono::milliseconds{value});
+          break;
+        case BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION:
+          status = context->cover_art->get_item_from_existing_session(
               object_path, argument, std::chrono::milliseconds{value});
           break;
         case BLUEZ_MEDIA_OP_CONTROL_PLAY:
@@ -1364,6 +1372,63 @@ int bluez_media_item_get_properties(void* handle,
     return write_payload(proxy.item_properties(item_path), out);
   } catch (const sdbus::Error& e) {
     fprintf(stderr, "bluez_media_item_get_properties: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  }
+}
+
+int bluez_media_item_get_cover_art(void* handle,
+                                   const char* item_path,
+                                   const char* target_file,
+                                   int32_t timeout_ms) {
+  if (handle == nullptr || item_path == nullptr || target_file == nullptr ||
+      timeout_ms <= 0) {
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+  }
+  try {
+    const auto ctx = get_context(handle);
+    if (!ctx) {
+      return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+    }
+    return ctx->cover_art->get_item(item_path, target_file,
+                                    std::chrono::milliseconds{timeout_ms});
+  } catch (const sdbus::Error& e) {
+    fprintf(stderr, "bluez_media_item_get_cover_art: %s\n", e.what());
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (const std::exception& error) {
+    log_exception("bluez_media C API", error);
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  } catch (...) {
+    fprintf(stderr, "bluez_media C API: unknown C++ exception\n");
+    return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+  }
+}
+
+int bluez_media_item_get_cover_art_from_existing_session(
+    void* handle,
+    const char* item_path,
+    const char* target_file,
+    int32_t timeout_ms) {
+  if (handle == nullptr || item_path == nullptr || target_file == nullptr ||
+      timeout_ms <= 0) {
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+  }
+  try {
+    const auto ctx = get_context(handle);
+    if (!ctx) {
+      return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+    }
+    return ctx->cover_art->get_item_from_existing_session(
+        item_path, target_file, std::chrono::milliseconds{timeout_ms});
+  } catch (const sdbus::Error& e) {
+    fprintf(stderr,
+            "bluez_media_item_get_cover_art_from_existing_session: %s\n",
+            e.what());
     return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
   } catch (const std::exception& error) {
     log_exception("bluez_media C API", error);

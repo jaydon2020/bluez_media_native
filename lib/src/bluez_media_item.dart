@@ -23,11 +23,42 @@ class BluezMediaItem {
   bool get playable => _props.playable;
   List<BlueZMediaProperty> get metadata => List.unmodifiable(_props.metadata);
 
+  /// AVRCP image handle exposed by experimental or vendor `MediaItem1`
+  /// metadata, when available.
+  String get imageHandle {
+    for (final property in _props.metadata) {
+      if (property.key == 'ImgHandle') return property.value;
+    }
+    return '';
+  }
+
   /// Emits property names after [refresh] or future native event routing.
   Stream<List<String>> get propertiesChanged => _propertiesChangedCtrl.stream;
 
   Future<void> play() => _client.playItem(objectPath);
   Future<void> addToNowPlaying() => _client.addItemToNowPlaying(objectPath);
+
+  /// Downloads the item's cover art through BlueZ OBEX BIP.
+  ///
+  /// [targetFile] must be an absolute path that does not already exist.
+  Future<String> getCoverArt(
+    String targetFile, {
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    return _client.getItemCoverArt(objectPath, targetFile, timeout: timeout);
+  }
+
+  /// Downloads cover art through an existing OBEX BIP session.
+  Future<String> getCoverArtFromExistingSession(
+    String targetFile, {
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    return _client.getItemCoverArtFromExistingSession(
+      objectPath,
+      targetFile,
+      timeout: timeout,
+    );
+  }
 
   /// Fetch the latest item snapshot from BlueZ.
   Future<BlueZMediaItemProps> refresh() async {
