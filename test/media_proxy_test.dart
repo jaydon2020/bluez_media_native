@@ -57,12 +57,15 @@ void main() {
     player.dispose();
   });
 
-  test('item compares metadata by value', () async {
+  test('item exposes image handle and compares metadata by value', () async {
     final item = BluezMediaItem.internal(client, '/item');
     item.updateProps(
       const BlueZMediaItemProps(
         objectPath: '/item',
-        metadata: [BlueZMediaProperty(key: 'Title', value: 'First')],
+        metadata: [
+          BlueZMediaProperty(key: 'Title', value: 'First'),
+          BlueZMediaProperty(key: 'ImgHandle', value: 'image-1'),
+        ],
       ),
     );
     final changed = expectLater(item.propertiesChanged, emits(['Metadata']));
@@ -70,12 +73,16 @@ void main() {
     item.updateProps(
       const BlueZMediaItemProps(
         objectPath: '/item',
-        metadata: [BlueZMediaProperty(key: 'Title', value: 'Second')],
+        metadata: [
+          BlueZMediaProperty(key: 'Title', value: 'Second'),
+          BlueZMediaProperty(key: 'ImgHandle', value: 'image-2'),
+        ],
       ),
     );
 
     await changed;
-    expect(item.metadata.single.value, 'Second');
+    expect(item.metadata.first.value, 'Second');
+    expect(item.imageHandle, 'image-2');
     item.dispose();
   });
 

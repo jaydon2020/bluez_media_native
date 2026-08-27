@@ -462,6 +462,34 @@ class BluezMediaClient {
     return GlazeCodec.decode<BlueZMediaItemProps>(payload!, 0);
   }
 
+  Future<String> getItemCoverArt(
+    String itemPath,
+    String targetFile, {
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    _validateCoverArtRequest(targetFile, timeout);
+    return _callAsync(
+      BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART,
+      objectPath: itemPath,
+      argument: targetFile,
+      value: timeout.inMilliseconds,
+    ).then((_) => targetFile);
+  }
+
+  Future<String> getItemCoverArtFromExistingSession(
+    String itemPath,
+    String targetFile, {
+    Duration timeout = const Duration(seconds: 15),
+  }) {
+    _validateCoverArtRequest(targetFile, timeout);
+    return _callAsync(
+      BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION,
+      objectPath: itemPath,
+      argument: targetFile,
+      value: timeout.inMilliseconds,
+    ).then((_) => targetFile);
+  }
+
   // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
 
   Future<BlueZMediaAcquireResult> transportAcquire(String transportPath) async {

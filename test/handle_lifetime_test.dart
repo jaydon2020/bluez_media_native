@@ -202,6 +202,22 @@ void _expectHandleRefused(
     refused(
       bindings.bluez_media_item_get_properties(handle, item.cast(), output),
     );
+    refused(
+      bindings.bluez_media_item_get_cover_art(
+        handle,
+        item.cast(),
+        target.cast(),
+        1,
+      ),
+    );
+    refused(
+      bindings.bluez_media_item_get_cover_art_from_existing_session(
+        handle,
+        item.cast(),
+        target.cast(),
+        1,
+      ),
+    );
 
     refused(
       bindings.bluez_media_transport_acquire(handle, transport.cast(), output),

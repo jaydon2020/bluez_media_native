@@ -978,7 +978,11 @@ class _BrowseProxyPanel extends StatelessWidget {
             Text('Items', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             for (final item in sortedItems)
-              _ItemRow(item: item, onCommand: onCommand),
+              _ItemRow(
+                key: ValueKey(item.objectPath),
+                item: item,
+                onCommand: onCommand,
+              ),
           ],
         ],
       ),
@@ -1045,15 +1049,111 @@ class _FolderRow extends StatelessWidget {
   }
 }
 
-class _ItemRow extends StatelessWidget {
+class _ItemRow extends StatefulWidget {
   final BluezMediaItem item;
   final void Function(String label, FutureOr<void> Function() command)
   onCommand;
 
-  const _ItemRow({required this.item, required this.onCommand});
+  const _ItemRow({super.key, required this.item, required this.onCommand});
+
+  @override
+  State<_ItemRow> createState() => _ItemRowState();
+}
+
+class _ItemRowState extends State<_ItemRow> {
+  io.Directory? _coverArtDirectory;
+  String? _coverArtPath;
+  String? _coverArtImageHandle;
+  String? _attemptedImageHandle;
+  int _coverArtRequest = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_checkCoverArt());
+  }
+
+  @override
+  void didUpdateWidget(_ItemRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.item.imageHandle != _attemptedImageHandle) {
+      unawaited(_checkCoverArt());
+    }
+  }
+
+  @override
+  void dispose() {
+    ++_coverArtRequest;
+    final directory = _coverArtDirectory;
+    _coverArtDirectory = null;
+    if (directory != null) {
+      unawaited(_deleteDirectory(directory));
+    }
+    super.dispose();
+  }
+
+  Future<void> _deleteDirectory(io.Directory directory) async {
+    try {
+      await directory.delete(recursive: true);
+    } catch (_) {}
+  }
+
+  Future<void> _checkCoverArt() async {
+    final imageHandle = widget.item.imageHandle;
+    _attemptedImageHandle = imageHandle;
+    final request = ++_coverArtRequest;
+    if (imageHandle.isEmpty) {
+      final previous = _coverArtDirectory;
+      if (mounted) {
+        setState(() {
+          _coverArtDirectory = null;
+          _coverArtPath = null;
+          _coverArtImageHandle = null;
+        });
+      }
+      if (previous != null) {
+        await _deleteDirectory(previous);
+      }
+      return;
+    }
+
+    if (imageHandle == _coverArtImageHandle) return;
+
+    io.Directory? directory;
+    try {
+      directory = await io.Directory.systemTemp.createTemp(
+        'bluez_media_item_art_',
+      );
+      final target = '${directory.path}/cover-art';
+      final path = await widget.item.getCoverArt(target);
+
+      if (!mounted ||
+          request != _coverArtRequest ||
+          widget.item.imageHandle != imageHandle) {
+        await _deleteDirectory(directory);
+        return;
+      }
+
+      final previous = _coverArtDirectory;
+      setState(() {
+        _coverArtDirectory = directory;
+        _coverArtPath = path;
+        _coverArtImageHandle = imageHandle;
+      });
+
+      if (previous != null) {
+        await _deleteDirectory(previous);
+      }
+    } catch (_) {
+      if (directory != null) {
+        await _deleteDirectory(directory);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final item = widget.item;
     final depth = _itemDepth(item);
     final title = item.name.isEmpty ? _objectName(item.objectPath) : item.name;
     final subtitleParts = [
@@ -1078,13 +1178,28 @@ class _ItemRow extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(
-                    item.type == 'folder' || item.folderType.isNotEmpty
-                        ? Icons.folder
-                        : Icons.music_note,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 10),
+                  if (_coverArtPath != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.file(
+                        io.File(_coverArtPath!),
+                        width: 32,
+                        height: 32,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) =>
+                            const Icon(Icons.broken_image, size: 32),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ] else ...[
+                    Icon(
+                      item.type == 'folder' || item.folderType.isNotEmpty
+                          ? Icons.folder
+                          : Icons.music_note,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                  ],
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1110,7 +1225,7 @@ class _ItemRow extends StatelessWidget {
                     tooltip: 'Play item',
                     icon: Icons.play_arrow,
                     onPressed: item.playable
-                        ? () => onCommand('MediaItem1 Play', item.play)
+                        ? () => widget.onCommand('MediaItem1 Play', item.play)
                         : null,
                   ),
                   const SizedBox(width: 6),
@@ -1118,7 +1233,7 @@ class _ItemRow extends StatelessWidget {
                     tooltip: 'Add to now playing',
                     icon: Icons.playlist_add,
                     onPressed: item.playable
-                        ? () => onCommand(
+                        ? () => widget.onCommand(
                             'MediaItem1 Add to now playing',
                             item.addToNowPlaying,
                           )

@@ -69,6 +69,8 @@ typedef int32_t BluezMediaOperation;
 #define BLUEZ_MEDIA_OP_GET_MANAGED_OBJECTS 33
 #define BLUEZ_MEDIA_OP_UNREGISTER_PLAYER 34
 #define BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION 35
+#define BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART 36
+#define BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION 37
 
 typedef struct BluezMediaBuffer {
   uint8_t* data;
@@ -195,6 +197,15 @@ BLUEZ_MEDIA_EXPORT int bluez_media_item_add_to_now_playing(
 BLUEZ_MEDIA_EXPORT int bluez_media_item_get_properties(void* handle,
                                                        const char* item_path,
                                                        BluezMediaBuffer* out);
+BLUEZ_MEDIA_EXPORT int bluez_media_item_get_cover_art(void* handle,
+                                                      const char* item_path,
+                                                      const char* target_file,
+                                                      int32_t timeout_ms);
+BLUEZ_MEDIA_EXPORT int bluez_media_item_get_cover_art_from_existing_session(
+    void* handle,
+    const char* item_path,
+    const char* target_file,
+    int32_t timeout_ms);
 
 // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
 
