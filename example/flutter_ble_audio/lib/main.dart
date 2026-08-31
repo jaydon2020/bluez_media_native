@@ -219,6 +219,12 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     final device = _selectedDevice;
     try {
       await device?.player?.refresh();
+      final player = device?.player;
+      if (player != null &&
+          player == _selectedDevice?.player &&
+          player.imageHandle.isNotEmpty) {
+        unawaited(_getCoverArt());
+      }
       await device?.control?.refresh();
       for (final folder in device?.folders ?? const <BluezMediaFolder>[]) {
         await folder.refresh();
@@ -297,7 +303,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
 
   Future<void> _getCoverArt() async {
     final player = _selectedDevice?.player;
-    if (player == null) {
+    if (player == null || player.imageHandle.isEmpty) {
       return;
     }
     if (_coverArtLoading) {
@@ -306,14 +312,23 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     }
 
     final trackKey = _trackKey(player);
+    if (_coverArtPath != null && trackKey == _coverArtTrackKey) {
+      return;
+    }
     setState(() => _coverArtLoading = true);
     io.Directory? directory;
     try {
       directory = await io.Directory.systemTemp.createTemp('bluez_media_art_');
       final target = '${directory.path}/cover-art';
-      await Future<void>.delayed(Duration.zero);
-      final path = await player.getCoverArt(target);
-      if (!mounted) {
+      final path = await _loadCoverArt(
+        imageHandle: player.imageHandle,
+        target: target,
+        waitForMprisCache: true,
+        download: player.getCoverArt,
+      );
+      if (!mounted ||
+          player != _selectedDevice?.player ||
+          trackKey != _trackKey(player)) {
         await directory.delete(recursive: true);
         return;
       }
@@ -448,12 +463,17 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
                       devices: _devices,
                       value: selectedDevice,
                       onChanged: (device) {
+                        final previousCoverArt = _coverArtDirectory;
                         setState(() {
                           _selectedDevicePath = device?.devicePath;
+                          _coverArtDirectory = null;
                           _coverArtTrackKey = null;
                           _coverArtPath = null;
                           _transportVolumeDraft = null;
                         });
+                        if (previousCoverArt != null) {
+                          unawaited(_deleteDirectory(previousCoverArt));
+                        }
                         unawaited(_refreshSelected());
                       },
                     ),
@@ -476,6 +496,54 @@ Future<void> _deleteDirectory(io.Directory directory) async {
   } on io.FileSystemException {
     // Best-effort cleanup for temporary cover art.
   }
+}
+
+Future<String> _loadCoverArt({
+  required String imageHandle,
+  required String target,
+  required bool waitForMprisCache,
+  required Future<String> Function(String target) download,
+}) async {
+  final cached = await _findMprisCoverArt(imageHandle, wait: waitForMprisCache);
+  if (cached != null) {
+    try {
+      final copy = await cached.copy(target);
+      if (await copy.length() > 0) return copy.path;
+      await copy.delete();
+    } on io.FileSystemException {
+      final partial = io.File(target);
+      if (await partial.exists()) await partial.delete();
+    }
+  }
+  return download(target);
+}
+
+Future<io.File?> _findMprisCoverArt(
+  String imageHandle, {
+  required bool wait,
+}) async {
+  if (imageHandle.isEmpty || imageHandle.contains('/')) return null;
+  final filename = RegExp('^session[0-9]+-${RegExp.escape(imageHandle)}\$');
+  final deadline = DateTime.now().add(
+    wait ? const Duration(seconds: 1) : Duration.zero,
+  );
+
+  do {
+    try {
+      await for (final entry in io.Directory.systemTemp.list()) {
+        if (entry is io.File &&
+            filename.hasMatch(entry.uri.pathSegments.last) &&
+            await entry.length() > 0) {
+          return entry;
+        }
+      }
+    } on io.FileSystemException {
+      return null;
+    }
+    if (!wait) return null;
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+  } while (DateTime.now().isBefore(deadline));
+  return null;
 }
 
 class _DevicePicker extends StatelessWidget {
@@ -1066,6 +1134,8 @@ class _ItemRowState extends State<_ItemRow> {
   String? _coverArtImageHandle;
   String? _attemptedImageHandle;
   int _coverArtRequest = 0;
+  var _coverArtLoading = false;
+  var _coverArtFailed = false;
 
   @override
   void initState() {
@@ -1109,6 +1179,8 @@ class _ItemRowState extends State<_ItemRow> {
           _coverArtDirectory = null;
           _coverArtPath = null;
           _coverArtImageHandle = null;
+          _coverArtLoading = false;
+          _coverArtFailed = false;
         });
       }
       if (previous != null) {
@@ -1119,13 +1191,22 @@ class _ItemRowState extends State<_ItemRow> {
 
     if (imageHandle == _coverArtImageHandle) return;
 
+    setState(() {
+      _coverArtLoading = true;
+      _coverArtFailed = false;
+    });
     io.Directory? directory;
     try {
       directory = await io.Directory.systemTemp.createTemp(
         'bluez_media_item_art_',
       );
       final target = '${directory.path}/cover-art';
-      final path = await widget.item.getCoverArt(target);
+      final path = await _loadCoverArt(
+        imageHandle: imageHandle,
+        target: target,
+        waitForMprisCache: false,
+        download: widget.item.getCoverArt,
+      );
 
       if (!mounted ||
           request != _coverArtRequest ||
@@ -1139,6 +1220,8 @@ class _ItemRowState extends State<_ItemRow> {
         _coverArtDirectory = directory;
         _coverArtPath = path;
         _coverArtImageHandle = imageHandle;
+        _coverArtLoading = false;
+        _coverArtFailed = false;
       });
 
       if (previous != null) {
@@ -1148,7 +1231,18 @@ class _ItemRowState extends State<_ItemRow> {
       if (directory != null) {
         await _deleteDirectory(directory);
       }
+      if (mounted && request == _coverArtRequest) {
+        setState(() {
+          _coverArtLoading = false;
+          _coverArtFailed = true;
+        });
+      }
     }
+  }
+
+  void _retryCoverArt() {
+    _attemptedImageHandle = null;
+    unawaited(_checkCoverArt());
   }
 
   @override
@@ -1178,7 +1272,16 @@ class _ItemRowState extends State<_ItemRow> {
             children: [
               Row(
                 children: [
-                  if (_coverArtPath != null) ...[
+                  if (_coverArtLoading) ...[
+                    const SizedBox.square(
+                      dimension: 32,
+                      child: Padding(
+                        padding: EdgeInsets.all(6),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                  ] else if (_coverArtPath != null) ...[
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: Image.file(
@@ -1191,6 +1294,15 @@ class _ItemRowState extends State<_ItemRow> {
                       ),
                     ),
                     const SizedBox(width: 10),
+                  ] else if (_coverArtFailed) ...[
+                    Tooltip(
+                      message: 'Retry cover art',
+                      child: IconButton(
+                        onPressed: _retryCoverArt,
+                        icon: const Icon(Icons.refresh),
+                      ),
+                    ),
+                    const SizedBox(width: 2),
                   ] else ...[
                     Icon(
                       item.type == 'folder' || item.folderType.isNotEmpty
@@ -1989,6 +2101,7 @@ String _trackKey(BluezMediaPlayer? player) => [
   _trackValue(player, const ['Artist', 'xesam:artist']),
   _trackValue(player, const ['Album', 'xesam:album']),
   _trackValue(player, const ['Duration', 'mpris:length']),
+  player?.imageHandle ?? '',
 ].join('\u001f');
 
 List<BluezMediaItem> _mergeItems(
