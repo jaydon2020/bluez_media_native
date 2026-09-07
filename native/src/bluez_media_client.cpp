@@ -5,6 +5,7 @@
 #include <sdbus-c++/sdbus-c++.h>
 
 #include <unistd.h>
+#include <dlfcn.h>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
@@ -511,6 +512,13 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
 }  // namespace
 
 extern "C" {
+
+const char* bluez_media_library_path(void) {
+  Dl_info info{};
+  if (dladdr(reinterpret_cast<void*>(&bluez_media_library_path), &info) == 0)
+    return nullptr;
+  return info.dli_fname;
+}
 
 void bluez_media_init(void* dart_api_dl_data) {
   Dart_InitializeApiDL(dart_api_dl_data);
