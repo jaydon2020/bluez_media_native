@@ -8,6 +8,7 @@ name = dbus.service.BusName('org.bluez', bus)
 iface = 'org.bluez.MediaPlayer1'
 status = 'paused'
 present = True
+registrations = {}
 class Player(dbus.service.Object):
     @dbus.service.signal('org.freedesktop.DBus.Properties', signature='sa{sv}as')
     def PropertiesChanged(self, interface, changed, invalidated): pass
@@ -23,6 +24,11 @@ class Player(dbus.service.Object):
         GLib.timeout_add(100, change)
         GLib.timeout_add(800, lambda: (reply(), False)[1])
 class Root(dbus.service.Object):
+    @dbus.service.method('org.bluez.Media1', in_signature='oa{sv}')
+    def RegisterPlayer(self, path, properties): registrations[str(path)] = properties
+    @dbus.service.method('org.bluez.Media1', in_signature='o')
+    def UnregisterPlayer(self, path): registrations.pop(str(path), None)
+
     @dbus.service.method('org.freedesktop.DBus.ObjectManager', out_signature='a{oa{sa{sv}}}')
     def GetManagedObjects(self):
         global status
