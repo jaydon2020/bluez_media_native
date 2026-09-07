@@ -11,6 +11,10 @@ import 'package:hooks/hooks.dart';
 void main(List<String> args) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets) return;
+    validateTarget(
+      input.config.code.targetOS,
+      input.config.code.targetArchitecture,
+    );
 
     if (Platform.environment.containsKey('SKIP_NATIVE_BUILD')) {
       stderr.writeln('SKIP_NATIVE_BUILD set — skipping native build.');
@@ -73,22 +77,22 @@ void main(List<String> args) async {
       ),
     );
 
-    for (final directoryName in ['src', 'include']) {
-      final directory = Directory('$nativeRoot/$directoryName');
-      if (!directory.existsSync()) continue;
-      for (final entity in directory.listSync(recursive: true)) {
-        if (entity is! File) continue;
-        final path = entity.path;
-        if (path.endsWith('.c') ||
-            path.endsWith('.cc') ||
-            path.endsWith('.cpp') ||
-            path.endsWith('.h') ||
-            path.endsWith('.hpp')) {
-          output.dependencies.add(entity.uri);
-        }
+    for (final entity in Directory(nativeRoot).listSync(recursive: true)) {
+      if (entity is! File) continue;
+      final path = entity.path;
+      if ([
+        '.c',
+        '.cc',
+        '.cpp',
+        '.h',
+        '.hpp',
+        '.cmake',
+        '.txt',
+        '.in',
+      ].any(path.endsWith)) {
+        output.dependencies.add(entity.uri);
       }
     }
-    output.dependencies.add(Uri.file('$nativeRoot/CMakeLists.txt'));
 
     stderr.writeln('libbluez_media_native built: ${library.path}');
   });
@@ -109,4 +113,21 @@ Future<void> _run(String executable, List<String> arguments) async {
 Future<bool> _which(String executable) async {
   final result = await Process.run('which', [executable]);
   return result.exitCode == 0;
+}
+
+/// This CMake hook supports native Linux builds only. Do not label a host
+/// binary as a different requested target when no cross toolchain is configured.
+void validateTarget(OS targetOS, Architecture targetArchitecture) {
+  if (OS.current != OS.linux || targetOS != OS.linux) {
+    throw UnsupportedError(
+      'bluez_media_native requires a Linux host and target.',
+    );
+  }
+  if (targetArchitecture != Architecture.current) {
+    throw UnsupportedError(
+      'Cross-compiling bluez_media_native from '
+      '${Architecture.current} to $targetArchitecture is not supported. '
+      'Build on a Linux host with the target architecture.',
+    );
+  }
 }
