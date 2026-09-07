@@ -20,7 +20,7 @@ add_library(dart_api_dl OBJECT src/dart_api_dl.c)
 target_include_directories(dart_api_dl PUBLIC include)
 set_target_properties(dart_api_dl PROPERTIES C_VISIBILITY_PRESET hidden)
 
-add_library(bluez_media_native_core STATIC
+add_library(bluez_media_native_core OBJECT
   src/bluez_media_client.cpp
   src/media_client.cpp
   src/media_object_manager.cpp
@@ -31,7 +31,6 @@ add_library(bluez_media_native_core STATIC
   src/media_transport_proxy.cpp
   src/cover_art_service.cpp
   src/media_utils.cpp
-  $<TARGET_OBJECTS:dart_api_dl>
 )
 
 target_include_directories(bluez_media_native_core
@@ -44,30 +43,16 @@ target_link_libraries(bluez_media_native_core
 
 set_target_properties(bluez_media_native_core PROPERTIES
   POSITION_INDEPENDENT_CODE ON
+  C_VISIBILITY_PRESET hidden
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN YES
   LINKER_LANGUAGE CXX
 )
 
 add_library(bluez_media_native SHARED
-  src/bluez_media_client.cpp
-  src/media_client.cpp
-  src/media_object_manager.cpp
-  src/local_player.cpp
-  src/media_player_proxy.cpp
-  src/media_control_proxy.cpp
-  src/media_browser_proxy.cpp
-  src/media_transport_proxy.cpp
-  src/cover_art_service.cpp
-  src/media_utils.cpp
   $<TARGET_OBJECTS:dart_api_dl>
 )
-
-target_include_directories(bluez_media_native
-  PRIVATE include
-)
-
-target_link_libraries(bluez_media_native
-  PRIVATE sdbus-c++ pthread ${CMAKE_DL_LIBS}
-)
+target_link_libraries(bluez_media_native PRIVATE bluez_media_native_core)
 
 set_target_properties(bluez_media_native PROPERTIES
   C_VISIBILITY_PRESET hidden
@@ -80,11 +65,6 @@ set_target_properties(bluez_media_native PROPERTIES
 
 if(UNIX AND NOT APPLE)
   target_link_options(bluez_media_native PRIVATE "-Wl,--exclude-libs,ALL")
-endif()
-
-if(ANDROID)
-  # Support Android 15 16k page size.
-  target_link_options(bluez_media_native PRIVATE "-Wl,-z,max-page-size=16384")
 endif()
 
 if(BUILD_TESTING)
