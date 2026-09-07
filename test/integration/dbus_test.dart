@@ -12,6 +12,38 @@ void main() {
     if (Platform.environment['BLUEZ_TEST_BUS'] == '1') await step('reset');
   });
   test(
+    'cover-art timeout cancels the transfer and deletes its partial file',
+    () async {
+      final client = await BluezMediaClient.create();
+      final directory = await Directory.systemTemp.createTemp(
+        'bluez-cover-test-',
+      );
+      final target = File('${directory.path}/art');
+      try {
+        final download = expectLater(
+          client.getPlayerCoverArt(
+            '/player',
+            target.path,
+            timeout: const Duration(milliseconds: 450),
+          ),
+          throwsA(isA<BlueZMediaException>()),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        // Cover-art waits must not occupy the normal command worker.
+        await client
+            .getPlayerProperties('/player')
+            .timeout(const Duration(milliseconds: 250));
+        await download;
+        await step('assert_cancelled');
+        expect(target.existsSync(), isFalse);
+      } finally {
+        await client.close();
+        await directory.delete(recursive: true);
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+  test(
     'slow method replies do not block property events',
     () async {
       final client = await BluezMediaClient.create();
