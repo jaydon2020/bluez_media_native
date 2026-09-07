@@ -88,10 +88,14 @@ struct BluezMediaClientContext {
   std::unique_ptr<CoverArtService> cover_art;
   std::unique_ptr<MediaObjectManager> object_manager;
   OperationQueue operations;
+  OperationQueue cover_operations;
   bool event_loop_started = false;
 
   ~BluezMediaClientContext() {
     operations.stop();
+    cover_operations.stop();
+    cover_art.reset();
+    client.reset();
     if (event_loop_started) {
       conn->leaveEventLoop();
     }
@@ -191,9 +195,9 @@ std::shared_ptr<BluezMediaClientContext> create_context(int64_t events_port) {
         context->operations.post([context, path, interface_name]() {
           if (interface_name == "org.bluez.Media1") {
             context->client->invalidate_registrations(path);
-            context->cover_art->reset();
+            context->cover_operations.post([context]() { context->cover_art->reset(); });
           } else if (interface_name == "org.bluez.MediaPlayer1") {
-            context->cover_art->unregister_player(path);
+            context->cover_operations.post([context, path]() { context->cover_art->unregister_player(path); });
           }
         });
       });
@@ -273,7 +277,13 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
                     int32_t value,
                     int64_t result_port) {
   auto* context = ctx.get();
-  ctx->operations.post([context, operation,
+  const bool cover_operation =
+      operation == BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART ||
+      operation == BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART ||
+      operation == BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION ||
+      operation == BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION;
+  auto& queue = cover_operation ? ctx->cover_operations : ctx->operations;
+  queue.post([context, operation,
                         object_path = std::move(object_path),
                         argument = std::move(argument), value, result_port]() {
     try {

@@ -16,56 +16,53 @@ MediaControlProxy::MediaControlProxy(sdbus::IConnection& conn,
 }
 
 int MediaControlProxy::play() const {
-  proxy_->callMethod("Play").onInterface(kMediaControlIface);
+  media_call(*proxy_, kMediaControlIface, "Play");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaControlProxy::pause() const {
-  proxy_->callMethod("Pause").onInterface(kMediaControlIface);
+  media_call(*proxy_, kMediaControlIface, "Pause");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaControlProxy::stop() const {
-  proxy_->callMethod("Stop").onInterface(kMediaControlIface);
+  media_call(*proxy_, kMediaControlIface, "Stop");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaControlProxy::next() const {
-  proxy_->callMethod("Next").onInterface(kMediaControlIface);
+  media_call(*proxy_, kMediaControlIface, "Next");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaControlProxy::previous() const {
-  proxy_->callMethod("Previous").onInterface(kMediaControlIface);
+  media_call(*proxy_, kMediaControlIface, "Previous");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaControlProxy::volume_up() const {
-  proxy_->callMethod("VolumeUp").onInterface(kMediaControlIface);
+  media_call(*proxy_, kMediaControlIface, "VolumeUp");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaControlProxy::volume_down() const {
-  proxy_->callMethod("VolumeDown").onInterface(kMediaControlIface);
+  media_call(*proxy_, kMediaControlIface, "VolumeDown");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaControlProxy::fast_forward() const {
-  proxy_->callMethod("FastForward").onInterface(kMediaControlIface);
+  media_call(*proxy_, kMediaControlIface, "FastForward");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaControlProxy::rewind() const {
-  proxy_->callMethod("Rewind").onInterface(kMediaControlIface);
+  media_call(*proxy_, kMediaControlIface, "Rewind");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 std::vector<uint8_t> MediaControlProxy::properties() const {
   std::map<std::string, sdbus::Variant> properties;
-  proxy_->callMethod("GetAll")
-      .onInterface("org.freedesktop.DBus.Properties")
-      .withArguments(std::string{kMediaControlIface})
-      .storeResultsTo(properties);
+  media_call(*proxy_, "org.freedesktop.DBus.Properties", "GetAll", std::string{kMediaControlIface}) >> properties;
   return encode_properties(control_path_, properties);
 }
 

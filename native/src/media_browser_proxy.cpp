@@ -60,10 +60,7 @@ std::vector<uint8_t> MediaBrowserProxy::folder_search(
     const std::string& value) const {
   auto proxy = make_folder_proxy(folder_path);
   sdbus::ObjectPath result;
-  proxy->callMethod("Search")
-      .onInterface(kMediaFolderIface)
-      .withArguments(value, std::map<std::string, sdbus::Variant>{})
-      .storeResultsTo(result);
+  media_call(*proxy, kMediaFolderIface, "Search", value, std::map<std::string, sdbus::Variant>{}) >> result;
 
   BlueZMediaFolderProps props;
   props.objectPath = result;
@@ -74,10 +71,7 @@ std::vector<uint8_t> MediaBrowserProxy::folder_list_items(
     const std::string& folder_path) const {
   auto proxy = make_folder_proxy(folder_path);
   std::map<sdbus::ObjectPath, std::map<std::string, sdbus::Variant>> result;
-  proxy->callMethod("ListItems")
-      .onInterface(kMediaFolderIface)
-      .withArguments(std::map<std::string, sdbus::Variant>{})
-      .storeResultsTo(result);
+  media_call(*proxy, kMediaFolderIface, "ListItems", std::map<std::string, sdbus::Variant>{}) >> result;
 
   BlueZMediaFolderItems items;
   items.objectPath = folder_path;
@@ -91,10 +85,7 @@ std::vector<uint8_t> MediaBrowserProxy::folder_list_items(
 int MediaBrowserProxy::folder_change_folder(
     const std::string& folder_path,
     const std::string& target_folder_path) const {
-  make_folder_proxy(folder_path)
-      ->callMethod("ChangeFolder")
-      .onInterface(kMediaFolderIface)
-      .withArguments(sdbus::ObjectPath{target_folder_path});
+  media_call(*make_folder_proxy(folder_path), kMediaFolderIface, "ChangeFolder", sdbus::ObjectPath{target_folder_path});
   return BLUEZ_MEDIA_SUCCESS;
 }
 
@@ -102,10 +93,7 @@ std::vector<uint8_t> MediaBrowserProxy::folder_properties(
     const std::string& folder_path) const {
   auto proxy = make_folder_proxy(folder_path);
   std::map<std::string, sdbus::Variant> properties;
-  proxy->callMethod("GetAll")
-      .onInterface("org.freedesktop.DBus.Properties")
-      .withArguments(std::string{kMediaFolderIface})
-      .storeResultsTo(properties);
+  media_call(*proxy, "org.freedesktop.DBus.Properties", "GetAll", std::string{kMediaFolderIface}) >> properties;
   return encode_folder_properties(folder_path, properties);
 }
 
@@ -120,15 +108,13 @@ std::vector<uint8_t> MediaBrowserProxy::encode_folder_properties(
 }
 
 int MediaBrowserProxy::item_play(const std::string& item_path) const {
-  make_item_proxy(item_path)->callMethod("Play").onInterface(kMediaItemIface);
+  media_call(*make_item_proxy(item_path), kMediaItemIface, "Play");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaBrowserProxy::item_add_to_now_playing(
     const std::string& item_path) const {
-  make_item_proxy(item_path)
-      ->callMethod("AddtoNowPlaying")
-      .onInterface(kMediaItemIface);
+  media_call(*make_item_proxy(item_path), kMediaItemIface, "AddtoNowPlaying");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
@@ -136,10 +122,7 @@ std::vector<uint8_t> MediaBrowserProxy::item_properties(
     const std::string& item_path) const {
   auto proxy = make_item_proxy(item_path);
   std::map<std::string, sdbus::Variant> properties;
-  proxy->callMethod("GetAll")
-      .onInterface("org.freedesktop.DBus.Properties")
-      .withArguments(std::string{kMediaItemIface})
-      .storeResultsTo(properties);
+  media_call(*proxy, "org.freedesktop.DBus.Properties", "GetAll", std::string{kMediaItemIface}) >> properties;
   return encode_item_properties(item_path, properties);
 }
 
