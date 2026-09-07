@@ -6,6 +6,15 @@ import 'ffi/types.dart';
 /// Proxy for a remote `org.bluez.MediaItem1` object.
 class BluezMediaItem {
   final BluezMediaClient _client;
+  bool _disposed = false;
+
+  bool get isDisposed => _disposed;
+
+  BluezMediaClient get _activeClient {
+    if (_disposed) throw StateError('Media proxy has been disposed.');
+    return _client;
+  }
+
   BlueZMediaItemProps _props;
 
   final _propertiesChangedCtrl = StreamController<List<String>>.broadcast();
@@ -35,8 +44,9 @@ class BluezMediaItem {
   /// Emits property names after [refresh] or future native event routing.
   Stream<List<String>> get propertiesChanged => _propertiesChangedCtrl.stream;
 
-  Future<void> play() => _client.playItem(objectPath);
-  Future<void> addToNowPlaying() => _client.addItemToNowPlaying(objectPath);
+  Future<void> play() => _activeClient.playItem(objectPath);
+  Future<void> addToNowPlaying() =>
+      _activeClient.addItemToNowPlaying(objectPath);
 
   /// Downloads the item's cover art through BlueZ OBEX BIP.
   ///
@@ -45,7 +55,11 @@ class BluezMediaItem {
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
   }) {
-    return _client.getItemCoverArt(objectPath, targetFile, timeout: timeout);
+    return _activeClient.getItemCoverArt(
+      objectPath,
+      targetFile,
+      timeout: timeout,
+    );
   }
 
   /// Downloads cover art through an existing OBEX BIP session.
@@ -53,7 +67,7 @@ class BluezMediaItem {
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
   }) {
-    return _client.getItemCoverArtFromExistingSession(
+    return _activeClient.getItemCoverArtFromExistingSession(
       objectPath,
       targetFile,
       timeout: timeout,
@@ -62,11 +76,12 @@ class BluezMediaItem {
 
   /// Fetch the latest item snapshot from BlueZ.
   Future<BlueZMediaItemProps> refresh() async {
-    updateProps(await _client.getMediaItemProperties(objectPath));
+    updateProps(await _activeClient.getMediaItemProperties(objectPath));
     return _props;
   }
 
   void updateProps(BlueZMediaItemProps props) {
+    if (_disposed) return;
     final changed = <String>[];
     if (props.player != _props.player) changed.add('Player');
     if (props.name != _props.name) changed.add('Name');
@@ -84,6 +99,8 @@ class BluezMediaItem {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _propertiesChangedCtrl.close();
   }
 }
