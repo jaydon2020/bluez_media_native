@@ -4,6 +4,7 @@
 #include <sdbus-c++/sdbus-c++.h>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 
 #include "bluez_media_native.h"
@@ -24,5 +25,6 @@ class MediaClient {
 
  private:
   sdbus::IConnection& conn_;
+  std::mutex players_mutex_;
   std::map<std::string, std::unique_ptr<LocalPlayer>> players_;
 };

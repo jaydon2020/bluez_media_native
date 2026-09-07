@@ -22,6 +22,7 @@ int MediaClient::register_player(
   if (registration.browsable != 0 || registration.searchable != 0) {
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
+  const std::scoped_lock lock(players_mutex_);
   std::string player_path{registration.player_path};
   if (players_.contains(player_path)) {
     return BLUEZ_MEDIA_ERROR_ALREADY_EXISTS;
@@ -37,6 +38,7 @@ int MediaClient::unregister_player(const char* adapter_path,
   if (adapter_path == nullptr || player_path == nullptr) {
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
+  const std::scoped_lock lock(players_mutex_);
   std::string player{player_path};
   auto it = players_.find(player);
   if (it == players_.end() || it->second->adapter_path() != adapter_path) {
