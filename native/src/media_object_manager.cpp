@@ -67,8 +67,29 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
         for (const auto& [name, value] : changed) {
           properties.insert_or_assign(name, value);
         }
-        for (const auto& name : invalidated) properties.erase(name);
-        post_properties(path, interface_name);
+        const auto revision = ++next_revision_;
+        revisions_[path][interface_name] = revision;
+        if (!changed.empty()) post_properties(path, interface_name);
+        if (invalidated.empty()) return;
+        // Retain the last known value until GetAll supplies an authoritative
+        // replacement. Invalidated does not mean zero, false or absent.
+        auto& proxy = property_proxies_[path];
+        if (!proxy) proxy = sdbus::createProxy(conn_,
+            sdbus::ServiceName{kBluezService}, sdbus::ObjectPath{path});
+        proxy->callMethodAsync("GetAll")
+            .onInterface(kPropertiesIface)
+            .withArguments(interface_name)
+            .uponReplyInvoke([this, path, interface_name, revision](
+                std::optional<sdbus::Error> error,
+                const std::map<std::string, sdbus::Variant>& fresh) {
+              const auto current = revisions_.find(path);
+              if (error || current == revisions_.end()) return;
+              const auto version = current->second.find(interface_name);
+              if (version == current->second.end() || version->second != revision)
+                return;
+              properties_by_path_[path][interface_name] = fresh;
+              post_properties(path, interface_name);
+            });
       }, sdbus::return_slot);
   root_proxy_ = sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                                    sdbus::ObjectPath{"/"});
@@ -107,6 +128,7 @@ void MediaObjectManager::on_interfaces_added(const sdbus::ObjectPath& path,
       continue;
     }
     interfaces_by_path_[path].insert(interface_name);
+    revisions_[path][interface_name] = ++next_revision_;
     properties_by_path_[path][interface_name] = properties;
     post_properties(path, interface_name);
   }
@@ -125,6 +147,7 @@ void MediaObjectManager::on_interfaces_removed(
         known->second.erase(interface_name) == 0) {
       continue;
     }
+    revisions_[path].erase(interface_name);
     post_removed(path, interface_name);
     if (properties != properties_by_path_.end()) {
       properties->second.erase(interface_name);
@@ -132,6 +155,8 @@ void MediaObjectManager::on_interfaces_removed(
   }
   if (known->second.empty()) {
     interfaces_by_path_.erase(known);
+    revisions_.erase(path);
+    property_proxies_.erase(path);
     properties_by_path_.erase(path);
   }
 }

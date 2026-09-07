@@ -34,6 +34,9 @@ class MediaObjectManager {
   Dart_Port_DL events_port_;
   std::unique_ptr<sdbus::IProxy> root_proxy_;
   sdbus::Slot properties_subscription_;
+  std::map<std::string, std::unique_ptr<sdbus::IProxy>> property_proxies_;
+  std::map<std::string, std::map<std::string, uint64_t>> revisions_;
+  uint64_t next_revision_ = 0;
   std::map<std::string, std::set<std::string>> interfaces_by_path_;
   std::map<std::string, InterfacesMap> properties_by_path_;
 };

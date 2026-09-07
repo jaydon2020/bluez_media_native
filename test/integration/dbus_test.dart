@@ -9,6 +9,28 @@ import 'package:test/test.dart';
 
 void main() {
   test(
+    'invalidation fetches a replacement without fabricating defaults',
+    () async {
+      final client = await BluezMediaClient.create();
+      try {
+        final player = client.players.single;
+        await player.refresh();
+        final seen = <String>[];
+        final sub = player.propertiesChanged.listen(
+          (_) => seen.add(player.status),
+        );
+        await step('invalidate');
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(player.status, 'playing');
+        expect(seen, isNot(contains('')));
+        await sub.cancel();
+      } finally {
+        await client.close();
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+  test(
     'property changes during discovery reach the initial proxy',
     () async {
       final client = await BluezMediaClient.create();
@@ -108,3 +130,15 @@ int socketCount() =>
         return false;
       }
     }).length;
+
+Future<void> step(String command) async {
+  final result = await Process.run('dbus-send', [
+    '--session',
+    '--print-reply',
+    '--dest=org.bluez',
+    '/',
+    'review.Test.Step',
+    'string:$command',
+  ]);
+  if (result.exitCode != 0) throw StateError('${result.stderr}');
+}
