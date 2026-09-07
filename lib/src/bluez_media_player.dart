@@ -6,6 +6,15 @@ import 'ffi/types.dart';
 /// Proxy for a remote `org.bluez.MediaPlayer1` object.
 class BluezMediaPlayer {
   final BluezMediaClient _client;
+  bool _disposed = false;
+
+  bool get isDisposed => _disposed;
+
+  BluezMediaClient get _activeClient {
+    if (_disposed) throw StateError('Media proxy has been disposed.');
+    return _client;
+  }
+
   BlueZMediaPlayerProps _props;
 
   final _propertiesChangedCtrl = StreamController<List<String>>.broadcast();
@@ -49,17 +58,17 @@ class BluezMediaPlayer {
   /// Emits property names after [refresh] or future native event routing.
   Stream<List<String>> get propertiesChanged => _propertiesChangedCtrl.stream;
 
-  Future<void> play() => _client.play(objectPath);
-  Future<void> pause() => _client.pause(objectPath);
-  Future<void> stop() => _client.stop(objectPath);
-  Future<void> next() => _client.next(objectPath);
-  Future<void> previous() => _client.previous(objectPath);
-  Future<void> fastForward() => _client.playerFastForward(objectPath);
-  Future<void> rewind() => _client.playerRewind(objectPath);
+  Future<void> play() => _activeClient.play(objectPath);
+  Future<void> pause() => _activeClient.pause(objectPath);
+  Future<void> stop() => _activeClient.stop(objectPath);
+  Future<void> next() => _activeClient.next(objectPath);
+  Future<void> previous() => _activeClient.previous(objectPath);
+  Future<void> fastForward() => _activeClient.playerFastForward(objectPath);
+  Future<void> rewind() => _activeClient.playerRewind(objectPath);
   Future<void> setRepeat(String repeat) =>
-      _client.setRepeat(objectPath, repeat);
+      _activeClient.setRepeat(objectPath, repeat);
   Future<void> setShuffle(String shuffle) =>
-      _client.setShuffle(objectPath, shuffle);
+      _activeClient.setShuffle(objectPath, shuffle);
 
   /// Downloads the current track's cover art through BlueZ OBEX BIP.
   ///
@@ -68,7 +77,11 @@ class BluezMediaPlayer {
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
   }) {
-    return _client.getPlayerCoverArt(objectPath, targetFile, timeout: timeout);
+    return _activeClient.getPlayerCoverArt(
+      objectPath,
+      targetFile,
+      timeout: timeout,
+    );
   }
 
   /// Downloads cover art through an existing OBEX BIP session, such as the
@@ -77,7 +90,7 @@ class BluezMediaPlayer {
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
   }) {
-    return _client.getPlayerCoverArtFromExistingSession(
+    return _activeClient.getPlayerCoverArtFromExistingSession(
       objectPath,
       targetFile,
       timeout: timeout,
@@ -86,11 +99,12 @@ class BluezMediaPlayer {
 
   /// Fetch the latest player snapshot from BlueZ.
   Future<BlueZMediaPlayerProps> refresh() async {
-    updateProps(await _client.getPlayerProperties(objectPath));
+    updateProps(await _activeClient.getPlayerProperties(objectPath));
     return _props;
   }
 
   void updateProps(BlueZMediaPlayerProps props) {
+    if (_disposed) return;
     final changed = <String>[];
     if (props.equalizer != _props.equalizer) changed.add('Equalizer');
     if (props.status != _props.status) changed.add('Status');
@@ -115,6 +129,8 @@ class BluezMediaPlayer {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _propertiesChangedCtrl.close();
   }
 }

@@ -5,6 +5,15 @@ import 'bluez_media_client.dart';
 /// A proxy for a remote `org.bluez.MediaTransport1` object.
 class BluezMediaTransport {
   final BluezMediaClient _client;
+  bool _disposed = false;
+
+  bool get isDisposed => _disposed;
+
+  BluezMediaClient get _activeClient {
+    if (_disposed) throw StateError('Media proxy has been disposed.');
+    return _client;
+  }
+
   final String objectPath;
   BlueZMediaTransportProps? _props;
   final _propertiesChangedCtrl = StreamController<List<String>>.broadcast();
@@ -49,7 +58,7 @@ class BluezMediaTransport {
   /// Sets the volume of the transport.
   /// Automatically refreshes the property snapshot after the update.
   Future<void> setVolume(int value) async {
-    await _client.transportSetVolume(objectPath, value);
+    await _activeClient.transportSetVolume(objectPath, value);
     await refresh();
   }
 
@@ -57,7 +66,7 @@ class BluezMediaTransport {
   Future<BluezMediaAcquiredTransport> acquire() async {
     return BluezMediaAcquiredTransport._(
       _client,
-      await _client.transportAcquire(objectPath),
+      await _activeClient.transportAcquire(objectPath),
     );
   }
 
@@ -65,19 +74,20 @@ class BluezMediaTransport {
   Future<BluezMediaAcquiredTransport> tryAcquire() async {
     return BluezMediaAcquiredTransport._(
       _client,
-      await _client.transportTryAcquire(objectPath),
+      await _activeClient.transportTryAcquire(objectPath),
     );
   }
 
   /// Releases the transport file descriptor.
-  Future<void> release() => _client.transportRelease(objectPath);
+  Future<void> release() => _activeClient.transportRelease(objectPath);
 
   /// Fetches the latest properties from BlueZ and updates the snapshot.
   Future<void> refresh() async {
-    updateProps(await _client.getMediaTransportProperties(objectPath));
+    updateProps(await _activeClient.getMediaTransportProperties(objectPath));
   }
 
   void updateProps(BlueZMediaTransportProps props) {
+    if (_disposed) return;
     final changed = <String>[];
     final previous = _props ?? BlueZMediaTransportProps(objectPath: objectPath);
     if (props.device != previous.device) changed.add('Device');
@@ -97,6 +107,8 @@ class BluezMediaTransport {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _propertiesChangedCtrl.close();
   }
 }
