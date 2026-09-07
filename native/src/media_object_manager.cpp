@@ -49,6 +49,27 @@ void post_bytes(Dart_Port_DL port,
 MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
                                        Dart_Port_DL events_port)
     : conn_(conn), events_port_(events_port) {
+  // Install a service-wide match before requesting the snapshot. Per-object
+  // matches installed after discovery lose changes while GetManagedObjects runs.
+  properties_subscription_ = conn_.addMatch(
+      "type='signal',sender='org.bluez',"
+      "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",
+      [this](sdbus::Message message) {
+        std::string interface_name;
+        std::map<std::string, sdbus::Variant> changed;
+        std::vector<std::string> invalidated;
+        message >> interface_name >> changed >> invalidated;
+        const std::string path = message.getPath();
+        const auto known = interfaces_by_path_.find(path);
+        if (known == interfaces_by_path_.end() ||
+            !known->second.contains(interface_name)) return;
+        auto& properties = properties_by_path_.at(path).at(interface_name);
+        for (const auto& [name, value] : changed) {
+          properties.insert_or_assign(name, value);
+        }
+        for (const auto& name : invalidated) properties.erase(name);
+        post_properties(path, interface_name);
+      }, sdbus::return_slot);
   root_proxy_ = sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                                    sdbus::ObjectPath{"/"});
   root_proxy_->uponSignal("InterfacesAdded")
@@ -81,17 +102,13 @@ void MediaObjectManager::get_managed_objects() {
 
 void MediaObjectManager::on_interfaces_added(const sdbus::ObjectPath& path,
                                              const InterfacesMap& interfaces) {
-  auto& known_interfaces = interfaces_by_path_[path];
   for (const auto& [interface_name, properties] : interfaces) {
     if (!is_media_interface(interface_name)) {
       continue;
     }
-    known_interfaces.insert(interface_name);
+    interfaces_by_path_[path].insert(interface_name);
     properties_by_path_[path][interface_name] = properties;
     post_properties(path, interface_name);
-  }
-  if (!known_interfaces.empty()) {
-    subscribe_properties(path);
   }
 }
 
@@ -115,40 +132,8 @@ void MediaObjectManager::on_interfaces_removed(
   }
   if (known->second.empty()) {
     interfaces_by_path_.erase(known);
-    property_proxies_.erase(path);
     properties_by_path_.erase(path);
   }
-}
-
-void MediaObjectManager::subscribe_properties(const std::string& path) {
-  if (property_proxies_.contains(path)) {
-    return;
-  }
-  auto proxy = sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
-                                  sdbus::ObjectPath{path});
-  proxy->uponSignal("PropertiesChanged")
-      .onInterface(kPropertiesIface)
-      .call([this, path](const std::string& interface_name,
-                         const std::map<std::string, sdbus::Variant>& changed,
-                         const std::vector<std::string>& invalidated) {
-        if (!is_media_interface(interface_name)) {
-          return;
-        }
-        const auto known = interfaces_by_path_.find(path);
-        if (known == interfaces_by_path_.end() ||
-            !known->second.contains(interface_name)) {
-          return;
-        }
-        auto& properties = properties_by_path_.at(path).at(interface_name);
-        for (const auto& [name, value] : changed) {
-          properties.insert_or_assign(name, value);
-        }
-        for (const auto& name : invalidated) {
-          properties.erase(name);
-        }
-        post_properties(path, interface_name);
-      });
-  property_proxies_.emplace(path, std::move(proxy));
 }
 
 void MediaObjectManager::post_properties(const std::string& path,

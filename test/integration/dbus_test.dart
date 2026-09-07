@@ -1,4 +1,5 @@
 import 'dart:ffi';
+import 'package:bluez_media_native/bluez_media_native.dart';
 import 'dart:io';
 import 'package:ffi/ffi.dart';
 import 'package:bluez_media_native/bluez_media_native_bindings_generated.dart';
@@ -7,6 +8,25 @@ import 'dart:isolate';
 import 'package:test/test.dart';
 
 void main() {
+  test(
+    'property changes during discovery reach the initial proxy',
+    () async {
+      final client = await BluezMediaClient.create();
+      try {
+        for (
+          var i = 0;
+          i < 40 && client.players.single.status != 'playing';
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 25));
+        }
+        expect(client.players.single.status, 'playing');
+      } finally {
+        await client.close();
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
   test(
     'raw registration calls serialize across isolates',
     () async {
@@ -80,10 +100,11 @@ void main() {
   );
 }
 
-int socketCount() => Directory('/proc/self/fd').listSync(followLinks: false).where((entry) {
-  try {
-    return Link(entry.path).targetSync().startsWith('socket:');
-  } on FileSystemException {
-    return false;
-  }
-}).length;
+int socketCount() =>
+    Directory('/proc/self/fd').listSync(followLinks: false).where((entry) {
+      try {
+        return Link(entry.path).targetSync().startsWith('socket:');
+      } on FileSystemException {
+        return false;
+      }
+    }).length;
