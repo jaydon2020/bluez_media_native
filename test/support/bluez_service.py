@@ -41,8 +41,11 @@ class Root(dbus.service.Object):
     def InterfacesRemoved(self, path, interfaces): pass
     @dbus.service.method('review.Test', in_signature='s')
     def Step(self, command):
-        global present
-        if command == 'invalidate': player.PropertiesChanged(iface, {}, ['Status'])
+        global present, status
+        if command == 'reset':
+            present = True
+            status = 'paused'
+        elif command == 'invalidate': player.PropertiesChanged(iface, {}, ['Status'])
         elif command == 'restart':
             present = False
             bus.release_name('org.bluez')

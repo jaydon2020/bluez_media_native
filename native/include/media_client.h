@@ -22,6 +22,7 @@ class MediaClient {
   int unregister_player(const char* adapter_path, const char* player_path);
 
   std::vector<uint8_t> get_managed_objects() const;
+  void invalidate_registrations(const std::string& adapter_path);
 
  private:
   sdbus::IConnection& conn_;

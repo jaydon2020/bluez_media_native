@@ -81,3 +81,13 @@ std::vector<uint8_t> MediaClient::get_managed_objects() const {
   }
   return glz::encode(result);
 }
+
+void MediaClient::invalidate_registrations(const std::string& adapter_path) {
+  const std::scoped_lock lock(players_mutex_);
+  for (auto it = players_.begin(); it != players_.end();) {
+    if (adapter_path.empty() || it->second->adapter_path() == adapter_path) {
+      it->second->abandon();
+      it = players_.erase(it);
+    } else ++it;
+  }
+}

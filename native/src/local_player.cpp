@@ -115,6 +115,7 @@ void LocalPlayer::set_playback_status(std::string status) {
 }
 
 LocalPlayer::~LocalPlayer() {
+  if (!registered_) return;
   try {
     auto media_proxy =
         sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},

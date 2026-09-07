@@ -47,8 +47,8 @@ void post_bytes(Dart_Port_DL port,
 }  // namespace
 
 MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
-                                       Dart_Port_DL events_port)
-    : conn_(conn), events_port_(events_port) {
+                                       Dart_Port_DL events_port, RemovedCallback removed)
+    : conn_(conn), events_port_(events_port), removed_(std::move(removed)) {
   // Install a service-wide match before requesting the snapshot. Per-object
   // matches installed after discovery lose changes while GetManagedObjects runs.
   properties_subscription_ = conn_.addMatch(
@@ -105,6 +105,32 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
                    const std::vector<std::string>& interfaces) {
         on_interfaces_removed(path, interfaces);
       });
+  owner_subscription_ = conn_.addMatch(
+      "type='signal',sender='org.freedesktop.DBus',"
+      "interface='org.freedesktop.DBus',member='NameOwnerChanged',arg0='org.bluez'",
+      [this](sdbus::Message message) {
+        std::string name, previous, current;
+        message >> name >> previous >> current;
+        const auto generation = ++owner_generation_;
+        while (!interfaces_by_path_.empty()) {
+          const auto path = interfaces_by_path_.begin()->first;
+          const auto interfaces = interfaces_by_path_.begin()->second;
+          on_interfaces_removed(sdbus::ObjectPath{path}, {interfaces.begin(), interfaces.end()});
+        }
+        if (removed_) removed_("", "org.bluez.Media1");
+        post_bytes(events_port_, 0x30);
+        if (current.empty()) return;
+        root_proxy_->callMethodAsync("GetManagedObjects")
+            .onInterface(kObjectManagerIface)
+            .uponReplyInvoke([this, generation](std::optional<sdbus::Error> error,
+                const std::map<sdbus::ObjectPath, InterfacesMap>& objects) {
+              if (error || generation != owner_generation_) return;
+              for (const auto& [path, interfaces] : objects)
+                on_interfaces_added(path, interfaces);
+              post_bytes(events_port_, 0x31);
+            });
+      }, sdbus::return_slot);
+
 }
 
 MediaObjectManager::~MediaObjectManager() = default;
@@ -137,6 +163,9 @@ void MediaObjectManager::on_interfaces_added(const sdbus::ObjectPath& path,
 void MediaObjectManager::on_interfaces_removed(
     const sdbus::ObjectPath& path,
     const std::vector<std::string>& interfaces) {
+  if (removed_) {
+    for (const auto& interface_name : interfaces) removed_(path, interface_name);
+  }
   auto known = interfaces_by_path_.find(path);
   if (known == interfaces_by_path_.end()) {
     return;
