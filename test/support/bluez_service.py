@@ -25,7 +25,13 @@ class Player(dbus.service.Object):
         GLib.timeout_add(800, lambda: (reply(), False)[1])
 class Root(dbus.service.Object):
     @dbus.service.method('org.bluez.Media1', in_signature='oa{sv}')
-    def RegisterPlayer(self, path, properties): registrations[str(path)] = properties
+    def RegisterPlayer(self, path, properties):
+        required = {'Identity', 'PlaybackStatus', 'Position', 'Metadata',
+                    'LoopStatus', 'Shuffle', 'CanPlay', 'CanControl'}
+        if not required.issubset(properties):
+            raise dbus.exceptions.DBusException('Missing MPRIS properties',
+                name='org.bluez.Error.InvalidArguments')
+        registrations[str(path)] = properties
     @dbus.service.method('org.bluez.Media1', in_signature='o')
     def UnregisterPlayer(self, path): registrations.pop(str(path), None)
 
