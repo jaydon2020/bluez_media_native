@@ -25,12 +25,13 @@ LocalPlayer::LocalPlayer(sdbus::IConnection& conn,
   if (state_.type.empty())
     state_.type = "Audio";
 
+  const auto properties = make_player_properties();
   register_mpris_object();
   auto media_proxy =
       sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                          sdbus::ObjectPath{state_.adapter_path});
   media_call(*media_proxy, kMediaIface, "RegisterPlayer", sdbus::ObjectPath{state_.player_path},
-                     make_player_properties());
+                     properties);
 }
 
 void LocalPlayer::register_mpris_object() {
@@ -128,8 +129,15 @@ LocalPlayer::~LocalPlayer() {
 std::map<std::string, sdbus::Variant> LocalPlayer::make_player_properties()
     const {
   std::map<std::string, sdbus::Variant> properties;
-  properties["Name"] = sdbus::Variant{state_.name};
-  properties["Type"] = sdbus::Variant{state_.type};
-  properties["Subtype"] = sdbus::Variant{state_.subtype};
+  properties["Identity"] = sdbus::Variant{state_.name};
+  properties["PlaybackStatus"] = sdbus::Variant{playback_status_};
+  properties["Position"] = sdbus::Variant{position_};
+  properties["Metadata"] = sdbus::Variant{std::map<std::string, sdbus::Variant>{}};
+  properties["LoopStatus"] = sdbus::Variant{loop_status_};
+  properties["Shuffle"] = sdbus::Variant{shuffle_};
+  for (const auto* capability : {"CanPlay", "CanPause", "CanSeek",
+                                  "CanGoNext", "CanGoPrevious", "CanControl"}) {
+    properties[capability] = sdbus::Variant{true};
+  }
   return properties;
 }
