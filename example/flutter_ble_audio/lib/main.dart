@@ -320,12 +320,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     try {
       directory = await io.Directory.systemTemp.createTemp('bluez_media_art_');
       final target = '${directory.path}/cover-art';
-      final path = await _loadCoverArt(
-        imageHandle: player.imageHandle,
-        target: target,
-        waitForMprisCache: true,
-        download: player.getCoverArt,
-      );
+      final path = await player.getCoverArt(target);
       if (!mounted ||
           player != _selectedDevice?.player ||
           trackKey != _trackKey(player)) {
@@ -496,54 +491,6 @@ Future<void> _deleteDirectory(io.Directory directory) async {
   } on io.FileSystemException {
     // Best-effort cleanup for temporary cover art.
   }
-}
-
-Future<String> _loadCoverArt({
-  required String imageHandle,
-  required String target,
-  required bool waitForMprisCache,
-  required Future<String> Function(String target) download,
-}) async {
-  final cached = await _findMprisCoverArt(imageHandle, wait: waitForMprisCache);
-  if (cached != null) {
-    try {
-      final copy = await cached.copy(target);
-      if (await copy.length() > 0) return copy.path;
-      await copy.delete();
-    } on io.FileSystemException {
-      final partial = io.File(target);
-      if (await partial.exists()) await partial.delete();
-    }
-  }
-  return download(target);
-}
-
-Future<io.File?> _findMprisCoverArt(
-  String imageHandle, {
-  required bool wait,
-}) async {
-  if (imageHandle.isEmpty || imageHandle.contains('/')) return null;
-  final filename = RegExp('^session[0-9]+-${RegExp.escape(imageHandle)}\$');
-  final deadline = DateTime.now().add(
-    wait ? const Duration(seconds: 1) : Duration.zero,
-  );
-
-  do {
-    try {
-      await for (final entry in io.Directory.systemTemp.list()) {
-        if (entry is io.File &&
-            filename.hasMatch(entry.uri.pathSegments.last) &&
-            await entry.length() > 0) {
-          return entry;
-        }
-      }
-    } on io.FileSystemException {
-      return null;
-    }
-    if (!wait) return null;
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-  } while (DateTime.now().isBefore(deadline));
-  return null;
 }
 
 class _DevicePicker extends StatelessWidget {
@@ -1201,12 +1148,7 @@ class _ItemRowState extends State<_ItemRow> {
         'bluez_media_item_art_',
       );
       final target = '${directory.path}/cover-art';
-      final path = await _loadCoverArt(
-        imageHandle: imageHandle,
-        target: target,
-        waitForMprisCache: false,
-        download: widget.item.getCoverArt,
-      );
+      final path = await widget.item.getCoverArt(target);
 
       if (!mounted ||
           request != _coverArtRequest ||
@@ -1296,7 +1238,7 @@ class _ItemRowState extends State<_ItemRow> {
                     const SizedBox(width: 10),
                   ] else if (_coverArtFailed) ...[
                     Tooltip(
-                      message: 'Retry cover art',
+                      message: 'Download cover art',
                       child: IconButton(
                         onPressed: _retryCoverArt,
                         icon: const Icon(Icons.refresh),
