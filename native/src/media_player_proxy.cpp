@@ -16,58 +16,55 @@ MediaPlayerProxy::MediaPlayerProxy(sdbus::IConnection& conn,
 }
 
 int MediaPlayerProxy::play() const {
-  proxy_->callMethod("Play").onInterface(kMediaPlayerIface);
+  media_call(*proxy_, kMediaPlayerIface, "Play");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::pause() const {
-  proxy_->callMethod("Pause").onInterface(kMediaPlayerIface);
+  media_call(*proxy_, kMediaPlayerIface, "Pause");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::stop() const {
-  proxy_->callMethod("Stop").onInterface(kMediaPlayerIface);
+  media_call(*proxy_, kMediaPlayerIface, "Stop");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::next() const {
-  proxy_->callMethod("Next").onInterface(kMediaPlayerIface);
+  media_call(*proxy_, kMediaPlayerIface, "Next");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::previous() const {
-  proxy_->callMethod("Previous").onInterface(kMediaPlayerIface);
+  media_call(*proxy_, kMediaPlayerIface, "Previous");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::fast_forward() const {
-  proxy_->callMethod("FastForward").onInterface(kMediaPlayerIface);
+  media_call(*proxy_, kMediaPlayerIface, "FastForward");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::rewind() const {
-  proxy_->callMethod("Rewind").onInterface(kMediaPlayerIface);
+  media_call(*proxy_, kMediaPlayerIface, "Rewind");
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::set_repeat(const std::string& repeat) const {
-  proxy_->setProperty("Repeat").onInterface(kMediaPlayerIface).toValue(repeat);
+  media_call(*proxy_, "org.freedesktop.DBus.Properties", "Set",
+      std::string{kMediaPlayerIface}, std::string{"Repeat"}, sdbus::Variant{repeat});
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::set_shuffle(const std::string& shuffle) const {
-  proxy_->setProperty("Shuffle")
-      .onInterface(kMediaPlayerIface)
-      .toValue(shuffle);
+  media_call(*proxy_, "org.freedesktop.DBus.Properties", "Set",
+      std::string{kMediaPlayerIface}, std::string{"Shuffle"}, sdbus::Variant{shuffle});
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 std::vector<uint8_t> MediaPlayerProxy::properties() const {
   std::map<std::string, sdbus::Variant> properties;
-  proxy_->callMethod("GetAll")
-      .onInterface("org.freedesktop.DBus.Properties")
-      .withArguments(std::string{kMediaPlayerIface})
-      .storeResultsTo(properties);
+  media_call(*proxy_, "org.freedesktop.DBus.Properties", "GetAll", std::string{kMediaPlayerIface}) >> properties;
   return encode_properties(player_path_, properties);
 }
 

@@ -1,5 +1,6 @@
 // local_player.cpp
 #include "local_player.h"
+#include "media_utils.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -28,9 +29,7 @@ LocalPlayer::LocalPlayer(sdbus::IConnection& conn,
   auto media_proxy =
       sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                          sdbus::ObjectPath{state_.adapter_path});
-  media_proxy->callMethod("RegisterPlayer")
-      .onInterface(kMediaIface)
-      .withArguments(sdbus::ObjectPath{state_.player_path},
+  media_call(*media_proxy, kMediaIface, "RegisterPlayer", sdbus::ObjectPath{state_.player_path},
                      make_player_properties());
 }
 
@@ -120,9 +119,7 @@ LocalPlayer::~LocalPlayer() {
     auto media_proxy =
         sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                            sdbus::ObjectPath{state_.adapter_path});
-    media_proxy->callMethod("UnregisterPlayer")
-        .onInterface(kMediaIface)
-        .withArguments(sdbus::ObjectPath{state_.player_path});
+    media_call(*media_proxy, kMediaIface, "UnregisterPlayer", sdbus::ObjectPath{state_.player_path});
   } catch (const sdbus::Error& error) {
     std::fprintf(stderr, "LocalPlayer: unregister failed: %s\n", error.what());
   }

@@ -12,6 +12,29 @@ void main() {
     if (Platform.environment['BLUEZ_TEST_BUS'] == '1') await step('reset');
   });
   test(
+    'slow method replies do not block property events',
+    () async {
+      final client = await BluezMediaClient.create();
+      try {
+        final player = client.players.single;
+        await player.refresh();
+        final changed = player.propertiesChanged.firstWhere(
+          (_) => player.status == 'stopped',
+        );
+        var completed = false;
+        final call = player.play().then((_) {
+          completed = true;
+        });
+        await changed.timeout(const Duration(milliseconds: 500));
+        expect(completed, isFalse);
+        await call;
+      } finally {
+        await client.close();
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+  test(
     'owner replacement removes stale proxies and resynchronizes',
     () async {
       final client = await BluezMediaClient.create();

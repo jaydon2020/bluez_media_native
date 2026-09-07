@@ -1,5 +1,6 @@
 // media_client.cpp
 #include "media_client.h"
+#include "media_utils.h"
 #include "bluez_media_types.h"
 #include "local_player.h"
 
@@ -54,9 +55,7 @@ std::vector<uint8_t> MediaClient::get_managed_objects() const {
   std::map<sdbus::ObjectPath,
            std::map<std::string, std::map<std::string, sdbus::Variant>>>
       objects;
-  proxy->callMethod("GetManagedObjects")
-      .onInterface("org.freedesktop.DBus.ObjectManager")
-      .storeResultsTo(objects);
+  media_call(*proxy, "org.freedesktop.DBus.ObjectManager", "GetManagedObjects") >> objects;
 
   BlueZMediaManagedObjects result;
   for (const auto& [path, interfaces] : objects) {

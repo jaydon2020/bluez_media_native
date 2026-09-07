@@ -67,11 +67,11 @@ Properties get_properties(sdbus::IConnection& bus,
                           Deadline deadline) {
   auto proxy = sdbus::createProxy(bus, sdbus::ServiceName{service}, path);
   Properties properties;
-  proxy->callMethod("GetAll")
+  properties = proxy->callMethodAsync("GetAll")
       .onInterface(kPropertiesIface)
       .withArguments(std::string{interface})
       .withTimeout(remaining_timeout(deadline))
-      .storeResultsTo(properties);
+      .getResultAsFuture<Properties>().get();
   return properties;
 }
 
