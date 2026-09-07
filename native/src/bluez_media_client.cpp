@@ -99,31 +99,44 @@ struct BluezMediaClientContext {
 
 namespace {
 
-std::mutex clients_mutex;
-std::unordered_map<uintptr_t, std::shared_ptr<BluezMediaClientContext>> clients;
-uintptr_t next_client_handle = 1;
+struct ClientRegistry {
+  // Declared first so outstanding cleanup is joined after the map is destroyed.
+  OperationQueue reaper;
+  std::mutex mutex;
+  std::unordered_map<uintptr_t, std::shared_ptr<BluezMediaClientContext>> clients;
+  uintptr_t next_handle = 1;
+};
+
+ClientRegistry& registry() {
+  // Variants depend on sdbus-c++'s process-wide pseudo connection. Construct it
+  // before the registry so all cached variants are destroyed before it.
+  static const sdbus::Variant lifetime_anchor;
+  static ClientRegistry instance;
+  return instance;
+}
 
 void* register_context(std::shared_ptr<BluezMediaClientContext> context) {
-  const std::scoped_lock lock(clients_mutex);
-  const auto token = next_client_handle++;
-  clients.emplace(token, std::move(context));
+  auto& state = registry();
+  const std::scoped_lock lock(state.mutex);
+  const auto token = state.next_handle++;
+  state.clients.emplace(token, std::move(context));
   return reinterpret_cast<void*>(token);
 }
 
 std::shared_ptr<BluezMediaClientContext> get_context(void* handle) {
-  const std::scoped_lock lock(clients_mutex);
-  const auto context = clients.find(reinterpret_cast<uintptr_t>(handle));
-  return context == clients.end() ? nullptr : context->second;
+  auto& state = registry();
+  const std::scoped_lock lock(state.mutex);
+  const auto context = state.clients.find(reinterpret_cast<uintptr_t>(handle));
+  return context == state.clients.end() ? nullptr : context->second;
 }
 
 std::shared_ptr<BluezMediaClientContext> retire_context(void* handle) {
-  const std::scoped_lock lock(clients_mutex);
-  const auto context = clients.find(reinterpret_cast<uintptr_t>(handle));
-  if (context == clients.end()) {
-    return nullptr;
-  }
+  auto& state = registry();
+  const std::scoped_lock lock(state.mutex);
+  const auto context = state.clients.find(reinterpret_cast<uintptr_t>(handle));
+  if (context == state.clients.end()) return nullptr;
   auto result = std::move(context->second);
-  clients.erase(context);
+  state.clients.erase(context);
   return result;
 }
 
@@ -537,7 +550,7 @@ void bluez_media_client_destroy(void* handle) {
     // wait; retiring the token above still rejects every new call immediately.
     // Note: BluezMediaClientContext::~BluezMediaClientContext already calls
     // operations.stop(), so we must not call it again here.
-    std::thread([ctx = std::move(ctx)]() mutable { ctx.reset(); }).detach();
+    registry().reaper.post([ctx = std::move(ctx)]() mutable { ctx.reset(); });
   } catch (...) {
     // The retired context is destroyed locally if the reaper cannot start.
   }
