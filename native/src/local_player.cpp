@@ -37,81 +37,44 @@ LocalPlayer::LocalPlayer(sdbus::IConnection& conn,
 void LocalPlayer::register_mpris_object() {
   object_ = sdbus::createObject(conn_, sdbus::ObjectPath{state_.player_path});
 
-  object_
-      ->addVTable(
-          sdbus::registerMethod("Next").implementedAs(
-              [this] { position_ = 0; }),
-          sdbus::registerMethod("Previous").implementedAs([this] {
-            position_ = 0;
-          }),
-          sdbus::registerMethod("Pause").implementedAs(
-              [this] { set_playback_status("Paused"); }),
-          sdbus::registerMethod("PlayPause").implementedAs([this] {
-            set_playback_status(playback_status_ == "Playing" ? "Paused"
-                                                              : "Playing");
-          }),
-          sdbus::registerMethod("Stop").implementedAs([this] {
-            position_ = 0;
-            set_playback_status("Stopped");
-          }),
-          sdbus::registerMethod("Play").implementedAs(
-              [this] { set_playback_status("Playing"); }),
-          sdbus::registerMethod("Seek")
-              .withInputParamNames("Offset")
-              .implementedAs([this](int64_t offset) {
-                position_ = std::max<int64_t>(0, position_ + offset);
-              }),
-          sdbus::registerMethod("SetPosition")
-              .withInputParamNames("TrackId", "Position")
-              .implementedAs(
-                  [this](const sdbus::ObjectPath&, int64_t position) {
-                    position_ = std::max<int64_t>(0, position);
-                  }),
-          sdbus::registerMethod("OpenUri")
-              .withInputParamNames("Uri")
-              .implementedAs([](const std::string&) {}),
-          sdbus::registerProperty("PlaybackStatus").withGetter([this] {
-            return playback_status_;
-          }),
-          sdbus::registerProperty("LoopStatus")
-              .withGetter([this] { return loop_status_; })
-              .withSetter(
-                  [this](const std::string& value) { loop_status_ = value; }),
-          sdbus::registerProperty("Rate")
-              .withGetter([this] { return rate_; })
-              .withSetter([this](double value) { rate_ = value; }),
-          sdbus::registerProperty("Shuffle")
-              .withGetter([this] { return shuffle_; })
-              .withSetter([this](bool value) { shuffle_ = value; }),
-          sdbus::registerProperty("Metadata").withGetter([] {
-            return std::map<std::string, sdbus::Variant>{};
-          }),
-          sdbus::registerProperty("Volume")
-              .withGetter([this] { return volume_; })
-              .withSetter([this](double value) {
-                volume_ = std::clamp(value, 0.0, 1.0);
-              }),
-          sdbus::registerProperty("Position").withGetter([this] {
-            return position_;
-          }),
-          sdbus::registerProperty("MinimumRate").withGetter([] { return 1.0; }),
-          sdbus::registerProperty("MaximumRate").withGetter([] { return 1.0; }),
-          sdbus::registerProperty("CanGoNext").withGetter([] { return true; }),
-          sdbus::registerProperty("CanGoPrevious").withGetter([] {
-            return true;
-          }),
-          sdbus::registerProperty("CanPlay").withGetter([] { return true; }),
-          sdbus::registerProperty("CanPause").withGetter([] { return true; }),
-          sdbus::registerProperty("CanSeek").withGetter([] { return true; }),
-          sdbus::registerProperty("CanControl").withGetter([] { return true; }))
+  // Registration currently exports an inert MPRIS object. Never acknowledge
+  // playback commands or advertise capabilities without an application bridge.
+  const auto unsupported = [] {
+    throw sdbus::Error{sdbus::Error::Name{"org.freedesktop.DBus.Error.NotSupported"},
+                      "Local playback command routing is not implemented"};
+  };
+  object_->addVTable(
+      sdbus::registerMethod("Next").implementedAs(unsupported),
+      sdbus::registerMethod("Previous").implementedAs(unsupported),
+      sdbus::registerMethod("Pause").implementedAs(unsupported),
+      sdbus::registerMethod("PlayPause").implementedAs(unsupported),
+      sdbus::registerMethod("Stop").implementedAs(unsupported),
+      sdbus::registerMethod("Play").implementedAs(unsupported),
+      sdbus::registerMethod("Seek").implementedAs([unsupported](int64_t) { unsupported(); }),
+      sdbus::registerMethod("SetPosition").implementedAs(
+          [unsupported](const sdbus::ObjectPath&, int64_t) { unsupported(); }),
+      sdbus::registerMethod("OpenUri").implementedAs(
+          [unsupported](const std::string&) { unsupported(); }),
+      sdbus::registerProperty("PlaybackStatus").withGetter([] { return std::string{"Stopped"}; }),
+      sdbus::registerProperty("LoopStatus").withGetter([] { return std::string{"None"}; })
+          .withSetter([unsupported](const std::string&) { unsupported(); }),
+      sdbus::registerProperty("Rate").withGetter([] { return 1.0; })
+          .withSetter([unsupported](double) { unsupported(); }),
+      sdbus::registerProperty("Shuffle").withGetter([] { return false; })
+          .withSetter([unsupported](bool) { unsupported(); }),
+      sdbus::registerProperty("Metadata").withGetter([] { return std::map<std::string, sdbus::Variant>{}; }),
+      sdbus::registerProperty("Volume").withGetter([] { return 1.0; })
+          .withSetter([unsupported](double) { unsupported(); }),
+      sdbus::registerProperty("Position").withGetter([] { return int64_t{0}; }),
+      sdbus::registerProperty("MinimumRate").withGetter([] { return 1.0; }),
+      sdbus::registerProperty("MaximumRate").withGetter([] { return 1.0; }),
+      sdbus::registerProperty("CanGoNext").withGetter([] { return false; }),
+      sdbus::registerProperty("CanGoPrevious").withGetter([] { return false; }),
+      sdbus::registerProperty("CanPlay").withGetter([] { return false; }),
+      sdbus::registerProperty("CanPause").withGetter([] { return false; }),
+      sdbus::registerProperty("CanSeek").withGetter([] { return false; }),
+      sdbus::registerProperty("CanControl").withGetter([] { return false; }))
       .forInterface(kMprisPlayerIface);
-}
-
-void LocalPlayer::set_playback_status(std::string status) {
-  playback_status_ = std::move(status);
-  object_->emitPropertiesChangedSignal(
-      kMprisPlayerIface,
-      std::vector<sdbus::PropertyName>{sdbus::PropertyName{"PlaybackStatus"}});
 }
 
 LocalPlayer::~LocalPlayer() {
@@ -137,7 +100,7 @@ std::map<std::string, sdbus::Variant> LocalPlayer::make_player_properties()
   properties["Shuffle"] = sdbus::Variant{shuffle_};
   for (const auto* capability : {"CanPlay", "CanPause", "CanSeek",
                                   "CanGoNext", "CanGoPrevious", "CanControl"}) {
-    properties[capability] = sdbus::Variant{true};
+    properties[capability] = sdbus::Variant{false};
   }
   return properties;
 }

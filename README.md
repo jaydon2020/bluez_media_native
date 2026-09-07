@@ -360,3 +360,12 @@ sudo BLUEZ_MEDIA_LIB="$PWD/build/native/libbluez_media_native.so" \
 
 For general Flutter plugin and Linux desktop help, see the
 [Flutter documentation](https://docs.flutter.dev).
+
+### Local player registration limitation
+
+`registerPlayer` currently exports an **experimental, inert MPRIS object** for
+registration testing. It does not connect to a Dart/Flutter audio player, expose
+an application command stream, or publish application metadata. Its playback
+capabilities are false and remote commands return `NotSupported`. Remote BlueZ
+player control and browsing are unaffected. Local registrations are invalidated
+when BlueZ restarts or their adapter is removed; register again after recovery.
