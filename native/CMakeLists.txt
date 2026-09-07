@@ -39,7 +39,7 @@ target_include_directories(bluez_media_native_core
 )
 
 target_link_libraries(bluez_media_native_core
-  PUBLIC sdbus-c++ pthread
+  PUBLIC sdbus-c++ pthread ${CMAKE_DL_LIBS}
 )
 
 set_target_properties(bluez_media_native_core PROPERTIES
@@ -66,7 +66,7 @@ target_include_directories(bluez_media_native
 )
 
 target_link_libraries(bluez_media_native
-  PRIVATE sdbus-c++ pthread
+  PRIVATE sdbus-c++ pthread ${CMAKE_DL_LIBS}
 )
 
 set_target_properties(bluez_media_native PROPERTIES

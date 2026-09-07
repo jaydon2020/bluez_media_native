@@ -79,6 +79,8 @@ typedef struct BluezMediaBuffer {
 
 // ── Client lifecycle ────────────────────────────────────────────────────────
 
+// Absolute loader path of this native asset; borrowed for the library lifetime.
+BLUEZ_MEDIA_EXPORT const char* bluez_media_library_path(void);
 BLUEZ_MEDIA_EXPORT void bluez_media_init(void* dart_api_dl_data);
 BLUEZ_MEDIA_EXPORT void* bluez_media_client_create(int64_t events_port);
 BLUEZ_MEDIA_EXPORT void bluez_media_client_create_async(int64_t events_port,

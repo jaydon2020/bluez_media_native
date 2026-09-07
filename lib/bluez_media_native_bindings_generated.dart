@@ -26,7 +26,18 @@ class BluezMediaNativeBindings {
     ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
   ) : _lookup = lookup;
 
-  /// ── Client lifecycle ────────────────────────────────────────────────────────
+  /// Absolute loader path of this native asset; borrowed for the library lifetime.
+  ffi.Pointer<ffi.Char> bluez_media_library_path() {
+    return _bluez_media_library_path();
+  }
+
+  late final _bluez_media_library_pathPtr =
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Char> Function()>>(
+        'bluez_media_library_path',
+      );
+  late final _bluez_media_library_path = _bluez_media_library_pathPtr
+      .asFunction<ffi.Pointer<ffi.Char> Function()>();
+
   void bluez_media_init(ffi.Pointer<ffi.Void> dart_api_dl_data) {
     return _bluez_media_init(dart_api_dl_data);
   }
