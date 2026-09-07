@@ -60,6 +60,26 @@ void remove_partial_file(const std::string& path) {
   std::filesystem::remove(path, error);
 }
 
+struct PartialFile {
+  const std::string& path;
+  bool complete = false;
+  ~PartialFile() { if (!complete) remove_partial_file(path); }
+};
+
+struct TransferCleanup {
+  sdbus::IProxy& proxy;
+  bool finished = false;
+  ~TransferCleanup() {
+    if (finished) return;
+    try {
+      proxy.callMethod("Cancel").onInterface(kObexTransferIface)
+          .withTimeout(uint64_t{200000});
+    } catch (...) {
+      // Cleanup must not replace the original timeout/transfer error.
+    }
+  }
+};
+
 Properties get_properties(sdbus::IConnection& bus,
                           const char* service,
                           const sdbus::ObjectPath& path,
@@ -182,8 +202,9 @@ void remove_session(sdbus::IConnection& session_bus,
                            sdbus::ObjectPath{"/org/bluez/obex"});
     proxy->callMethod("RemoveSession")
         .onInterface(kObexClientIface)
-        .withArguments(session);
-  } catch (const sdbus::Error&) {
+        .withArguments(session)
+        .withTimeout(uint64_t{200000});
+  } catch (...) {
   }
 }
 
@@ -211,6 +232,7 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
                        Deadline deadline) {
   auto transfer = sdbus::createProxy(
       session_bus, sdbus::ServiceName{kObexService}, transfer_path);
+  TransferCleanup cleanup{*transfer};
   while (Clock::now() < deadline) {
     try {
       sdbus::Variant value;
@@ -222,10 +244,12 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
       if (value.containsValueOfType<std::string>()) {
         const auto status = value.get<std::string>();
         if (status == "complete") {
+          cleanup.finished = true;
           return expected_size > 0 ? file_has_size(target_file, expected_size)
                                    : file_has_data(target_file);
         }
         if (status == "error") {
+          cleanup.finished = true;
           return false;
         }
       }
@@ -236,10 +260,6 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
   }
 
-  try {
-    transfer->callMethod("Cancel").onInterface(kObexTransferIface);
-  } catch (const sdbus::Error&) {
-  }
   return false;
 }
 
@@ -461,6 +481,7 @@ int CoverArtService::get_impl(const std::string& object_path,
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
 
+  PartialFile partial{target_file};
   const auto deadline = Clock::now() + timeout;
   const bool item = object_kind == ObjectKind::item;
   auto source = get_cover_art_source(system_bus_, object_path, deadline, item);
@@ -513,6 +534,7 @@ int CoverArtService::get_impl(const std::string& object_path,
       try {
         if (get_thumbnail(bus, *image, target_file, source.image_handle,
                           deadline)) {
+          partial.complete = true;
           return BLUEZ_MEDIA_SUCCESS;
         }
       } catch (const sdbus::Error&) {
@@ -524,7 +546,8 @@ int CoverArtService::get_impl(const std::string& object_path,
       if (!preferred.empty() &&
           get_image(bus, *image, target_file, source.image_handle, preferred,
                     deadline)) {
-        return BLUEZ_MEDIA_SUCCESS;
+        partial.complete = true;
+          return BLUEZ_MEDIA_SUCCESS;
       }
     } catch (const sdbus::Error&) {
     }
