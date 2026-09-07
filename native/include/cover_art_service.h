@@ -14,6 +14,7 @@ class CoverArtService {
  public:
   explicit CoverArtService(sdbus::IConnection& system_bus);
   ~CoverArtService();
+  void reset();
 
   void register_player(const std::string& player_path,
                        const sdbus::ObjectPath& device_path,

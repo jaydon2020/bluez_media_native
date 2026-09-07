@@ -8,6 +8,38 @@ import 'dart:isolate';
 import 'package:test/test.dart';
 
 void main() {
+  setUp(() async {
+    if (Platform.environment['BLUEZ_TEST_BUS'] == '1') await step('reset');
+  });
+  test(
+    'owner replacement removes stale proxies and resynchronizes',
+    () async {
+      final client = await BluezMediaClient.create();
+      const registration = BluezMediaPlayerRegistrationConfig(
+        adapterPath: '/',
+        playerPath: '/local',
+      );
+      await client.registerPlayer(registration);
+      final old = client.players.single;
+      final availability = <bool>[];
+      final sub = client.serviceAvailabilityChanged.listen(availability.add);
+      try {
+        await step('restart');
+        for (var i = 0; i < 40 && !availability.contains(true); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 25));
+        }
+        expect(availability, [false, true]);
+        expect(client.players, isEmpty);
+        expect(old.isDisposed, isTrue);
+        expect(client.isServiceAvailable, isTrue);
+        await client.registerPlayer(registration);
+      } finally {
+        await sub.cancel();
+        await client.close();
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
   test(
     'invalidation fetches a replacement without fabricating defaults',
     () async {

@@ -283,7 +283,10 @@ bool get_thumbnail(sdbus::IConnection& session_bus,
 CoverArtService::CoverArtService(sdbus::IConnection& system_bus)
     : system_bus_(system_bus) {}
 
-CoverArtService::~CoverArtService() {
+CoverArtService::~CoverArtService() { reset(); }
+
+void CoverArtService::reset() {
+  const std::scoped_lock transfer_lock(transfer_mutex_);
   const std::scoped_lock lock(mutex_);
   if (!session_bus_) {
     return;
@@ -293,6 +296,8 @@ CoverArtService::~CoverArtService() {
       remove_session(*session_bus_, session.object_path);
     }
   }
+  sessions_.clear();
+  players_.clear();
 }
 
 sdbus::IConnection& CoverArtService::session_bus() {

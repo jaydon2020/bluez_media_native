@@ -21,6 +21,7 @@ class LocalPlayer {
   LocalPlayer(sdbus::IConnection& conn,
               const BluezMediaPlayerRegistration& registration);
   ~LocalPlayer();
+  void abandon() { registered_ = false; }
 
   const std::string& adapter_path() const { return state_.adapter_path; }
 
@@ -35,6 +36,7 @@ class LocalPlayer {
 
   sdbus::IConnection& conn_;
   MediaPlayerState state_;
+  bool registered_ = true;
   std::string playback_status_{"Stopped"};
   std::string loop_status_{"None"};
   double rate_{1.0};

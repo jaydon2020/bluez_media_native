@@ -62,6 +62,17 @@ class BluezMediaClient implements Finalizable {
   );
   Pointer<Void> _handle;
   bool _closed = false;
+  bool _serviceAvailable = true;
+  final _serviceAvailabilityCtrl = StreamController<bool>.broadcast();
+
+  /// Whether BlueZ has a current owner and its object snapshot is available.
+  bool get isServiceAvailable => !_closed && _serviceAvailable;
+
+  /// Emits false on owner loss and true after the replacement snapshot arrives.
+  /// Local registrations are invalidated on owner/adapter loss. Register them
+  /// again when the service and adapter are available.
+  Stream<bool> get serviceAvailabilityChanged =>
+      _serviceAvailabilityCtrl.stream;
   final _players = <String, BluezMediaPlayer>{};
   final _controls = <String, BluezMediaControl>{};
   final _folders = <String, BluezMediaFolder>{};
@@ -137,6 +148,7 @@ class BluezMediaClient implements Finalizable {
     _items.clear();
     _transports.clear();
     await Future.wait([
+      _serviceAvailabilityCtrl.close(),
       _transportAddedCtrl.close(),
       _transportRemovedCtrl.close(),
       _playerAddedCtrl.close(),
@@ -566,6 +578,14 @@ class BluezMediaClient implements Finalizable {
 
   void _dispatchEvent(Uint8List message) {
     switch (message[0]) {
+      case 0x30:
+      case 0x31:
+        final available = message[0] == 0x31;
+        if (_serviceAvailable != available) {
+          _serviceAvailable = available;
+          _serviceAvailabilityCtrl.add(available);
+        }
+        return;
       case 0x00:
         if (!_ready.isCompleted) _ready.complete();
         return;

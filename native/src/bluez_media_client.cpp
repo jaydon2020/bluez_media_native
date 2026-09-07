@@ -40,6 +40,7 @@ class OperationQueue {
   void post(std::function<void()> operation) {
     {
       const std::scoped_lock lock(mutex_);
+      if (stopping_) return;
       operations_.push_back(std::move(operation));
     }
     ready_.notify_one();
@@ -183,8 +184,19 @@ std::shared_ptr<BluezMediaClientContext> create_context(int64_t events_port) {
   ctx->conn = sdbus::createSystemBusConnection();
   ctx->client = std::make_unique<MediaClient>(*ctx->conn);
   ctx->cover_art = std::make_unique<CoverArtService>(*ctx->conn);
-  ctx->object_manager =
-      std::make_unique<MediaObjectManager>(*ctx->conn, events_port);
+  auto* context = ctx.get();
+  ctx->object_manager = std::make_unique<MediaObjectManager>(
+      *ctx->conn, events_port, [context](const std::string& path,
+                                      const std::string& interface_name) {
+        context->operations.post([context, path, interface_name]() {
+          if (interface_name == "org.bluez.Media1") {
+            context->client->invalidate_registrations(path);
+            context->cover_art->reset();
+          } else if (interface_name == "org.bluez.MediaPlayer1") {
+            context->cover_art->unregister_player(path);
+          }
+        });
+      });
   ctx->object_manager->get_managed_objects();
   ctx->conn->enterEventLoopAsync();
   ctx->event_loop_started = true;
