@@ -257,6 +257,9 @@ class BluezMediaClient implements Finalizable {
     return item(props.objectPath)..updateProps(props);
   }
 
+  /// Registers an experimental, inert MPRIS object for registration testing.
+  /// It does not route commands to a Dart audio player or publish its metadata.
+  /// Playback capabilities are false and remote commands return NotSupported.
   Future<void> registerPlayer(BluezMediaPlayerRegistrationConfig config) async {
     _ensureOpen();
     _validateRegistrationConfig(config);

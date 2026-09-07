@@ -31,6 +31,8 @@ class Root(dbus.service.Object):
         if not required.issubset(properties):
             raise dbus.exceptions.DBusException('Missing MPRIS properties',
                 name='org.bluez.Error.InvalidArguments')
+        if properties['CanPlay'] or properties['CanControl']:
+            raise dbus.exceptions.DBusException('Inert player advertised playback')
         registrations[str(path)] = properties
     @dbus.service.method('org.bluez.Media1', in_signature='o')
     def UnregisterPlayer(self, path): registrations.pop(str(path), None)
