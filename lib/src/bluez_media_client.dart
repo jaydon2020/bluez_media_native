@@ -54,7 +54,12 @@ class BluezMediaPlayerRegistrationConfig {
   });
 }
 
-class BluezMediaClient {
+class BluezMediaClient implements Finalizable {
+  static final _finalizer = NativeFinalizer(
+    _dylib.lookup<NativeFunction<Void Function(Pointer<Void>)>>(
+      'bluez_media_client_destroy',
+    ),
+  );
   Pointer<Void> _handle;
   bool _closed = false;
   final _players = <String, BluezMediaPlayer>{};
@@ -94,6 +99,7 @@ class BluezMediaClient {
     resultPort.close();
     if (result case final int address when address != 0) {
       client._handle = Pointer<Void>.fromAddress(address);
+      _finalizer.attach(client, client._handle, detach: client);
       await client.ready;
       return client;
     }
@@ -105,6 +111,7 @@ class BluezMediaClient {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    _finalizer.detach(this);
     if (_handle != nullptr) _bindings.bluez_media_client_destroy(_handle);
     _handle = nullptr;
     _eventsPort?.close();
