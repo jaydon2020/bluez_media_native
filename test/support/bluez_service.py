@@ -64,8 +64,9 @@ class Root(dbus.service.Object):
         elif command == 'assert_cancelled':
             if transfer.cancelled == 0: raise RuntimeError('Transfer was not cancelled')
         elif command == 'invalidate': player.PropertiesChanged(iface, {}, ['Status'])
-        elif command == 'restart':
-            present = False
+        elif command in ('restart', 'restart_present'):
+            present = command == 'restart_present'
+            status = 'paused'
             bus.release_name('org.bluez')
             GLib.timeout_add(50, lambda: (bus.request_name('org.bluez'), False)[1])
 

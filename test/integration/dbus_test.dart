@@ -167,6 +167,23 @@ void main() {
     skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
   );
   test(
+    'resync replays property changes received before its snapshot reply',
+    () async {
+      final client = await BluezMediaClient.create();
+      try {
+        final available = client.serviceAvailabilityChanged.firstWhere(
+          (v) => v,
+        );
+        await step('restart_present');
+        await available.timeout(const Duration(seconds: 2));
+        expect(client.players.single.status, 'playing');
+      } finally {
+        await client.close();
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+  test(
     'owner replacement removes stale proxies and resynchronizes',
     () async {
       final client = await BluezMediaClient.create();

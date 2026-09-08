@@ -60,6 +60,7 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
         std::vector<std::string> invalidated;
         message >> interface_name >> changed >> invalidated;
         const std::string path = message.getPath();
+        apply_update([this, path, interface_name, changed, invalidated] {
         const auto known = interfaces_by_path_.find(path);
         if (known == interfaces_by_path_.end() ||
             !known->second.contains(interface_name)) return;
@@ -90,6 +91,7 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
               properties_by_path_[path][interface_name] = fresh;
               post_properties(path, interface_name);
             });
+        });
       }, sdbus::return_slot);
   root_proxy_ = sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
                                    sdbus::ObjectPath{"/"});
@@ -97,13 +99,13 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
       .onInterface(kObjectManagerIface)
       .call([this](const sdbus::ObjectPath& path,
                    const InterfacesMap& interfaces) {
-        on_interfaces_added(path, interfaces);
+        apply_update([this, path, interfaces] { on_interfaces_added(path, interfaces); });
       });
   root_proxy_->uponSignal("InterfacesRemoved")
       .onInterface(kObjectManagerIface)
       .call([this](const sdbus::ObjectPath& path,
                    const std::vector<std::string>& interfaces) {
-        on_interfaces_removed(path, interfaces);
+        apply_update([this, path, interfaces] { on_interfaces_removed(path, interfaces); });
       });
   owner_subscription_ = conn_.addMatch(
       "type='signal',sender='org.freedesktop.DBus',"
@@ -112,6 +114,8 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
         std::string name, previous, current;
         message >> name >> previous >> current;
         const auto generation = ++owner_generation_;
+        pending_updates_.clear();
+        resynchronizing_ = !current.empty();
         while (!interfaces_by_path_.empty()) {
           const auto path = interfaces_by_path_.begin()->first;
           const auto interfaces = interfaces_by_path_.begin()->second;
@@ -124,9 +128,17 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
             .onInterface(kObjectManagerIface)
             .uponReplyInvoke([this, generation](std::optional<sdbus::Error> error,
                 const std::map<sdbus::ObjectPath, InterfacesMap>& objects) {
-              if (error || generation != owner_generation_) return;
+              if (generation != owner_generation_) return;
+              resynchronizing_ = false;
+              if (error) {
+                pending_updates_.clear();
+                return;
+              }
               for (const auto& [path, interfaces] : objects)
                 on_interfaces_added(path, interfaces);
+              auto updates = std::move(pending_updates_);
+              pending_updates_.clear();
+              for (auto& update : updates) update();
               post_bytes(events_port_, 0x31);
             });
       }, sdbus::return_slot);
@@ -134,6 +146,11 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
 }
 
 MediaObjectManager::~MediaObjectManager() = default;
+
+void MediaObjectManager::apply_update(std::function<void()> update) {
+  if (resynchronizing_) pending_updates_.push_back(std::move(update));
+  else update();
+}
 
 void MediaObjectManager::get_managed_objects() {
   std::map<sdbus::ObjectPath, InterfacesMap> objects;
