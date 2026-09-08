@@ -8,6 +8,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "dart_api_dl.h"
 
@@ -24,6 +25,8 @@ class MediaObjectManager {
   using InterfacesMap =
       std::map<std::string, std::map<std::string, sdbus::Variant>>;
 
+  void apply_update(std::function<void()> update);
+
   void on_interfaces_added(const sdbus::ObjectPath& object_path,
                            const InterfacesMap& interfaces);
   void on_interfaces_removed(const sdbus::ObjectPath& object_path,
@@ -39,6 +42,8 @@ class MediaObjectManager {
   std::unique_ptr<sdbus::IProxy> root_proxy_;
   sdbus::Slot owner_subscription_;
   uint64_t owner_generation_ = 0;
+  bool resynchronizing_ = false;
+  std::vector<std::function<void()>> pending_updates_;
   sdbus::Slot properties_subscription_;
   std::map<std::string, std::unique_ptr<sdbus::IProxy>> property_proxies_;
   std::map<std::string, std::map<std::string, uint64_t>> revisions_;
