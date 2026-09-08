@@ -59,8 +59,8 @@ jobs:
           cmake -S native -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
           cmake --build build --parallel
           ./scripts/test_dbus.sh
-      - name: Native asset resolution from another directory
-        run: dart run test/support/load_asset.dart
+      - name: Relocated compiled native asset bundle
+        run: ./scripts/test_asset.sh
 
   # ── C++ unit tests ───────────────────────────────────────────────────────
   test-cpp:
