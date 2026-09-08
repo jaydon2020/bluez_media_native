@@ -86,6 +86,9 @@ BLUEZ_MEDIA_EXPORT void* bluez_media_client_create(int64_t events_port);
 BLUEZ_MEDIA_EXPORT void bluez_media_client_create_async(int64_t events_port,
                                                         int64_t result_port);
 BLUEZ_MEDIA_EXPORT void bluez_media_client_destroy(void* handle);
+// Retire immediately; report completion after queued calls and cleanup finish.
+BLUEZ_MEDIA_EXPORT void bluez_media_client_destroy_async(void* handle,
+                                                        int64_t result_port);
 // Releases data returned through any BluezMediaBuffer and resets its fields.
 BLUEZ_MEDIA_EXPORT void bluez_media_buffer_free(BluezMediaBuffer* buffer);
 BLUEZ_MEDIA_EXPORT void bluez_media_call_async(void* handle,

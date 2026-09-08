@@ -125,11 +125,22 @@ class BluezMediaClient implements Finalizable {
     throw _exceptionFromResult(result, serviceUnavailable: true);
   }
 
-  Future<void> close() async {
+  Future<void>? _closeFuture;
+
+  /// Retires this client and waits for queued native operations and cleanup.
+  /// Repeated calls return the same completion future.
+  Future<void> close() => _closeFuture ??= _close();
+
+  Future<void> _close() async {
     if (_closed) return;
     _closed = true;
     _finalizer.detach(this);
-    if (_handle != nullptr) _bindings.bluez_media_client_destroy(_handle);
+    final closedPort = ReceivePort('bluez_media.close');
+    _bindings.bluez_media_client_destroy_async(
+      _handle,
+      closedPort.sendPort.nativePort,
+    );
+    final nativeClosed = _awaitNativeResult(closedPort);
     _handle = nullptr;
     _eventsPort?.close();
     _eventsPort = null;
@@ -154,6 +165,7 @@ class BluezMediaClient implements Finalizable {
     _items.clear();
     _transports.clear();
     await Future.wait([
+      nativeClosed,
       _serviceAvailabilityCtrl.close(),
       _transportAddedCtrl.close(),
       _transportRemovedCtrl.close(),
