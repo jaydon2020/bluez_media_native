@@ -8,6 +8,7 @@ This package provides a robust, asynchronous interface to the BlueZ media receiv
 - [Features](#features)
 - [Platform Support](#platform-support)
 - [Installation](#installation)
+- [Dynamic Linking](#dynamic-linking)
 - [Quick Start](#quick-start)
 - [API Reference](#api-reference)
 - [Troubleshooting](#troubleshooting)
@@ -54,7 +55,70 @@ sudo dnf install cmake ninja-build clang systemd-devel pkgconf-pkg-config
 Add the package to your `pubspec.yaml`:
 ```yaml
 dependencies:
-  bluez_media_native: ^0.3.0
+  bluez_media_native: ^0.3.1
+```
+
+## Dynamic Linking
+
+The shared library is named `libbluez_media_native.so`. Dart Native Assets
+builds and bundles it automatically when this package is used normally. To use
+a manually built library instead, build it and set `BLUEZ_MEDIA_LIB` to its
+absolute path:
+
+```bash
+cmake -S native -B build/native -GNinja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/native --parallel
+
+BLUEZ_MEDIA_LIB="$PWD/build/native/libbluez_media_native.so" \
+  dart run example/player_control.dart
+```
+
+To set it for the current shell and every command started from that shell:
+
+```bash
+export BLUEZ_MEDIA_LIB="$PWD/build/native/libbluez_media_native.so"
+dart run example/player_control.dart
+```
+
+Plain `echo BLUEZ_MEDIA_LIB=...` only prints the value. To keep the variable
+across logins, write the `export` command to your shell profile and source it:
+
+```bash
+echo 'export BLUEZ_MEDIA_LIB=/absolute/path/libbluez_media_native.so' >> ~/.profile
+source ~/.profile
+```
+
+For a Flutter or AGL process, provide the same variable in its launch
+environment:
+
+```ini
+[Service]
+Environment=BLUEZ_MEDIA_LIB=/usr/lib/libbluez_media_native.so
+```
+
+Alternatively, place the library beside the application's `libapp.so`, add its
+directory to `LD_LIBRARY_PATH`, or install it in the system loader path:
+
+```bash
+sudo install -Dm755 build/native/libbluez_media_native.so \
+  /usr/local/lib/libbluez_media_native.so
+sudo ldconfig
+```
+
+The Dart loader searches `BLUEZ_MEDIA_LIB`, the system loader path, directories
+containing already loaded libraries, Native Assets, and local `build` output
+directories, in that order. Use `ldd` to verify the library's runtime
+dependencies:
+
+```bash
+ldd build/native/libbluez_media_native.so
+```
+
+Native C or C++ consumers can link against the exported C ABI directly:
+
+```bash
+c++ app.cpp -Inative/include -Lbuild/native \
+  -Wl,-rpath,"$PWD/build/native" -lbluez_media_native -o app
 ```
 
 ## Quick Start

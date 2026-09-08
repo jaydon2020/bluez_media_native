@@ -7,10 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-09
+
 ### Fixed
-- Kept one OBEX BIP cover-art session per device while media clients are active,
-  recreated sessions after `obexd` restarts, and requested the native image
-  before optional thumbnail or negotiated-format fallbacks.
+- **OBEX Cover Art Service**:
+  - Kept one OBEX BIP cover-art session per device while media clients are active, recreated sessions after `obexd` restarts, and requested the native image before optional thumbnail or negotiated-format fallbacks.
+  - Allowed OBEX BIP cover art downloads to complete successfully when total image size headers are omitted by remote servers.
+  - Preserved final OBEX transfer error codes on download failure instead of masking them during session teardown.
+- **Native Library Resolution**:
+  - Implemented multi-tier library loading in `library_loader.dart` with environment variable (`BLUEZ_MEDIA_LIB`), direct `DynamicLibrary.open` fallback, and `/proc/self/maps` inspection for compiled consumer applications (e.g. Flutter desktop apps).
+
 ## [0.3.0] - 2026-09-08
 
 ### Added
