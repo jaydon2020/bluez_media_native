@@ -1710,7 +1710,7 @@ int bluez_media_get_managed_objects(void* handle, BluezMediaBuffer* out) {
   }
 }
 
-int bluez_media_claim_fd(void* handle, uint64_t token) {
+int bluez_media_claim_fd(void* handle, uint64_t token) try {
   auto& state = registry();
   const std::scoped_lock lock(state.mutex);
   const auto client = state.clients.find(reinterpret_cast<uintptr_t>(handle));
@@ -1718,9 +1718,11 @@ int bluez_media_claim_fd(void* handle, uint64_t token) {
       client->second->pending_fds.erase(token) == 0)
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   return BLUEZ_MEDIA_SUCCESS;
+} catch (...) {
+  return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
 }
 
-void bluez_media_release_fd_token(void* token) {
+void bluez_media_release_fd_token(void* token) try {
   auto& state = registry();
   const std::scoped_lock lock(state.mutex);
   const auto entry = state.fds.find(reinterpret_cast<uintptr_t>(token));
@@ -1729,9 +1731,11 @@ void bluez_media_release_fd_token(void* token) {
   for (const auto& [handle, client] : state.clients)
     client->pending_fds.erase(reinterpret_cast<uintptr_t>(token));
   state.fds.erase(entry);
+} catch (...) {
+  // Native finalizers must never unwind across the C ABI.
 }
 
-int bluez_media_close_fd(int32_t fd) {
+int bluez_media_close_fd(int32_t fd) try {
   if (fd < 0) {
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
@@ -1747,6 +1751,8 @@ int bluez_media_close_fd(int32_t fd) {
   }
   return close(fd) == 0 ? BLUEZ_MEDIA_SUCCESS
                         : BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
+} catch (...) {
+  return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
 }
 
 }  // extern "C"
