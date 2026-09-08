@@ -6,7 +6,9 @@ if [[ "${BLUEZ_TEST_BUS:-}" != 1 ]]; then
   exec dbus-run-session -- "$0"
 fi
 export DBUS_SYSTEM_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS"
-export BLUEZ_MEDIA_LIB="$PWD/build/libbluez_media_native.so"
+test_build_dir="${BLUEZ_TEST_BUILD_DIR:-$PWD/build}"
+export BLUEZ_MEDIA_LIB="$test_build_dir/libbluez_media_native.so"
+[[ -f "$BLUEZ_MEDIA_LIB" ]] || { echo "Build native/ with BUILD_TESTING=ON first." >&2; exit 1; }
 fixture_dir=$(mktemp -d)
 export BLUEZ_TEST_READY="$fixture_dir/ready"
 /usr/bin/python3 test/support/bluez_service.py &
@@ -18,4 +20,7 @@ for ((i=0; i<100; i++)); do
   sleep 0.05
 done
 [[ -e "$BLUEZ_TEST_READY" ]]
-dart test test/integration --reporter expanded
+ctest --test-dir "$test_build_dir" --output-on-failure
+if [[ "${BLUEZ_TEST_NATIVE_ONLY:-}" != 1 ]]; then
+  dart test test/integration --reporter expanded
+fi

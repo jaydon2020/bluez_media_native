@@ -296,6 +296,24 @@ Run Dart tests:
 dart test
 ```
 
+Run lifecycle, descriptor ownership, concurrency, daemon restart, property
+invalidation, and cover-art cleanup tests on a private D-Bus instance (no
+Bluetooth hardware or system BlueZ changes):
+
+```bash
+# Debian/Ubuntu test dependencies: dbus-daemon python3-dbus python3-gi
+cmake -S native -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build build --parallel 4
+./scripts/test_dbus.sh
+```
+
+The same native lifecycle tests can run under ASAN and UBSan:
+
+```bash
+./scripts/asan.sh build-asan
+BLUEZ_TEST_BUILD_DIR="$PWD/build-asan" BLUEZ_TEST_NATIVE_ONLY=1 ./scripts/test_dbus.sh
+```
+
 ## Generate Bindings
 
 Regenerate Dart FFI bindings from `native/include/bluez_media_native.h`:
