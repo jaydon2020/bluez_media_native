@@ -110,6 +110,7 @@ void main() {
       expect(props.status, 'playing');
       expect(props.position, 42000);
       expect(props.track.length, 2);
+      expect(() => props.track.clear(), throwsUnsupportedError);
       expect(props.track[0].key, 'Title');
       expect(props.track[0].value, 'Blue Train');
       expect(props.track[1].key, 'Artist');
@@ -154,6 +155,7 @@ void main() {
       expect(props.device, '/org/bluez/hci0/dev_AA');
       expect(props.codec, 0);
       expect(props.configuration, [0x21, 0x15]);
+      expect(() => props.configuration[0] = 0, throwsUnsupportedError);
       expect(props.state, 'active');
       expect(props.delay, 120);
       expect(props.volume, 96);
@@ -228,6 +230,8 @@ void main() {
 
       expect(result.objectPath, '/org/bluez/hci0/dev_AA/player0');
       expect(result.items.length, 2);
+      expect(() => result.items.clear(), throwsUnsupportedError);
+      expect(() => result.items.first.metadata.clear(), throwsUnsupportedError);
       expect(result.items[0].name, 'Blue Train');
       expect(result.items[0].playable, true);
       expect(result.items[0].metadata.single.value, 'Blue Train');
@@ -274,6 +278,7 @@ void main() {
 
       expect(result.media, ['/org/bluez/hci0']);
       expect(result.players, ['/org/bluez/hci0/dev_AA/player0']);
+      expect(() => result.players.clear(), throwsUnsupportedError);
       expect(result.controls, ['/org/bluez/hci0/dev_AA']);
       expect(result.transports, [
         '/org/bluez/hci0/dev_AA/sep1/fd0',

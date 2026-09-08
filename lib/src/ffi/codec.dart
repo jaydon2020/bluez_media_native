@@ -218,7 +218,7 @@ class _Reader {
   List<int> readByteList() {
     final count = readUint32();
     _checkBounds(count);
-    final bytes = List<int>.from(
+    final bytes = List<int>.unmodifiable(
       Uint8List.view(_data.buffer, _data.offsetInBytes + _offset, count),
     );
     _offset += count;
@@ -227,30 +227,34 @@ class _Reader {
 
   List<BlueZMediaProperty> readMediaPropertyList() {
     final count = readUint32();
-    return List.generate(
-      count,
-      (_) => BlueZMediaProperty(key: readString(), value: readString()),
+    return List.unmodifiable(
+      List.generate(
+        count,
+        (_) => BlueZMediaProperty(key: readString(), value: readString()),
+      ),
     );
   }
 
   List<BlueZMediaItemProps> readMediaItemList() {
     final count = readUint32();
-    return List.generate(
-      count,
-      (_) => BlueZMediaItemProps(
-        objectPath: readString(),
-        player: readString(),
-        name: readString(),
-        type: readString(),
-        folderType: readString(),
-        playable: readBool(),
-        metadata: readMediaPropertyList(),
+    return List.unmodifiable(
+      List.generate(
+        count,
+        (_) => BlueZMediaItemProps(
+          objectPath: readString(),
+          player: readString(),
+          name: readString(),
+          type: readString(),
+          folderType: readString(),
+          playable: readBool(),
+          metadata: readMediaPropertyList(),
+        ),
       ),
     );
   }
 
   List<String> readStringList() {
     final count = readUint32();
-    return List.generate(count, (_) => readString());
+    return List.unmodifiable(List.generate(count, (_) => readString()));
   }
 }
