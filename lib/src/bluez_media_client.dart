@@ -773,7 +773,11 @@ class BluezMediaClient implements Finalizable {
     if (result is Uint8List && result.isNotEmpty && result[0] == 0x20) {
       final error = GlazeCodec.decode<BlueZMediaError>(result, 1);
       if (serviceUnavailable) {
-        return BlueZMediaServiceUnavailableException(error.message);
+        return BlueZMediaServiceUnavailableException.withDetails(
+          error.message,
+          name: error.name,
+          objectPath: error.objectPath,
+        );
       }
       return BlueZMediaOperationException(
         error.message,

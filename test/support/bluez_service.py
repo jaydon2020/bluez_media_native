@@ -10,6 +10,7 @@ iface = 'org.bluez.MediaPlayer1'
 status = 'paused'
 present = True
 invalidation_race = False
+fail_snapshot = False
 registrations = {}
 class Player(dbus.service.Object):
     @dbus.service.signal('org.freedesktop.DBus.Properties', signature='sa{sv}as')
@@ -49,7 +50,11 @@ class Root(dbus.service.Object):
 
     @dbus.service.method('org.freedesktop.DBus.ObjectManager', out_signature='a{oa{sa{sv}}}')
     def GetManagedObjects(self):
-        global status
+        global status, fail_snapshot
+        if fail_snapshot:
+            fail_snapshot = False
+            raise dbus.exceptions.DBusException('Snapshot denied',
+                name='org.freedesktop.DBus.Error.AccessDenied')
         if not present: return {}
         snapshot = {'/player': {iface: {'Status': status}},
                     '/session': {'org.bluez.obex.Session1': {
@@ -62,10 +67,11 @@ class Root(dbus.service.Object):
     def InterfacesRemoved(self, path, interfaces): pass
     @dbus.service.method('review.Test', in_signature='s')
     def Step(self, command):
-        global present, status, invalidation_race
+        global present, status, invalidation_race, fail_snapshot
         if command == 'reset':
             present = True
             status = 'paused'
+        elif command == 'fail_snapshot': fail_snapshot = True
         elif command == 'invalidate_race':
             status = 'stopped'
             invalidation_race = True

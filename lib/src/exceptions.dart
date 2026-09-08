@@ -8,13 +8,6 @@ class BlueZMediaException implements Exception {
   String toString() => 'BlueZMediaException: $message';
 }
 
-/// Thrown when BlueZ is unavailable on the system bus.
-class BlueZMediaServiceUnavailableException extends BlueZMediaException {
-  const BlueZMediaServiceUnavailableException([
-    super.message = 'BlueZ service is not available',
-  ]);
-}
-
 /// Thrown when a D-Bus media operation fails.
 class BlueZMediaOperationException extends BlueZMediaException {
   final String name;
@@ -28,4 +21,18 @@ class BlueZMediaOperationException extends BlueZMediaException {
 
   @override
   String toString() => 'BlueZMediaOperationException($name): $message';
+}
+
+/// Thrown when connecting to BlueZ or loading its initial snapshot fails.
+class BlueZMediaServiceUnavailableException
+    extends BlueZMediaOperationException {
+  const BlueZMediaServiceUnavailableException([
+    String message = 'BlueZ service is not available',
+  ]) : super(message, name: 'org.freedesktop.DBus.Error.ServiceUnknown');
+
+  const BlueZMediaServiceUnavailableException.withDetails(
+    super.message, {
+    required super.name,
+    super.objectPath,
+  });
 }
