@@ -1,12 +1,13 @@
 import 'dart:ffi';
-import 'dart:typed_data';
-import 'package:bluez_media_native/src/ffi/codec.dart';
-import 'package:bluez_media_native/bluez_media_native.dart';
 import 'dart:io';
-import 'package:ffi/ffi.dart';
-import 'package:bluez_media_native/bluez_media_native_bindings_generated.dart';
-import 'package:bluez_media_native/src/internal/library_loader.dart';
 import 'dart:isolate';
+import 'dart:typed_data';
+
+import 'package:bluez_media_native/bluez_media_native.dart';
+import 'package:bluez_media_native/bluez_media_native_bindings_generated.dart';
+import 'package:bluez_media_native/src/ffi/codec.dart';
+import 'package:bluez_media_native/src/internal/library_loader.dart';
+import 'package:ffi/ffi.dart';
 import 'package:test/test.dart';
 
 void main() {

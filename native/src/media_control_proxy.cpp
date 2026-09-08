@@ -62,7 +62,9 @@ int MediaControlProxy::rewind() const {
 
 std::vector<uint8_t> MediaControlProxy::properties() const {
   std::map<std::string, sdbus::Variant> properties;
-  media_call(*proxy_, "org.freedesktop.DBus.Properties", "GetAll", std::string{kMediaControlIface}) >> properties;
+  media_call(*proxy_, "org.freedesktop.DBus.Properties", "GetAll",
+             std::string{kMediaControlIface}) >>
+      properties;
   return encode_properties(control_path_, properties);
 }
 

@@ -27,8 +27,8 @@ class BlueZMediaOperationException extends BlueZMediaException {
 class BlueZMediaServiceUnavailableException
     extends BlueZMediaOperationException {
   const BlueZMediaServiceUnavailableException([
-    String message = 'BlueZ service is not available',
-  ]) : super(message, name: 'org.freedesktop.DBus.Error.ServiceUnknown');
+    super.message = 'BlueZ service is not available',
+  ]) : super(name: 'org.freedesktop.DBus.Error.ServiceUnknown');
 
   const BlueZMediaServiceUnavailableException.withDetails(
     super.message, {

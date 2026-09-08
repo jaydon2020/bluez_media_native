@@ -39,7 +39,8 @@ BlueZMediaAcquireResult MediaTransportProxy::acquire() const {
   sdbus::UnixFd fd;
   uint16_t read_mtu = 0;
   uint16_t write_mtu = 0;
-  media_call(*proxy_, kMediaTransportIface, "Acquire") >> fd >> read_mtu >> write_mtu;
+  media_call(*proxy_, kMediaTransportIface, "Acquire") >> fd >> read_mtu >>
+      write_mtu;
 
   BlueZMediaAcquireResult result;
   result.transportPath = transport_path_;
@@ -53,7 +54,8 @@ BlueZMediaAcquireResult MediaTransportProxy::try_acquire() const {
   sdbus::UnixFd fd;
   uint16_t read_mtu = 0;
   uint16_t write_mtu = 0;
-  media_call(*proxy_, kMediaTransportIface, "TryAcquire") >> fd >> read_mtu >> write_mtu;
+  media_call(*proxy_, kMediaTransportIface, "TryAcquire") >> fd >> read_mtu >>
+      write_mtu;
 
   BlueZMediaAcquireResult result;
   result.transportPath = transport_path_;
@@ -70,7 +72,9 @@ int MediaTransportProxy::release() const {
 
 std::vector<uint8_t> MediaTransportProxy::properties() const {
   std::map<std::string, sdbus::Variant> properties;
-  media_call(*proxy_, "org.freedesktop.DBus.Properties", "GetAll", std::string{kMediaTransportIface}) >> properties;
+  media_call(*proxy_, "org.freedesktop.DBus.Properties", "GetAll",
+             std::string{kMediaTransportIface}) >>
+      properties;
   return encode_properties(transport_path_, properties);
 }
 
@@ -93,6 +97,7 @@ std::vector<uint8_t> MediaTransportProxy::encode_properties(
 
 int MediaTransportProxy::set_volume(uint16_t volume) const {
   media_call(*proxy_, "org.freedesktop.DBus.Properties", "Set",
-      std::string{kMediaTransportIface}, std::string{"Volume"}, sdbus::Variant{volume});
+             std::string{kMediaTransportIface}, std::string{"Volume"},
+             sdbus::Variant{volume});
   return BLUEZ_MEDIA_SUCCESS;
 }

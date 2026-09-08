@@ -1,8 +1,8 @@
 // media_client.cpp
 #include "media_client.h"
-#include "media_utils.h"
 #include "bluez_media_types.h"
 #include "local_player.h"
+#include "media_utils.h"
 
 MediaClient::MediaClient(sdbus::IConnection& conn) : conn_(conn) {
   try {
@@ -55,7 +55,9 @@ std::vector<uint8_t> MediaClient::get_managed_objects() const {
   std::map<sdbus::ObjectPath,
            std::map<std::string, std::map<std::string, sdbus::Variant>>>
       objects;
-  media_call(*proxy, "org.freedesktop.DBus.ObjectManager", "GetManagedObjects") >> objects;
+  media_call(*proxy, "org.freedesktop.DBus.ObjectManager",
+             "GetManagedObjects") >>
+      objects;
 
   BlueZMediaManagedObjects result;
   for (const auto& [path, interfaces] : objects) {
@@ -87,6 +89,7 @@ void MediaClient::invalidate_registrations(const std::string& adapter_path) {
     if (adapter_path.empty() || it->second->adapter_path() == adapter_path) {
       it->second->abandon();
       it = players_.erase(it);
-    } else ++it;
+    } else
+      ++it;
   }
 }
