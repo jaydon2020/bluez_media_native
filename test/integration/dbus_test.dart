@@ -14,6 +14,25 @@ void main() {
     if (Platform.environment['BLUEZ_TEST_BUS'] == '1') await step('reset');
   });
   test(
+    'connection failures preserve the original D-Bus error details',
+    () async {
+      await step('fail_snapshot');
+      await expectLater(
+        BluezMediaClient.create(),
+        throwsA(
+          isA<BlueZMediaServiceUnavailableException>()
+              .having(
+                (e) => e.name,
+                'name',
+                'org.freedesktop.DBus.Error.AccessDenied',
+              )
+              .having((e) => e.message, 'message', 'Snapshot denied'),
+        ),
+      );
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+  test(
     'close completes only after queued native operations finish',
     () async {
       final client = await BluezMediaClient.create();
