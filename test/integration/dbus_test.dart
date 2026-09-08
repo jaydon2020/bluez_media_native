@@ -120,6 +120,25 @@ void main() {
     }
   }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
   test(
+    'completed cover art survives a removed transfer with no reported size',
+    () async {
+      await step('fast_complete_without_size');
+      final client = await BluezMediaClient.create();
+      final directory = await Directory.systemTemp.createTemp(
+        'bluez-cover-complete-test-',
+      );
+      final target = File('${directory.path}/art');
+      try {
+        await client.getPlayerCoverArt('/player', target.path);
+        expect(await target.readAsBytes(), 'cover-art'.codeUnits);
+      } finally {
+        await client.close();
+        await directory.delete(recursive: true);
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+  test(
     'cover-art timeout cancels the transfer and deletes its partial file',
     () async {
       final client = await BluezMediaClient.create();

@@ -55,6 +55,11 @@ bool file_has_size(const std::string& path, uint64_t expected_size) {
          std::filesystem::file_size(path, error) == expected_size;
 }
 
+bool transfer_file_complete(const std::string& path, uint64_t expected_size) {
+  return expected_size > 0 ? file_has_size(path, expected_size)
+                           : file_has_data(path);
+}
+
 void remove_partial_file(const std::string& path) {
   std::error_code error;
   std::filesystem::remove(path, error);
@@ -251,8 +256,7 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
         const auto status = value.get<std::string>();
         if (status == "complete") {
           cleanup.finished = true;
-          return expected_size > 0 ? file_has_size(target_file, expected_size)
-                                   : file_has_data(target_file);
+          return transfer_file_complete(target_file, expected_size);
         }
         if (status == "error") {
           cleanup.finished = true;
@@ -261,7 +265,7 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
       }
     } catch (const sdbus::Error& error) {
       return error.getName() == "org.freedesktop.DBus.Error.UnknownObject" &&
-             file_has_size(target_file, expected_size);
+             transfer_file_complete(target_file, expected_size);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
   }

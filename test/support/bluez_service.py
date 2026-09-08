@@ -11,6 +11,7 @@ status = 'paused'
 present = True
 invalidation_race = False
 fail_snapshot = False
+transfer_mode = 'active'
 registrations = {}
 class Player(dbus.service.Object):
     @dbus.service.signal('org.freedesktop.DBus.Properties', signature='sa{sv}as')
@@ -67,10 +68,13 @@ class Root(dbus.service.Object):
     def InterfacesRemoved(self, path, interfaces): pass
     @dbus.service.method('review.Test', in_signature='s')
     def Step(self, command):
-        global present, status, invalidation_race, fail_snapshot
+        global present, status, invalidation_race, fail_snapshot, transfer_mode
         if command == 'reset':
             present = True
             status = 'paused'
+            transfer_mode = 'active'
+        elif command == 'fast_complete_without_size':
+            transfer_mode = 'fast_complete_without_size'
         elif command == 'fail_snapshot': fail_snapshot = True
         elif command == 'invalidate_race':
             status = 'stopped'
@@ -106,14 +110,21 @@ class Device(dbus.service.Object):
 class Image(dbus.service.Object):
     @dbus.service.method('org.bluez.obex.Image1', in_signature='ss', out_signature='oa{sv}')
     def GetThumbnail(self, target, handle):
-        with open(target, 'wb') as file: file.write(b'partial')
+        content = b'cover-art' if transfer_mode == 'fast_complete_without_size' else b'partial'
+        with open(target, 'wb') as file: file.write(content)
         transfer.cancelled = 0
-        return '/transfer', {'Size': dbus.UInt64(100)}
+        properties = {} if transfer_mode == 'fast_complete_without_size' else {'Size': dbus.UInt64(100)}
+        return '/transfer', properties
 
 class Transfer(dbus.service.Object):
     cancelled = 0
     @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='ss', out_signature='v')
-    def Get(self, interface, prop): return 'active'
+    def Get(self, interface, prop):
+        if transfer_mode == 'fast_complete_without_size':
+            raise dbus.exceptions.DBusException(
+                'Transfer already removed',
+                name='org.freedesktop.DBus.Error.UnknownObject')
+        return 'active'
     @dbus.service.method('org.bluez.obex.Transfer1')
     def Cancel(self): self.cancelled += 1
 
