@@ -60,6 +60,12 @@ class BluezMediaClient implements Finalizable {
       'bluez_media_client_destroy',
     ),
   );
+  static final _fdFinalizer = NativeFinalizer(
+    _dylib.lookup<NativeFunction<Void Function(Pointer<Void>)>>(
+      'bluez_media_release_fd_token',
+    ),
+  );
+
   Pointer<Void> _handle;
   bool _closed = false;
   bool _serviceAvailable = true;
@@ -519,7 +525,7 @@ class BluezMediaClient implements Finalizable {
       BLUEZ_MEDIA_OP_TRANSPORT_ACQUIRE,
       objectPath: transportPath,
     );
-    return GlazeCodec.decode<BlueZMediaAcquireResult>(payload!, 0);
+    return _decodeAcquire(payload!);
   }
 
   Future<BlueZMediaAcquireResult> transportTryAcquire(
@@ -529,7 +535,27 @@ class BluezMediaClient implements Finalizable {
       BLUEZ_MEDIA_OP_TRANSPORT_TRY_ACQUIRE,
       objectPath: transportPath,
     );
-    return GlazeCodec.decode<BlueZMediaAcquireResult>(payload!, 0);
+    return _decodeAcquire(payload!);
+  }
+
+  BlueZMediaAcquireResult _decodeAcquire(Uint8List payload) {
+    final token = ByteData.sublistView(payload).getUint64(0, Endian.little);
+    final pointer = Pointer<Void>.fromAddress(token);
+    try {
+      final result = GlazeCodec.decode<BlueZMediaAcquireResult>(payload, 8);
+      _fdFinalizer.attach(result, pointer, detach: result);
+      final status = _bindings.bluez_media_claim_fd(_handle, token);
+      if (status != 0) {
+        _fdFinalizer.detach(result);
+        throw StateError(
+          'Client closed before transport ownership was claimed.',
+        );
+      }
+      return result;
+    } catch (_) {
+      _bindings.bluez_media_release_fd_token(pointer);
+      rethrow;
+    }
   }
 
   Future<void> transportRelease(String transportPath) =>
@@ -713,6 +739,7 @@ class BluezMediaClient implements Finalizable {
         case 0xFF:
           return null;
         case 0x10:
+        case 0x11:
           return Uint8List.sublistView(result, 1);
         case 0x20:
           throw _exceptionFromResult(result);

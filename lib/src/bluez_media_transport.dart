@@ -123,18 +123,11 @@ bool _sameInts(List<int> left, List<int> right) {
 
 /// Owns a duplicated MediaTransport file descriptor.
 class BluezMediaAcquiredTransport {
-  static final Finalizer<_FdCleanup> _finalizer = Finalizer((cleanup) {
-    cleanup.close();
-  });
-
   final BluezMediaClient _client;
   final BlueZMediaAcquireResult _result;
-  final Object _finalizerDetach = Object();
   bool _closed = false;
 
-  BluezMediaAcquiredTransport._(this._client, this._result) {
-    _finalizer.attach(this, _FdCleanup(_client, fd), detach: _finalizerDetach);
-  }
+  BluezMediaAcquiredTransport._(this._client, this._result);
 
   String get transportPath => _result.transportPath;
   int get fd => _result.fd;
@@ -145,23 +138,9 @@ class BluezMediaAcquiredTransport {
   /// Closes the duplicated file descriptor returned by BlueZ.
   void close() {
     if (_closed) return;
-    _client.closeFileDescriptor(fd);
+    // Linux releases the descriptor even on most close errors. Never retry a
+    // numeric fd that another thread may already have reused.
     _closed = true;
-    _finalizer.detach(_finalizerDetach);
-  }
-}
-
-class _FdCleanup {
-  final BluezMediaClient client;
-  final int fd;
-
-  const _FdCleanup(this.client, this.fd);
-
-  void close() {
-    try {
-      client.closeFileDescriptor(fd);
-    } on Object {
-      // Finalizers are a best-effort fallback; explicit close reports errors.
-    }
+    _client.closeFileDescriptor(fd);
   }
 }

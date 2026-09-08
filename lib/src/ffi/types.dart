@@ -1,3 +1,5 @@
+import 'dart:ffi' show Finalizable;
+
 // types.dart — Dart-side struct mirrors for glaze-decoded BlueZ Media payloads.
 // These match the C++ structs in native/include/bluez_media_types.h.
 
@@ -145,7 +147,7 @@ class BlueZMediaFolderItems {
 }
 
 /// Result from MediaTransport1.Acquire / TryAcquire.
-class BlueZMediaAcquireResult {
+class BlueZMediaAcquireResult implements Finalizable {
   final String transportPath;
   final int fd;
   final int readMtu;

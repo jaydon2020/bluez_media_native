@@ -18,6 +18,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <thread>
 #include <unordered_map>
 
@@ -83,6 +84,9 @@ class OperationQueue {
   std::thread worker_;
 };
 
+struct BluezMediaClientContext;
+namespace { void release_pending_fds(BluezMediaClientContext& context); }
+
 struct BluezMediaClientContext {
   std::unique_ptr<sdbus::IConnection> conn;
   std::unique_ptr<MediaClient> client;
@@ -91,10 +95,12 @@ struct BluezMediaClientContext {
   OperationQueue operations;
   OperationQueue cover_operations;
   bool event_loop_started = false;
+  std::set<uintptr_t> pending_fds;
 
   ~BluezMediaClientContext() {
     operations.stop();
     cover_operations.stop();
+    release_pending_fds(*this);
     cover_art.reset();
     client.reset();
     if (event_loop_started) {
@@ -111,6 +117,15 @@ struct ClientRegistry {
   std::mutex mutex;
   std::unordered_map<uintptr_t, std::shared_ptr<BluezMediaClientContext>> clients;
   uintptr_t next_handle = 1;
+  std::unordered_map<uintptr_t, int> fds;
+  uintptr_t next_fd_token = 1;
+
+  ~ClientRegistry() {
+    reaper.stop();
+    clients.clear();
+    for (const auto& [token, fd] : fds) ::close(fd);
+    fds.clear();
+  }
 };
 
 ClientRegistry& registry() {
@@ -119,6 +134,29 @@ ClientRegistry& registry() {
   static const sdbus::Variant lifetime_anchor;
   static ClientRegistry instance;
   return instance;
+}
+
+void release_pending_fds(BluezMediaClientContext& context) {
+  auto& state = registry();
+  const std::scoped_lock lock(state.mutex);
+  for (const auto token : context.pending_fds) {
+    const auto entry = state.fds.find(token);
+    if (entry != state.fds.end()) {
+      ::close(entry->second);
+      state.fds.erase(entry);
+    }
+  }
+  context.pending_fds.clear();
+}
+
+uintptr_t retain_fd(BluezMediaClientContext& context, sdbus::UnixFd& fd) {
+  auto& state = registry();
+  const std::scoped_lock lock(state.mutex);
+  const auto token = state.next_fd_token++;
+  context.pending_fds.insert(token);
+  state.fds.emplace(token, fd.get());
+  fd.release();
+  return token;
 }
 
 void* register_context(std::shared_ptr<BluezMediaClientContext> context) {
@@ -485,17 +523,24 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
           break;
       }
 
-      bool posted;
-      if (status != BLUEZ_MEDIA_SUCCESS) {
+      if (acquired_fd) {
+        const auto token = retain_fd(*context, *acquired_fd);
+        try {
+          std::vector<uint8_t> owned_payload;
+          glz::detail::write_integer(owned_payload, static_cast<uint64_t>(token));
+          owned_payload.insert(owned_payload.end(), payload.begin(), payload.end());
+          // Ownership stays native until Dart has installed its finalizer and
+          // claimed this token. Closing an unread port cannot leak the fd.
+          if (!post_bytes(result_port, 0x11, owned_payload))
+            bluez_media_release_fd_token(reinterpret_cast<void*>(token));
+        } catch (...) {
+          bluez_media_release_fd_token(reinterpret_cast<void*>(token));
+          throw;
+        }
+      } else if (status != BLUEZ_MEDIA_SUCCESS) {
         post_status(result_port, object_path, status);
-        posted = true;
-      } else if (payload.empty()) {
-        posted = post_bytes(result_port, 0xFF);
       } else {
-        posted = post_bytes(result_port, 0x10, payload);
-      }
-      if (posted && acquired_fd) {
-        acquired_fd->release();
+        post_bytes(result_port, payload.empty() ? 0xFF : 0x10, payload);
       }
     } catch (const sdbus::Error& error) {
       post_error(result_port, object_path, error.getName(), error.getMessage());
@@ -1649,9 +1694,40 @@ int bluez_media_get_managed_objects(void* handle, BluezMediaBuffer* out) {
   }
 }
 
+int bluez_media_claim_fd(void* handle, uint64_t token) {
+  auto& state = registry();
+  const std::scoped_lock lock(state.mutex);
+  const auto client = state.clients.find(reinterpret_cast<uintptr_t>(handle));
+  if (client == state.clients.end() || !state.fds.contains(token) ||
+      client->second->pending_fds.erase(token) == 0)
+    return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+  return BLUEZ_MEDIA_SUCCESS;
+}
+
+void bluez_media_release_fd_token(void* token) {
+  auto& state = registry();
+  const std::scoped_lock lock(state.mutex);
+  const auto entry = state.fds.find(reinterpret_cast<uintptr_t>(token));
+  if (entry == state.fds.end()) return;
+  ::close(entry->second);
+  for (const auto& [handle, client] : state.clients)
+    client->pending_fds.erase(reinterpret_cast<uintptr_t>(token));
+  state.fds.erase(entry);
+}
+
 int bluez_media_close_fd(int32_t fd) {
   if (fd < 0) {
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
+  }
+  auto& state = registry();
+  const std::scoped_lock lock(state.mutex);
+  for (auto it = state.fds.begin(); it != state.fds.end(); ++it) {
+    if (it->second == fd) {
+      for (const auto& [handle, client] : state.clients)
+        client->pending_fds.erase(it->first);
+      state.fds.erase(it);
+      break;
+    }
   }
   return close(fd) == 0 ? BLUEZ_MEDIA_SUCCESS
                         : BLUEZ_MEDIA_ERROR_OPERATION_FAILED;

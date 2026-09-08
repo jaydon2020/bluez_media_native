@@ -19,6 +19,15 @@ class _FakeClient implements BluezMediaClient {
   var closeCallCount = 0;
 
   @override
+  Future<BlueZMediaAcquireResult> transportAcquire(String path) async =>
+      BlueZMediaAcquireResult(
+        transportPath: path,
+        fd: 123,
+        readMtu: 1,
+        writeMtu: 1,
+      );
+
+  @override
   void closeFileDescriptor(int fd) {
     closeCallCount++;
     _closedFds.add(fd);
@@ -601,16 +610,20 @@ void main() {
   // ── BluezMediaAcquiredTransport (fd lifecycle) ───────────────────────────────
 
   group('BluezMediaAcquiredTransport fd lifecycle', () {
-    test('close() is idempotent – FakeClient fd close called exactly once', () {
-      final c = _FakeClient();
-      // Directly validate the isClosed flag logic without needing a real fd.
-      // We build a minimal stand-in via the transport proxy:
-      final transport = BluezMediaTransport.internal(c, '/transport');
-      transport.dispose();
-      // dispose() must be safe to call again:
-      transport.dispose();
-      // No exception = pass.
-    });
+    test(
+      'close() is idempotent – FakeClient fd close called exactly once',
+      () async {
+        final client = _FakeClient();
+        final proxy = BluezMediaTransport.internal(client, '/transport');
+        final acquired = await proxy.acquire();
+        acquired.close();
+        acquired.close();
+        expect(acquired.isClosed, isTrue);
+        expect(client.closeCallCount, 1);
+        expect(client._closedFds, [123]);
+        proxy.dispose();
+      },
+    );
   });
 
   // ── Proxy stream correctness ──────────────────────────────────────────────

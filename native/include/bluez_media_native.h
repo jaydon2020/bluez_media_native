@@ -229,6 +229,11 @@ BLUEZ_MEDIA_EXPORT int bluez_media_transport_set_volume(
     void* handle,
     const char* transport_path,
     uint16_t volume);
+// Async Acquire returns tag 0x11, a uint64 little-endian ownership token,
+// then the usual acquire payload. Install cleanup before claiming the token.
+// Unclaimed tokens are closed with their client. Release is idempotent.
+BLUEZ_MEDIA_EXPORT int bluez_media_claim_fd(void* handle, uint64_t token);
+BLUEZ_MEDIA_EXPORT void bluez_media_release_fd_token(void* token);
 BLUEZ_MEDIA_EXPORT int bluez_media_close_fd(int32_t fd);
 
 // ── ObjectManager queries ──────────────────────────────────────────────────
