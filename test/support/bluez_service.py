@@ -75,6 +75,8 @@ class Root(dbus.service.Object):
             transfer_mode = 'active'
         elif command == 'fast_complete_without_size':
             transfer_mode = 'fast_complete_without_size'
+        elif command == 'image_error':
+            transfer_mode = 'image_error'
         elif command == 'fail_snapshot': fail_snapshot = True
         elif command == 'invalidate_race':
             status = 'stopped'
@@ -110,11 +112,21 @@ class Device(dbus.service.Object):
 class Image(dbus.service.Object):
     @dbus.service.method('org.bluez.obex.Image1', in_signature='ss', out_signature='oa{sv}')
     def GetThumbnail(self, target, handle):
+        if transfer_mode == 'image_error':
+            raise dbus.exceptions.DBusException(
+                'Remote player rejected the image request',
+                name='org.bluez.obex.Error.NotSupported')
         content = b'cover-art' if transfer_mode == 'fast_complete_without_size' else b'partial'
         with open(target, 'wb') as file: file.write(content)
         transfer.cancelled = 0
         properties = {} if transfer_mode == 'fast_complete_without_size' else {'Size': dbus.UInt64(100)}
         return '/transfer', properties
+
+    @dbus.service.method('org.bluez.obex.Image1', in_signature='s', out_signature='aa{sv}')
+    def Properties(self, handle):
+        raise dbus.exceptions.DBusException(
+            'Remote player rejected the image request',
+            name='org.bluez.obex.Error.NotSupported')
 
 class Transfer(dbus.service.Object):
     cancelled = 0

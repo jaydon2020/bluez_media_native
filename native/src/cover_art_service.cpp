@@ -1,5 +1,6 @@
 #include "cover_art_service.h"
 
+#include <exception>
 #include <filesystem>
 #include <map>
 #include <stdexcept>
@@ -508,6 +509,7 @@ int CoverArtService::get_impl(const std::string& object_path,
   }
 
   const int attempts = existing_session_only ? 1 : 2;
+  std::exception_ptr last_dbus_error;
   for (int attempt = 0; attempt < attempts; ++attempt) {
     sdbus::ObjectPath session_path;
     if (existing_session_only) {
@@ -550,6 +552,7 @@ int CoverArtService::get_impl(const std::string& object_path,
           return BLUEZ_MEDIA_SUCCESS;
         }
       } catch (const sdbus::Error&) {
+        last_dbus_error = std::current_exception();
       }
       remove_partial_file(target_file);
 
@@ -562,6 +565,7 @@ int CoverArtService::get_impl(const std::string& object_path,
         return BLUEZ_MEDIA_SUCCESS;
       }
     } catch (const sdbus::Error&) {
+      last_dbus_error = std::current_exception();
     }
     remove_partial_file(target_file);
     if (!existing_session_only) {
@@ -569,5 +573,8 @@ int CoverArtService::get_impl(const std::string& object_path,
     }
   }
 
+  if (last_dbus_error) {
+    std::rethrow_exception(last_dbus_error);
+  }
   return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
 }

@@ -119,6 +119,35 @@ void main() {
       bindings.bluez_media_client_destroy(handle);
     }
   }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
+  test('cover-art errors preserve the final OBEX failure', () async {
+    await step('image_error');
+    final client = await BluezMediaClient.create();
+    final directory = await Directory.systemTemp.createTemp(
+      'bluez-cover-error-test-',
+    );
+    try {
+      await expectLater(
+        client.getPlayerCoverArt('/player', '${directory.path}/art'),
+        throwsA(
+          isA<BlueZMediaOperationException>()
+              .having(
+                (error) => error.name,
+                'name',
+                'org.bluez.obex.Error.NotSupported',
+              )
+              .having(
+                (error) => error.message,
+                'message',
+                'Remote player rejected the image request',
+              )
+              .having((error) => error.objectPath, 'objectPath', '/player'),
+        ),
+      );
+    } finally {
+      await client.close();
+      await directory.delete(recursive: true);
+    }
+  }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
   test(
     'completed cover art survives a removed transfer with no reported size',
     () async {
