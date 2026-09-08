@@ -5,17 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-08
 
 ### Added
-- Existing-session-only cover art API for reusing sessions such as the one
-  owned by `mpris-proxy` while leaving file caching to the caller.
+- Session reuse cover art APIs (`getCoverArtFromExistingSession`) to reuse existing OBEX sessions (e.g. `mpris-proxy`) without managing session lifetimes.
+- MediaItem cover art acquisition across native C ABI and Dart APIs (`BluezMediaItem.getCoverArt()`).
+- Relocated compiled consumer integration tests verifying native asset resolution.
+- Additional CI test suites for private D-Bus daemon resynchronization and isolate shutdown.
 
 ### Fixed
-- Revalidate stale OBEX sessions, reject partial fast-finished transfers, and
-  contain native exceptions and acquired file descriptors at the Dart FFI boundary.
-- Keep Dart proxy and Flutter example state synchronized across refreshes,
-  object lifecycle events, widget disposal, and overlapping cover art requests.
+- **State & Concurrency**:
+  - Prevented delayed asynchronous property refreshes from overwriting newer proxy states.
+  - Replayed concurrent updates after D-Bus daemon resynchronization.
+  - Retried property invalidations superseded by fast-arriving D-Bus property events.
+  - Discarded late updates and rejected calls on disposed media proxies (`BluezMediaPlayer`, `BluezMediaControl`, `BluezMediaFolder`, `BluezMediaItem`, `BluezMediaTransport`).
+  - Kept proxy objects and Flutter example UI synchronized across refreshes, object lifecycle events, widget disposal, and overlapping requests.
+- **Resource Management & Native Lifecycles**:
+  - Automatically reclaimed native client instances and handles on Dart isolate shutdown.
+  - Contained exceptions and handle validation inside descriptor C ABI entry points.
+  - Ensured native client teardown completes cleanly during asynchronous `close()` operations.
+  - Retained transport file descriptors and transport owners until explicit cleanup by Dart code.
+  - Cleaned up timed-out cover-art downloads and temporary directories on client exit.
+  - Revalidated stale OBEX sessions and rejected incomplete fast-finished transfers.
+- **D-Bus & BlueZ Integration**:
+  - Preserved original D-Bus error details when client creation fails.
+  - Maintained D-Bus event loop responsiveness during remote operation calls.
+  - Invalidated cached media states and resynchronized automatically when BlueZ service ownership changes.
+  - Subscribed to property change signals prior to ObjectManager discovery to prevent missing early updates.
+  - Serialized synchronous and raw asynchronous player registrations.
+  - Supplied required MPRIS properties during local player registration and stopped advertising unimplemented local playback capabilities.
+- **Build & Packaging**:
+  - Fixed bundled library resolution via native asset ID mapping.
+  - Optimized CMake target rules to compile native implementation objects only once.
+  - Validated native build targets and tracked vendored input files in build hooks.
+
+### Refactored
+- Streamlined cover art loading and retry logic in the Flutter demo application.
+- Kept unchecked native decoding routines out of production builds.
+- Protected decoded media property snapshots against inadvertent caller mutation.
 
 ## [0.2.0] - 2026-08-20
 

@@ -1,91 +1,61 @@
 # bluez_media_native
 
-Native Dart and Flutter bindings for BlueZ media APIs on Linux, backed by
-`dart:ffi` and `sdbus-c++`.
+Native Dart and Flutter bindings for BlueZ media APIs on Linux, backed by `dart:ffi` and `sdbus-c++`.
 
-This package currently focuses on the tested BlueZ media receiver/control
-surface: remote media player control, controller commands, and audio transport
-inspection/acquisition.
+This package provides a robust, asynchronous interface to the BlueZ media receiver and control surfaces, including remote media player control, controller commands, and audio transport inspection/acquisition.
+
+## Table of Contents
+- [Features](#features)
+- [Platform Support](#platform-support)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [API Reference](#api-reference)
+- [Troubleshooting](#troubleshooting)
+- [Building from Source](#building-from-source)
 
 ## Features
 
-- Control remote `org.bluez.MediaPlayer1` players: play, pause, stop, next,
-  previous, repeat, shuffle, and property snapshots
-- Use `org.bluez.MediaControl1` controller commands and connectivity snapshots
-- Inspect and control `org.bluez.MediaTransport1` properties, volume, and file
-  descriptor acquisition
-- Receive native ObjectManager updates through a Dart `ReceivePort`
-- Bundle the native library in Dart and Flutter Linux apps through native assets
-- Register a local MPRIS player object through `org.bluez.Media1`
-- Browse `org.bluez.MediaFolder1` and `org.bluez.MediaItem1` trees
-- Download AVRCP cover art through the experimental BlueZ OBEX BIP Image API
+- **Media Player Control**: Control remote `org.bluez.MediaPlayer1` players (play, pause, stop, next, previous, repeat, shuffle) and retrieve property snapshots.
+- **Media Controller Commands**: Utilize `org.bluez.MediaControl1` commands and monitor connectivity.
+- **Audio Transport Inspection**: Inspect `org.bluez.MediaTransport1` properties, adjust volume, and acquire file descriptors.
+- **Native Event Integration**: Receive asynchronous ObjectManager updates safely through a Dart `ReceivePort`.
+- **Seamless Bundling**: Automatically build and bundle the native C++ library in Dart and Flutter Linux apps using Dart Native Assets (`hook/build.dart`).
+- **Media Browsing**: Browse and search `org.bluez.MediaFolder1` and `org.bluez.MediaItem1` hierarchies.
+- **Cover Art Retrieval**: Download AVRCP cover art through the experimental BlueZ OBEX BIP Image API.
+- **Local Player Registration**: Register a local MPRIS player object through `org.bluez.Media1`.
 
 ## Platform Support
 
 | Platform | MediaPlayer1 | MediaControl1 | MediaTransport1 | Media1 / Browsing |
-|----------|--------------|---------------|-----------------|-------------------|
-| Linux with BlueZ | Tested | Tested | Tested | Supported |
-| macOS | No | No | No | No |
-| Windows | No | No | No | No |
+| :--- | :---: | :---: | :---: | :---: |
+| **Linux (BlueZ)** | ✅ Tested | ✅ Tested | ✅ Tested | ✅ Supported |
+| **macOS** | ❌ | ❌ | ❌ | ❌ |
+| **Windows** | ❌ | ❌ | ❌ | ❌ |
 
-## Getting Started
+## Installation
 
-### 1. Install system dependencies
+### 1. System Dependencies
 
-Ubuntu/Debian:
+Before adding the package, ensure your Linux environment has the required build tools and D-Bus headers installed.
 
+**Ubuntu / Debian:**
 ```bash
+sudo apt-get update
 sudo apt-get install cmake ninja-build clang libsystemd-dev pkg-config
 ```
 
-Fedora:
-
+**Fedora:**
 ```bash
 sudo dnf install cmake ninja-build clang systemd-devel pkgconf-pkg-config
 ```
 
-### 2. Add the package
+### 2. Add Package
 
+Add the package to your `pubspec.yaml`:
 ```yaml
 dependencies:
-  bluez_media_native: ^0.2.0
+  bluez_media_native: ^0.3.0
 ```
-
-### 3. Build the native library manually (optional)
-
-The native-assets hook builds and bundles the library automatically. To build it
-directly for native development:
-
-```bash
-cmake -S native -B build/native -GNinja -DCMAKE_BUILD_TYPE=Release
-cmake --build build/native --parallel
-```
-
-If the library is not available through the system loader, point the Dart code
-at the built shared object:
-
-```bash
-export BLUEZ_MEDIA_LIB="$PWD/build/native/libbluez_media_native.so"
-```
-
-### 4. Run an example
-
-```bash
-dart run example/player_control.dart list
-dart run example/media_control.dart list
-dart run example/transport_control.dart list
-```
-
-### 5. Run the Flutter example
-
-```bash
-cd example/flutter_ble_audio
-flutter run -d linux
-```
-
-The Flutter example discovers BlueZ media objects and groups them by Bluetooth
-device. It can refresh snapshots, send playback commands, adjust volume, set
-repeat/shuffle modes, and inspect transport metadata.
 
 ## Quick Start
 
@@ -93,302 +63,97 @@ repeat/shuffle modes, and inspect transport metadata.
 import 'package:bluez_media_native/bluez_media_native.dart';
 
 Future<void> main() async {
+  // Initializes the native D-Bus connection and caches the initial ObjectManager snapshot.
   final client = await BluezMediaClient.create();
+  
   try {
+    // Iterate through connected media players
     for (final player in client.players) {
-      print('${player.name}: ${player.status}');
+      print('Player: ${player.name} | Status: ${player.status}');
       print(player.track.map((p) => '${p.key}=${p.value}').join(', '));
     }
 
+    // Play and fetch cover art from the first available player
     if (client.players.isNotEmpty) {
       final player = client.players.first;
       await player.play();
       await player.refresh();
+      
       if (player.imageHandle.isNotEmpty) {
-        await player.getCoverArt('/tmp/bluez-cover-art');
+        // Will download to the specified absolute path
+        await player.getCoverArt('/tmp/bluez-cover-art.jpg');
       }
     }
   } finally {
+    // Safely shutdown native event processing
     await client.close();
   }
 }
 ```
 
-## API Surface
+## API Reference
 
-### BluezMediaClient
+### `BluezMediaClient`
+The top-level entry point. `await BluezMediaClient.create()` initializes the native D-Bus integration, starts the native event loop, and returns after caching the initial ObjectManager snapshot.
 
-Top-level entry point. `await BluezMediaClient.create()` initializes the Dart
-Native DL API, opens a BlueZ system bus connection, starts the native event
-loop, and returns after caching the initial ObjectManager snapshot.
-
-| Property / Method | Description |
-|---|---|
-| `ready` | Completes after the initial ObjectManager snapshot is cached |
-| `players` | Cached `MediaPlayer1` proxies |
-| `controls` | Cached `MediaControl1` proxies |
-| `folders` | Cached `MediaFolder1` proxies |
-| `items` | Cached `MediaItem1` proxies |
+| API | Description |
+| :--- | :--- |
+| `players`, `controls` | Cached `MediaPlayer1` and `MediaControl1` proxies |
+| `folders`, `items` | Cached `MediaFolder1` and `MediaItem1` proxies |
 | `transports` | Cached `MediaTransport1` proxies |
-| `playerAdded` / `playerRemoved`, etc. | Streams for player, control, folder, item, and transport lifecycle events |
-| `registerPlayer()` / `unregisterPlayer()` | Register or remove a local MPRIS player |
-| `getManagedObjects()` | Return a snapshot of known BlueZ media objects |
-| `close()` | Stop native event processing and release cached proxies |
+| `playerAdded`, `playerRemoved`, etc. | Dart Streams for lifecycle events across all media interfaces |
+| `getManagedObjects()` | Returns a snapshot of known BlueZ media objects |
+| `registerPlayer()`, `unregisterPlayer()`| Register/remove a local MPRIS player |
+| `close()` | Stop native event processing and release cached proxies cleanly |
 
-### Media1 Local Player Registration
+### Remote Media Proxies
+- **`BluezMediaPlayer`**: Proxy for `MediaPlayer1`. Provides `play()`, `pause()`, `next()`, `setRepeat()`, `setShuffle()`, `refresh()`, and exposes a `propertiesChanged` stream.
+- **`BluezMediaControl`**: Proxy for `MediaControl1`. Provides volume and playback control commands.
+- **`BluezMediaFolder` / `BluezMediaItem`**: AVRCP browsing helpers. Enables folder navigation (`listItems()`, `changeFolderPath()`) and item interaction (`play()`, `addToNowPlaying()`).
+- **`BluezMediaTransport`**: Proxy for `MediaTransport1`. Enables inspecting transport state, setting volume, and acquiring duplicated file descriptors (`acquire()`).
 
-`org.bluez.Media1` is exposed on adapter paths such as `/org/bluez/hci0`.
-Use it only when this Linux process wants to publish a local media player to
-BlueZ. You do not need this to control a phone's remote
-`/org/bluez/hci0/dev_.../avrcp/player0` object.
+### Local Player Registration (`org.bluez.Media1`)
 
-Local browsing/searching flags are rejected until the package exports a local
-`MediaFolder1`; remote browsing through `BluezMediaFolder` remains supported.
+> **Note on Registration:** `registerPlayer` currently exports an **experimental, inert MPRIS object** for registration testing. It does not connect to a Dart/Flutter audio player or expose an application command stream. Remote BlueZ player control and browsing are completely unaffected by this limitation.
+
+Use this only when your Linux process wants to publish a local media player to BlueZ (e.g. on `/org/bluez/hci0`).
 
 ```dart
-import 'package:bluez_media_native/bluez_media_native.dart';
-
-Future<void> main() async {
-  final client = await BluezMediaClient.create();
-  try {
-    await client.registerPlayer(
-      const BluezMediaPlayerRegistrationConfig(
-        adapterPath: '/org/bluez/hci0',
-        playerPath: '/bluez_media/player0',
-        name: 'bluez_media_native',
-        type: 'Audio',
-      ),
-    );
-
-    // Keep the process alive while the player is registered.
-    await Future<void>.delayed(const Duration(seconds: 30));
-
-    await client.unregisterPlayer(
-      adapterPath: '/org/bluez/hci0',
-      playerPath: '/bluez_media/player0',
-    );
-  } finally {
-    await client.close();
-  }
-}
-```
-
-CLI equivalent:
-
-```bash
-dart run example/register_player.dart list
-dart run example/register_player.dart \
-  --adapter /org/bluez/hci0 \
-  --player /bluez_media/player0 \
-  --name bluez_media_native \
-  --hold 30
-```
-
-### BluezMediaPlayer
-
-Proxy for a remote `org.bluez.MediaPlayer1` object.
-
-| Method / Property | Description |
-|---|---|
-| `play()`, `pause()`, `stop()` | Playback control |
-| `next()`, `previous()` | Track navigation |
-| `setRepeat()`, `setShuffle()` | Set BlueZ player modes when supported |
-| `refresh()` | Fetch the latest property snapshot |
-| `status`, `position`, `track`, `name` | Current player metadata |
-| `propertiesChanged` | Stream of changed property names after updates |
-
-### BluezMediaControl
-
-Proxy for `org.bluez.MediaControl1`.
-
-| Method / Property | Description |
-|---|---|
-| `play()`, `pause()`, `stop()` | Controller playback commands |
-| `next()`, `previous()` | Controller track navigation |
-| `volumeUp()`, `volumeDown()` | Controller volume commands |
-| `fastForward()`, `rewind()` | Controller seek commands |
-| `connected`, `playerPath` | Current control snapshot |
-
-### BluezMediaFolder and BluezMediaItem
-
-AVRCP browsing helpers for `org.bluez.MediaFolder1` and
-`org.bluez.MediaItem1`.
-
-| Method / Property | Description |
-|---|---|
-| `folder.listItems()` | List child folders/items |
-| `folder.search(value)` | Search under a folder |
-| `folder.changeFolderPath(path)` | Change the current browsing folder |
-| `item.play()` | Play a media item |
-| `item.addToNowPlaying()` | Add an item to the now-playing list |
-| `item.metadata`, `item.playable` | Item metadata snapshot |
-
-### BluezMediaTransport
-
-Proxy for `org.bluez.MediaTransport1`.
-
-| Method / Property | Description |
-|---|---|
-| `refresh()` | Fetch the latest transport properties |
-| `volume` | Get or set absolute transport volume |
-| `acquire()` / `tryAcquire()` | Acquire a duplicated transport file descriptor |
-| `release()` | Release the BlueZ transport |
-| `uuid`, `codec`, `state`, `configuration` | Transport metadata |
-| `BluezMediaAcquiredTransport.close()` | Close the duplicated file descriptor |
-
-## Native Status Codes
-
-The C ABI uses package-owned status codes, not D-Bus numeric error codes:
-
-| Code | Name | Meaning |
-|---|---|---|
-| `0` | `BLUEZ_MEDIA_SUCCESS` | Operation succeeded |
-| `-1` | `BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT` | Unknown/retired handle, null path/buffer, or invalid input |
-| `-2` | `BLUEZ_MEDIA_ERROR_BUFFER_TOO_SMALL` | Reserved for ABI compatibility |
-| `-3` | `BLUEZ_MEDIA_ERROR_OPERATION_FAILED` | D-Bus or native operation failed |
-| `-4` | `BLUEZ_MEDIA_ERROR_UNSUPPORTED_SETTING` | BlueZ rejected repeat/shuffle setting |
-| `-5` | `BLUEZ_MEDIA_ERROR_ALREADY_EXISTS` | Local player path is already registered |
-| `-6` | `BLUEZ_MEDIA_ERROR_NOT_FOUND` | Local player path is not registered |
-
-Variable-length C ABI results are returned in a `BluezMediaBuffer`. Call
-`bluez_media_buffer_free()` after copying the payload. The Dart API handles
-this ownership automatically.
-
-## Examples
-
-- [`example/player_control.dart`](example/player_control.dart) - list and
-  control remote `MediaPlayer1` objects
-- [`example/media_control.dart`](example/media_control.dart) - use
-  `MediaControl1` commands and snapshots
-- [`example/transport_control.dart`](example/transport_control.dart) - inspect,
-  acquire, release, and set volume on media transports
-- [`example/flutter_ble_audio/`](example/flutter_ble_audio/) - Flutter Linux
-  media-control UI
-
-Future support examples:
-
-- [`example/register_player.dart`](example/register_player.dart) - register this
-  process as a local BlueZ media player
-- [`example/media_browsing.dart`](example/media_browsing.dart) - browse folders,
-  search, inspect items, and play media items
-
-More command examples are available in [example/README.md](example/README.md).
-
-## Project Structure
-
-- `native/` - C/C++ source and CMake configuration
-- `lib/` - Dart API and FFI codec/bindings
-- `hook/` - native-assets build integration for Dart and Flutter
-- `example/` - CLI examples and the Flutter Linux demo app
-- `test/` and `native/test/` - Dart codec tests and native wire-type tests
-
-## Building And Testing
-
-```bash
-cmake -S native -B build/native -GNinja -DBUILD_TESTING=ON
-cmake --build build/native --parallel
-ctest --test-dir build/native --output-on-failure
-```
-
-Run Dart tests:
-
-```bash
-dart test
-```
-
-Run lifecycle, descriptor ownership, concurrency, daemon restart, property
-invalidation, and cover-art cleanup tests on a private D-Bus instance (no
-Bluetooth hardware or system BlueZ changes):
-
-```bash
-# Debian/Ubuntu test dependencies: dbus-daemon python3-dbus python3-gi
-cmake -S native -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
-cmake --build build --parallel 4
-./scripts/test_dbus.sh
-```
-
-The same native lifecycle tests can run under ASAN and UBSan:
-
-```bash
-./scripts/asan.sh build-asan
-BLUEZ_TEST_BUILD_DIR="$PWD/build-asan" BLUEZ_TEST_NATIVE_ONLY=1 ./scripts/test_dbus.sh
-```
-
-To compile a standalone Dart CLI with bundled native assets, use `dart build cli`
-and distribute its entire `bundle/` directory. Plain `dart compile exe` does not
-bundle native assets on the tested Dart 3.11 SDK. Run `./scripts/test_asset.sh`
-to build a separate consumer package and verify loading after relocation.
-
-## Generate Bindings
-
-Regenerate Dart FFI bindings from `native/include/bluez_media_native.h`:
-
-```bash
-dart run ffigen --config ffigen.yaml
+final client = await BluezMediaClient.create();
+await client.registerPlayer(
+  const BluezMediaPlayerRegistrationConfig(
+    adapterPath: '/org/bluez/hci0',
+    playerPath: '/bluez_media/player0',
+    name: 'bluez_media_native',
+    type: 'Audio',
+  ),
+);
 ```
 
 ## Troubleshooting
 
-### Cover art is unavailable
+- **Cover art is unavailable**: Cover art requires an `ImgHandle` in `MediaPlayer1.Track` and a running BlueZ `obexd` with the experimental Image API enabled. `getCoverArt` reuses an existing matching session (e.g. from `mpris-proxy`) or temporarily creates one. The destination path must be absolute and not already exist.
+- **No media objects listed**: Media objects only appear when BlueZ exposes them for connected devices. Ensure your device is paired, connected, and playing audio (`bluetoothctl devices Connected`).
+- **`org.bluez.Error.NotReady`**: Your Bluetooth adapter may be powered off or blocked. Check with `bluetoothctl power on` or `sudo rfkill unblock bluetooth`.
+- **Permission errors**: Some BlueZ operations require local system bus permissions. Ensure your user has the correct D-Bus permissions or try running with elevated privileges during development.
 
-Cover art requires `ImgHandle` in `MediaPlayer1.Track` and a running BlueZ
-`obexd` with its experimental Image API enabled. The destination passed to
-`getCoverArt` must be an absolute path that does not already exist.
-`getCoverArt` reuses a matching session owned by `mpris-proxy` when available
-and otherwise creates a temporary session that the client owns.
-`getCoverArtFromExistingSession` never creates or removes a session and fails
-when no matching session exists. Both APIs write only to the caller-provided
-path; the caller remains responsible for image caching and cleanup.
+## Building from Source
 
-### BlueZ is not running
+The package uses Dart Native Assets to compile automatically. However, for direct native development or testing:
 
+**Build Native C++ Library:**
 ```bash
-systemctl status bluetooth
-sudo systemctl start bluetooth
+cmake -S native -B build/native -GNinja -DBUILD_TESTING=ON
+cmake --build build/native --parallel
 ```
 
-### No media objects are listed
-
-Media objects appear only when BlueZ exposes them for connected devices. Pair and
-connect an audio-capable device, then check:
-
+**Run Test Suites:**
 ```bash
-bluetoothctl show
-bluetoothctl devices Connected
-busctl tree org.bluez
+# Run C++ unit tests
+ctest --test-dir build/native --output-on-failure
+
+# Run Dart unit tests
+dart test
 ```
 
-### `org.bluez.Error.NotReady`
-
-The adapter may be powered off or blocked:
-
-```bash
-bluetoothctl power on
-rfkill list bluetooth
-sudo rfkill unblock bluetooth
-```
-
-### Permission errors
-
-Some BlueZ operations require local system bus permissions. During development,
-try running the CLI example with elevated privileges while preserving the native
-library path:
-
-```bash
-sudo BLUEZ_MEDIA_LIB="$PWD/build/native/libbluez_media_native.so" \
-  dart run example/player_control.dart list
-```
-
-## Flutter Help
-
-For general Flutter plugin and Linux desktop help, see the
-[Flutter documentation](https://docs.flutter.dev).
-
-### Local player registration limitation
-
-`registerPlayer` currently exports an **experimental, inert MPRIS object** for
-registration testing. It does not connect to a Dart/Flutter audio player, expose
-an application command stream, or publish application metadata. Its playback
-capabilities are false and remote commands return `NotSupported`. Remote BlueZ
-player control and browsing are unaffected. Local registrations are invalidated
-when BlueZ restarts or their adapter is removed; register again after recovery.
+For advanced integration testing (D-Bus daemon resync, memory tracking, etc.), see the `/scripts` directory for specialized ASAN and isolated D-Bus execution scripts.
