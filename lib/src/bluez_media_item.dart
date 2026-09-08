@@ -7,6 +7,7 @@ import 'ffi/types.dart';
 class BluezMediaItem {
   final BluezMediaClient _client;
   bool _disposed = false;
+  int _revision = 0;
 
   bool get isDisposed => _disposed;
 
@@ -76,12 +77,15 @@ class BluezMediaItem {
 
   /// Fetch the latest item snapshot from BlueZ.
   Future<BlueZMediaItemProps> refresh() async {
-    updateProps(await _activeClient.getMediaItemProperties(objectPath));
+    final revision = ++_revision;
+    final properties = await _activeClient.getMediaItemProperties(objectPath);
+    if (revision == _revision) updateProps(properties);
     return _props;
   }
 
   void updateProps(BlueZMediaItemProps props) {
     if (_disposed) return;
+    _revision++;
     final changed = <String>[];
     if (props.player != _props.player) changed.add('Player');
     if (props.name != _props.name) changed.add('Name');

@@ -7,6 +7,7 @@ import 'ffi/types.dart';
 class BluezMediaControl {
   final BluezMediaClient _client;
   bool _disposed = false;
+  int _revision = 0;
 
   bool get isDisposed => _disposed;
 
@@ -46,12 +47,17 @@ class BluezMediaControl {
 
   /// Fetch the latest control snapshot from BlueZ.
   Future<BlueZMediaControlProps> refresh() async {
-    updateProps(await _activeClient.getMediaControlProperties(objectPath));
+    final revision = ++_revision;
+    final properties = await _activeClient.getMediaControlProperties(
+      objectPath,
+    );
+    if (revision == _revision) updateProps(properties);
     return _props;
   }
 
   void updateProps(BlueZMediaControlProps props) {
     if (_disposed) return;
+    _revision++;
     final changed = <String>[];
     if (props.connected != _props.connected) changed.add('Connected');
     if (props.player != _props.player) changed.add('Player');
