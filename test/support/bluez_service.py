@@ -9,12 +9,17 @@ obex_name = dbus.service.BusName('org.bluez.obex', bus)
 iface = 'org.bluez.MediaPlayer1'
 status = 'paused'
 present = True
+invalidation_race = False
 registrations = {}
 class Player(dbus.service.Object):
     @dbus.service.signal('org.freedesktop.DBus.Properties', signature='sa{sv}as')
     def PropertiesChanged(self, interface, changed, invalidated): pass
     @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface):
+        global invalidation_race
+        if invalidation_race:
+            invalidation_race = False
+            self.PropertiesChanged(iface, {'Position': dbus.UInt32(42)}, [])
         return {'Status': status, 'Device': dbus.ObjectPath('/device'),
                 'ObexPort': dbus.UInt16(4097),
                 'Track': dbus.Dictionary({'ImgHandle': 'image'}, signature='sv')}
@@ -57,10 +62,14 @@ class Root(dbus.service.Object):
     def InterfacesRemoved(self, path, interfaces): pass
     @dbus.service.method('review.Test', in_signature='s')
     def Step(self, command):
-        global present, status
+        global present, status, invalidation_race
         if command == 'reset':
             present = True
             status = 'paused'
+        elif command == 'invalidate_race':
+            status = 'stopped'
+            invalidation_race = True
+            player.PropertiesChanged(iface, {}, ['Status'])
         elif command == 'assert_cancelled':
             if transfer.cancelled == 0: raise RuntimeError('Transfer was not cancelled')
         elif command == 'invalidate': player.PropertiesChanged(iface, {}, ['Status'])
