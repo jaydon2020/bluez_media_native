@@ -74,23 +74,7 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
         if (invalidated.empty()) return;
         // Retain the last known value until GetAll supplies an authoritative
         // replacement. Invalidated does not mean zero, false or absent.
-        auto& proxy = property_proxies_[path];
-        if (!proxy) proxy = sdbus::createProxy(conn_,
-            sdbus::ServiceName{kBluezService}, sdbus::ObjectPath{path});
-        proxy->callMethodAsync("GetAll")
-            .onInterface(kPropertiesIface)
-            .withArguments(interface_name)
-            .uponReplyInvoke([this, path, interface_name, revision](
-                std::optional<sdbus::Error> error,
-                const std::map<std::string, sdbus::Variant>& fresh) {
-              const auto current = revisions_.find(path);
-              if (error || current == revisions_.end()) return;
-              const auto version = current->second.find(interface_name);
-              if (version == current->second.end() || version->second != revision)
-                return;
-              properties_by_path_[path][interface_name] = fresh;
-              post_properties(path, interface_name);
-            });
+        refresh_properties(path, interface_name, revision);
         });
       }, sdbus::return_slot);
   root_proxy_ = sdbus::createProxy(conn_, sdbus::ServiceName{kBluezService},
@@ -146,6 +130,32 @@ MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
 }
 
 MediaObjectManager::~MediaObjectManager() = default;
+
+void MediaObjectManager::refresh_properties(const std::string& path,
+    const std::string& interface_name, uint64_t revision) {
+        auto& proxy = property_proxies_[path];
+        if (!proxy) proxy = sdbus::createProxy(conn_,
+            sdbus::ServiceName{kBluezService}, sdbus::ObjectPath{path});
+        proxy->callMethodAsync("GetAll")
+            .onInterface(kPropertiesIface)
+            .withArguments(interface_name)
+            .uponReplyInvoke([this, path, interface_name, revision](
+                std::optional<sdbus::Error> error,
+                const std::map<std::string, sdbus::Variant>& fresh) {
+              const auto current = revisions_.find(path);
+              if (error || current == revisions_.end()) return;
+              const auto version = current->second.find(interface_name);
+              if (version == current->second.end()) return;
+              if (version->second != revision) {
+                // A concurrent change made this reply stale, but the original
+                // invalidation still needs a replacement.
+                refresh_properties(path, interface_name, version->second);
+                return;
+              }
+              properties_by_path_[path][interface_name] = fresh;
+              post_properties(path, interface_name);
+            });
+}
 
 void MediaObjectManager::apply_update(std::function<void()> update) {
   if (resynchronizing_) pending_updates_.push_back(std::move(update));

@@ -213,6 +213,25 @@ void main() {
     skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
   );
   test(
+    'invalidation still resolves when another property changes during GetAll',
+    () async {
+      final client = await BluezMediaClient.create();
+      try {
+        final player = client.players.single;
+        await player.refresh();
+        final updated = player.propertiesChanged.firstWhere(
+          (_) => player.status == 'stopped',
+        );
+        await step('invalidate_race');
+        await updated.timeout(const Duration(seconds: 2));
+        expect(player.status, 'stopped');
+      } finally {
+        await client.close();
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+  test(
     'invalidation fetches a replacement without fabricating defaults',
     () async {
       final client = await BluezMediaClient.create();

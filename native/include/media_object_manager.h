@@ -25,6 +25,8 @@ class MediaObjectManager {
   using InterfacesMap =
       std::map<std::string, std::map<std::string, sdbus::Variant>>;
 
+  void refresh_properties(const std::string& path, const std::string& interface_name,
+                          uint64_t revision);
   void apply_update(std::function<void()> update);
 
   void on_interfaces_added(const sdbus::ObjectPath& object_path,
