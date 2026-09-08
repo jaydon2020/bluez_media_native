@@ -532,6 +532,9 @@ class BluezMediaClient implements Finalizable {
 
   // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
 
+  /// Acquires a descriptor owned by the returned result. Keep the result alive
+  /// while using its fd and close it once with [closeFileDescriptor]. Prefer
+  /// [BluezMediaTransport.acquire] for idempotent explicit cleanup.
   Future<BlueZMediaAcquireResult> transportAcquire(String transportPath) async {
     final payload = await _callAsync(
       BLUEZ_MEDIA_OP_TRANSPORT_ACQUIRE,
@@ -540,6 +543,8 @@ class BluezMediaClient implements Finalizable {
     return _decodeAcquire(payload!);
   }
 
+  /// Like [transportAcquire], but asks BlueZ to acquire only a pending transport.
+  /// The returned result owns the descriptor and must outlive its use.
   Future<BlueZMediaAcquireResult> transportTryAcquire(
     String transportPath,
   ) async {
