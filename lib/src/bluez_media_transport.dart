@@ -35,7 +35,7 @@ class BluezMediaTransport {
   int get codec => props.codec;
 
   /// The configuration of the transport.
-  List<int> get configuration => props.configuration;
+  List<int> get configuration => List.unmodifiable(props.configuration);
 
   /// The state of the transport.
   String get state => props.state;
