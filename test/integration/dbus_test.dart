@@ -1,4 +1,6 @@
 import 'dart:ffi';
+import 'dart:typed_data';
+import 'package:bluez_media_native/src/ffi/codec.dart';
 import 'package:bluez_media_native/bluez_media_native.dart';
 import 'dart:io';
 import 'package:ffi/ffi.dart';
@@ -11,6 +13,87 @@ void main() {
   setUp(() async {
     if (Platform.environment['BLUEZ_TEST_BUS'] == '1') await step('reset');
   });
+  test(
+    'claimed fd is reclaimed when its isolate group exits',
+    () async {
+      final ready = ReceivePort();
+      final exited = ReceivePort();
+      final isolate = await Isolate.spawnUri(
+        File('test/support/client_isolate.dart').absolute.uri,
+        ['acquire'],
+        ready.sendPort,
+        onExit: exited.sendPort,
+      );
+      final fd = await ready.first.timeout(const Duration(seconds: 10)) as int;
+      ready.close();
+      final descriptor = Link('/proc/self/fd/$fd');
+      expect(descriptor.existsSync(), isTrue);
+      isolate.kill(priority: Isolate.immediate);
+      await exited.first.timeout(const Duration(seconds: 10));
+      exited.close();
+      for (var i = 0; i < 40 && descriptor.existsSync(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+      expect(descriptor.existsSync(), isFalse);
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+  test(
+    'acquired transport owns a real fd and closes it exactly once',
+    () async {
+      final client = await BluezMediaClient.create();
+      try {
+        final transport = await client.transport('/transport').acquire();
+        final descriptor = Link('/proc/self/fd/${transport.fd}');
+        expect(descriptor.existsSync(), isTrue);
+        expect(transport.readMtu, 672);
+        transport.close();
+        expect(transport.isClosed, isTrue);
+        expect(descriptor.existsSync(), isFalse);
+        transport.close();
+      } finally {
+        await client.close();
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+
+  test(
+    'unclaimed acquisition is reclaimed with its client',
+    () async {
+      final bindings = BluezMediaNativeBindings(loadBluezMediaNative());
+      bindings.bluez_media_init(NativeApi.initializeApiDLData);
+      final handle = bindings.bluez_media_client_create(0);
+      final port = ReceivePort();
+      final path = '/transport'.toNativeUtf8();
+      try {
+        bindings.bluez_media_call_async(
+          handle,
+          BLUEZ_MEDIA_OP_TRANSPORT_ACQUIRE,
+          path.cast(),
+          nullptr,
+          0,
+          port.sendPort.nativePort,
+        );
+        final bytes = await port.first as List<int>;
+        expect(bytes.first, 0x11);
+        final data = Uint8List.fromList(bytes);
+        final result = GlazeCodec.decode<BlueZMediaAcquireResult>(data, 9);
+        final descriptor = Link('/proc/self/fd/${result.fd}');
+        expect(descriptor.existsSync(), isTrue);
+        bindings.bluez_media_client_destroy(handle);
+        for (var i = 0; i < 40 && descriptor.existsSync(); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 25));
+        }
+        expect(descriptor.existsSync(), isFalse);
+      } finally {
+        port.close();
+        calloc.free(path);
+        bindings.bluez_media_client_destroy(handle);
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
   test(
     'cover-art timeout cancels the transfer and deletes its partial file',
     () async {

@@ -69,6 +69,20 @@ class Root(dbus.service.Object):
             bus.release_name('org.bluez')
             GLib.timeout_add(50, lambda: (bus.request_name('org.bluez'), False)[1])
 
+class MediaTransport(dbus.service.Object):
+    @dbus.service.method('org.bluez.MediaTransport1', out_signature='hqq')
+    def Acquire(self):
+        read_fd, write_fd = os.pipe()
+        try:
+            return dbus.types.UnixFd(read_fd), dbus.UInt16(672), dbus.UInt16(672)
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+    @dbus.service.method('org.bluez.MediaTransport1')
+    def Release(self): pass
+
+media_transport = MediaTransport(bus, '/transport')
+
 class Device(dbus.service.Object):
     @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface): return {'Address': '00:11:22:33:44:55'}

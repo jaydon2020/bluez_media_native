@@ -1049,6 +1049,31 @@ class BluezMediaNativeBindings {
             int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, int)
           >();
 
+  /// Async Acquire returns tag 0x11, a uint64 little-endian ownership token,
+  /// then the usual acquire payload. Install cleanup before claiming the token.
+  /// Unclaimed tokens are closed with their client. Release is idempotent.
+  int bluez_media_claim_fd(ffi.Pointer<ffi.Void> handle, int token) {
+    return _bluez_media_claim_fd(handle, token);
+  }
+
+  late final _bluez_media_claim_fdPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Uint64)>
+      >('bluez_media_claim_fd');
+  late final _bluez_media_claim_fd = _bluez_media_claim_fdPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, int)>();
+
+  void bluez_media_release_fd_token(ffi.Pointer<ffi.Void> token) {
+    return _bluez_media_release_fd_token(token);
+  }
+
+  late final _bluez_media_release_fd_tokenPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'bluez_media_release_fd_token',
+      );
+  late final _bluez_media_release_fd_token = _bluez_media_release_fd_tokenPtr
+      .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
   int bluez_media_close_fd(int fd) {
     return _bluez_media_close_fd(fd);
   }
