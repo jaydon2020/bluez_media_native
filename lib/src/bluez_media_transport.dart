@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ffi';
 
 import 'bluez_media_client.dart';
 
@@ -122,7 +123,7 @@ bool _sameInts(List<int> left, List<int> right) {
 }
 
 /// Owns a duplicated MediaTransport file descriptor.
-class BluezMediaAcquiredTransport {
+class BluezMediaAcquiredTransport implements Finalizable {
   final BluezMediaClient _client;
   final BlueZMediaAcquireResult _result;
   bool _closed = false;

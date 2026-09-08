@@ -147,6 +147,11 @@ class BlueZMediaFolderItems {
 }
 
 /// Result from MediaTransport1.Acquire / TryAcquire.
+///
+/// Results returned by BluezMediaClient own their descriptor until explicitly
+/// closed or finalized. Keep this object alive while using [fd]; retaining only
+/// the integer does not retain ownership. Prefer BluezMediaTransport.acquire()
+/// for an owner with an idempotent close() method.
 class BlueZMediaAcquireResult implements Finalizable {
   final String transportPath;
   final int fd;
