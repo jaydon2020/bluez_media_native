@@ -314,6 +314,11 @@ The same native lifecycle tests can run under ASAN and UBSan:
 BLUEZ_TEST_BUILD_DIR="$PWD/build-asan" BLUEZ_TEST_NATIVE_ONLY=1 ./scripts/test_dbus.sh
 ```
 
+To compile a standalone Dart CLI with bundled native assets, use `dart build cli`
+and distribute its entire `bundle/` directory. Plain `dart compile exe` does not
+bundle native assets on the tested Dart 3.11 SDK. Run `./scripts/test_asset.sh`
+to build a separate consumer package and verify loading after relocation.
+
 ## Generate Bindings
 
 Regenerate Dart FFI bindings from `native/include/bluez_media_native.h`:
