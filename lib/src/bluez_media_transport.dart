@@ -7,6 +7,7 @@ import 'bluez_media_client.dart';
 class BluezMediaTransport {
   final BluezMediaClient _client;
   bool _disposed = false;
+  int _revision = 0;
 
   bool get isDisposed => _disposed;
 
@@ -84,11 +85,16 @@ class BluezMediaTransport {
 
   /// Fetches the latest properties from BlueZ and updates the snapshot.
   Future<void> refresh() async {
-    updateProps(await _activeClient.getMediaTransportProperties(objectPath));
+    final revision = ++_revision;
+    final properties = await _activeClient.getMediaTransportProperties(
+      objectPath,
+    );
+    if (revision == _revision) updateProps(properties);
   }
 
   void updateProps(BlueZMediaTransportProps props) {
     if (_disposed) return;
+    _revision++;
     final changed = <String>[];
     final previous = _props ?? BlueZMediaTransportProps(objectPath: objectPath);
     if (props.device != previous.device) changed.add('Device');

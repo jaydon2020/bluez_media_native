@@ -12,6 +12,21 @@ class _Client implements BluezMediaClient {
 }
 
 void main() {
+  test('refresh cannot overwrite a newer property event', () async {
+    final client = _Client();
+    final player = BluezMediaPlayer.internal(client, '/player');
+    final refresh = player.refresh();
+    player.updateProps(
+      const BlueZMediaPlayerProps(objectPath: '/player', status: 'playing'),
+    );
+    client.reply.complete(
+      const BlueZMediaPlayerProps(objectPath: '/player', status: 'paused'),
+    );
+    expect((await refresh).status, 'playing');
+    expect(player.status, 'playing');
+    player.dispose();
+  });
+
   test('removal discards a refresh reply and rejects stale commands', () async {
     final client = _Client();
     final player = BluezMediaPlayer.internal(client, '/player');
