@@ -63,16 +63,21 @@ void remove_partial_file(const std::string& path) {
 struct PartialFile {
   const std::string& path;
   bool complete = false;
-  ~PartialFile() { if (!complete) remove_partial_file(path); }
+  ~PartialFile() {
+    if (!complete)
+      remove_partial_file(path);
+  }
 };
 
 struct TransferCleanup {
   sdbus::IProxy& proxy;
   bool finished = false;
   ~TransferCleanup() {
-    if (finished) return;
+    if (finished)
+      return;
     try {
-      proxy.callMethod("Cancel").onInterface(kObexTransferIface)
+      proxy.callMethod("Cancel")
+          .onInterface(kObexTransferIface)
           .withTimeout(uint64_t{200000});
     } catch (...) {
       // Cleanup must not replace the original timeout/transfer error.
@@ -88,10 +93,11 @@ Properties get_properties(sdbus::IConnection& bus,
   auto proxy = sdbus::createProxy(bus, sdbus::ServiceName{service}, path);
   Properties properties;
   properties = proxy->callMethodAsync("GetAll")
-      .onInterface(kPropertiesIface)
-      .withArguments(std::string{interface})
-      .withTimeout(remaining_timeout(deadline))
-      .getResultAsFuture<Properties>().get();
+                   .onInterface(kPropertiesIface)
+                   .withArguments(std::string{interface})
+                   .withTimeout(remaining_timeout(deadline))
+                   .getResultAsFuture<Properties>()
+                   .get();
   return properties;
 }
 
@@ -303,7 +309,9 @@ bool get_thumbnail(sdbus::IConnection& session_bus,
 CoverArtService::CoverArtService(sdbus::IConnection& system_bus)
     : system_bus_(system_bus) {}
 
-CoverArtService::~CoverArtService() { reset(); }
+CoverArtService::~CoverArtService() {
+  reset();
+}
 
 void CoverArtService::reset() {
   const std::scoped_lock transfer_lock(transfer_mutex_);
@@ -547,7 +555,7 @@ int CoverArtService::get_impl(const std::string& object_path,
           get_image(bus, *image, target_file, source.image_handle, preferred,
                     deadline)) {
         partial.complete = true;
-          return BLUEZ_MEDIA_SUCCESS;
+        return BLUEZ_MEDIA_SUCCESS;
       }
     } catch (const sdbus::Error&) {
     }

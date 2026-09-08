@@ -4,8 +4,8 @@
 
 #include <sdbus-c++/sdbus-c++.h>
 
-#include <unistd.h>
 #include <dlfcn.h>
+#include <unistd.h>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
@@ -42,7 +42,8 @@ class OperationQueue {
   void post(std::function<void()> operation) {
     {
       const std::scoped_lock lock(mutex_);
-      if (stopping_) return;
+      if (stopping_)
+        return;
       operations_.push_back(std::move(operation));
     }
     ready_.notify_one();
@@ -85,7 +86,9 @@ class OperationQueue {
 };
 
 struct BluezMediaClientContext;
-namespace { void release_pending_fds(BluezMediaClientContext& context); }
+namespace {
+void release_pending_fds(BluezMediaClientContext& context);
+}
 
 struct BluezMediaClientContext {
   std::unique_ptr<sdbus::IConnection> conn;
@@ -116,7 +119,8 @@ struct ClientRegistry {
   OperationQueue reaper;
   OperationQueue connections;
   std::mutex mutex;
-  std::unordered_map<uintptr_t, std::shared_ptr<BluezMediaClientContext>> clients;
+  std::unordered_map<uintptr_t, std::shared_ptr<BluezMediaClientContext>>
+      clients;
   uintptr_t next_handle = 1;
   std::unordered_map<uintptr_t, int> fds;
   uintptr_t next_fd_token = 1;
@@ -125,7 +129,8 @@ struct ClientRegistry {
     connections.stop();
     reaper.stop();
     clients.clear();
-    for (const auto& [token, fd] : fds) ::close(fd);
+    for (const auto& [token, fd] : fds)
+      ::close(fd);
     fds.clear();
   }
 };
@@ -180,7 +185,8 @@ std::shared_ptr<BluezMediaClientContext> retire_context(void* handle) {
   auto& state = registry();
   const std::scoped_lock lock(state.mutex);
   const auto context = state.clients.find(reinterpret_cast<uintptr_t>(handle));
-  if (context == state.clients.end()) return nullptr;
+  if (context == state.clients.end())
+    return nullptr;
   auto result = std::move(context->second);
   state.clients.erase(context);
   return result;
@@ -231,14 +237,17 @@ std::shared_ptr<BluezMediaClientContext> create_context(int64_t events_port) {
   ctx->cover_art = std::make_unique<CoverArtService>(*ctx->conn);
   auto* context = ctx.get();
   ctx->object_manager = std::make_unique<MediaObjectManager>(
-      *ctx->conn, events_port, [context](const std::string& path,
-                                      const std::string& interface_name) {
+      *ctx->conn, events_port,
+      [context](const std::string& path, const std::string& interface_name) {
         context->operations.post([context, path, interface_name]() {
           if (interface_name == "org.bluez.Media1") {
             context->client->invalidate_registrations(path);
-            context->cover_operations.post([context]() { context->cover_art->reset(); });
+            context->cover_operations.post(
+                [context]() { context->cover_art->reset(); });
           } else if (interface_name == "org.bluez.MediaPlayer1") {
-            context->cover_operations.post([context, path]() { context->cover_art->unregister_player(path); });
+            context->cover_operations.post([context, path]() {
+              context->cover_art->unregister_player(path);
+            });
           }
         });
       });
@@ -324,9 +333,8 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
       operation == BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION ||
       operation == BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION;
   auto& queue = cover_operation ? ctx->cover_operations : ctx->operations;
-  queue.post([context, operation,
-                        object_path = std::move(object_path),
-                        argument = std::move(argument), value, result_port]() {
+  queue.post([context, operation, object_path = std::move(object_path),
+              argument = std::move(argument), value, result_port]() {
     try {
       int status = BLUEZ_MEDIA_SUCCESS;
       std::vector<uint8_t> payload;
@@ -529,8 +537,10 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
         const auto token = retain_fd(*context, *acquired_fd);
         try {
           std::vector<uint8_t> owned_payload;
-          glz::detail::write_integer(owned_payload, static_cast<uint64_t>(token));
-          owned_payload.insert(owned_payload.end(), payload.begin(), payload.end());
+          glz::detail::write_integer(owned_payload,
+                                     static_cast<uint64_t>(token));
+          owned_payload.insert(owned_payload.end(), payload.begin(),
+                               payload.end());
           // Ownership stays native until Dart has installed its finalizer and
           // claimed this token. Closing an unread port cannot leak the fd.
           if (!post_bytes(result_port, 0x11, owned_payload))
@@ -643,7 +653,8 @@ void bluez_media_client_destroy_async(void* handle, int64_t result_port) {
   } catch (const std::exception& error) {
     post_error(result_port, "", "org.bluez.Error.Failed", error.what());
   } catch (...) {
-    post_error(result_port, "", "org.bluez.Error.Failed", "Native shutdown failed");
+    post_error(result_port, "", "org.bluez.Error.Failed",
+               "Native shutdown failed");
   }
 }
 
@@ -1726,7 +1737,8 @@ void bluez_media_release_fd_token(void* token) try {
   auto& state = registry();
   const std::scoped_lock lock(state.mutex);
   const auto entry = state.fds.find(reinterpret_cast<uintptr_t>(token));
-  if (entry == state.fds.end()) return;
+  if (entry == state.fds.end())
+    return;
   ::close(entry->second);
   for (const auto& [handle, client] : state.clients)
     client->pending_fds.erase(reinterpret_cast<uintptr_t>(token));

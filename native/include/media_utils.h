@@ -27,9 +27,12 @@ std::vector<BlueZMediaProperty> track_to_properties(
 // to dispatch signals, exported methods and the asynchronous method reply.
 // Must not be called from the connection's event-loop thread.
 template <typename... Args>
-sdbus::MethodReply media_call(sdbus::IProxy& proxy, const char* interface,
-                              const char* method, Args&&... args) {
-  auto message = proxy.createMethodCall(sdbus::InterfaceName{interface}, sdbus::MethodName{method});
-  (message << ... << std::forward<Args>(args));
+sdbus::MethodReply media_call(sdbus::IProxy& proxy,
+                              const char* interface,
+                              const char* method,
+                              Args&&... args) {
+  auto message = proxy.createMethodCall(sdbus::InterfaceName{interface},
+                                        sdbus::MethodName{method});
+  static_cast<void>((message << ... << std::forward<Args>(args)));
   return proxy.callMethodAsync(message, sdbus::with_future).get();
 }

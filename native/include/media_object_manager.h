@@ -14,8 +14,10 @@
 
 class MediaObjectManager {
  public:
-  using RemovedCallback = std::function<void(const std::string&, const std::string&)>;
-  MediaObjectManager(sdbus::IConnection& conn, Dart_Port_DL events_port,
+  using RemovedCallback =
+      std::function<void(const std::string&, const std::string&)>;
+  MediaObjectManager(sdbus::IConnection& conn,
+                     Dart_Port_DL events_port,
                      RemovedCallback removed = {});
   ~MediaObjectManager();
 
@@ -25,7 +27,8 @@ class MediaObjectManager {
   using InterfacesMap =
       std::map<std::string, std::map<std::string, sdbus::Variant>>;
 
-  void refresh_properties(const std::string& path, const std::string& interface_name,
+  void refresh_properties(const std::string& path,
+                          const std::string& interface_name,
                           uint64_t revision);
   void apply_update(std::function<void()> update);
 

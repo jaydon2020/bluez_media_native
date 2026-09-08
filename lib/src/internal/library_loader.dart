@@ -16,7 +16,8 @@ DynamicLibrary loadBluezMediaNative() {
     return DynamicLibrary.open(override);
   }
   final path = _nativeLibraryPath();
-  if (path == nullptr)
+  if (path == nullptr) {
     throw StateError('Cannot resolve the BlueZ native asset.');
+  }
   return DynamicLibrary.open(path.cast<Utf8>().toDartString());
 }

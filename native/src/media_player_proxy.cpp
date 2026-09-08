@@ -52,19 +52,23 @@ int MediaPlayerProxy::rewind() const {
 
 int MediaPlayerProxy::set_repeat(const std::string& repeat) const {
   media_call(*proxy_, "org.freedesktop.DBus.Properties", "Set",
-      std::string{kMediaPlayerIface}, std::string{"Repeat"}, sdbus::Variant{repeat});
+             std::string{kMediaPlayerIface}, std::string{"Repeat"},
+             sdbus::Variant{repeat});
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 int MediaPlayerProxy::set_shuffle(const std::string& shuffle) const {
   media_call(*proxy_, "org.freedesktop.DBus.Properties", "Set",
-      std::string{kMediaPlayerIface}, std::string{"Shuffle"}, sdbus::Variant{shuffle});
+             std::string{kMediaPlayerIface}, std::string{"Shuffle"},
+             sdbus::Variant{shuffle});
   return BLUEZ_MEDIA_SUCCESS;
 }
 
 std::vector<uint8_t> MediaPlayerProxy::properties() const {
   std::map<std::string, sdbus::Variant> properties;
-  media_call(*proxy_, "org.freedesktop.DBus.Properties", "GetAll", std::string{kMediaPlayerIface}) >> properties;
+  media_call(*proxy_, "org.freedesktop.DBus.Properties", "GetAll",
+             std::string{kMediaPlayerIface}) >>
+      properties;
   return encode_properties(player_path_, properties);
 }
 
