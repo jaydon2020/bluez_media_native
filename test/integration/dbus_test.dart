@@ -14,6 +14,23 @@ void main() {
     if (Platform.environment['BLUEZ_TEST_BUS'] == '1') await step('reset');
   });
   test(
+    'close completes only after queued native operations finish',
+    () async {
+      final client = await BluezMediaClient.create();
+      var operationFinished = false;
+      final operation = client
+          .player('/player')
+          .play()
+          .then((_) => operationFinished = true);
+      final closing = client.close();
+      expect(identical(closing, client.close()), isTrue);
+      await closing;
+      expect(operationFinished, isTrue);
+      await operation;
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
+  test(
     'claimed fd is reclaimed when its isolate group exits',
     () async {
       final ready = ReceivePort();

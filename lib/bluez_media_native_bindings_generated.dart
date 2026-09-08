@@ -82,6 +82,22 @@ class BluezMediaNativeBindings {
   late final _bluez_media_client_destroy = _bluez_media_client_destroyPtr
       .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
+  /// Retire immediately; report completion after queued calls and cleanup finish.
+  void bluez_media_client_destroy_async(
+    ffi.Pointer<ffi.Void> handle,
+    int result_port,
+  ) {
+    return _bluez_media_client_destroy_async(handle, result_port);
+  }
+
+  late final _bluez_media_client_destroy_asyncPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int64)>
+      >('bluez_media_client_destroy_async');
+  late final _bluez_media_client_destroy_async =
+      _bluez_media_client_destroy_asyncPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>, int)>();
+
   /// Releases data returned through any BluezMediaBuffer and resets its fields.
   void bluez_media_buffer_free(ffi.Pointer<BluezMediaBuffer> buffer) {
     return _bluez_media_buffer_free(buffer);

@@ -114,6 +114,7 @@ namespace {
 struct ClientRegistry {
   // Declared first so outstanding cleanup is joined after the map is destroyed.
   OperationQueue reaper;
+  OperationQueue connections;
   std::mutex mutex;
   std::unordered_map<uintptr_t, std::shared_ptr<BluezMediaClientContext>> clients;
   uintptr_t next_handle = 1;
@@ -121,6 +122,7 @@ struct ClientRegistry {
   uintptr_t next_fd_token = 1;
 
   ~ClientRegistry() {
+    connections.stop();
     reaper.stop();
     clients.clear();
     for (const auto& [token, fd] : fds) ::close(fd);
@@ -586,7 +588,7 @@ void* bluez_media_client_create(int64_t events_port) {
 
 void bluez_media_client_create_async(int64_t events_port, int64_t result_port) {
   try {
-    std::thread([events_port, result_port]() {
+    registry().connections.post([events_port, result_port]() {
       try {
         void* handle = register_context(create_context(events_port));
         Dart_CObject result;
@@ -604,7 +606,7 @@ void bluez_media_client_create_async(int64_t events_port, int64_t result_port) {
         post_error(result_port, "", "org.bluez.Error.Failed",
                    "Unknown C++ exception");
       }
-    }).detach();
+    });
   } catch (const std::exception& error) {
     post_error(result_port, "", "org.bluez.Error.Failed", error.what());
   } catch (...) {
@@ -628,6 +630,20 @@ void bluez_media_client_destroy(void* handle) {
     registry().reaper.post([ctx = std::move(ctx)]() mutable { ctx.reset(); });
   } catch (...) {
     // The retired context is destroyed locally if the reaper cannot start.
+  }
+}
+
+void bluez_media_client_destroy_async(void* handle, int64_t result_port) {
+  try {
+    auto ctx = retire_context(handle);
+    registry().reaper.post([ctx = std::move(ctx), result_port]() mutable {
+      ctx.reset();
+      post_status(result_port, "", BLUEZ_MEDIA_SUCCESS);
+    });
+  } catch (const std::exception& error) {
+    post_error(result_port, "", "org.bluez.Error.Failed", error.what());
+  } catch (...) {
+    post_error(result_port, "", "org.bluez.Error.Failed", "Native shutdown failed");
   }
 }
 
