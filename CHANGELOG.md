@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Kept one OBEX BIP cover-art session per device while media clients are active,
+  recreated sessions after `obexd` restarts, and requested the native image
+  before optional thumbnail or negotiated-format fallbacks.
 ## [0.3.0] - 2026-09-08
 
 ### Added

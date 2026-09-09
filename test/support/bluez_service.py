@@ -12,7 +12,16 @@ present = True
 invalidation_race = False
 fail_snapshot = False
 transfer_mode = 'active'
+session_present = True
+create_session_calls = 0
 registrations = {}
+
+def current_track():
+    track = {'Title': 'Blue Train'}
+    if transfer_mode != 'owned_native_image' or session_present:
+        track['ImgHandle'] = 'image'
+    return dbus.Dictionary(track, signature='sv')
+
 class Player(dbus.service.Object):
     @dbus.service.signal('org.freedesktop.DBus.Properties', signature='sa{sv}as')
     def PropertiesChanged(self, interface, changed, invalidated): pass
@@ -24,7 +33,7 @@ class Player(dbus.service.Object):
             self.PropertiesChanged(iface, {'Position': dbus.UInt32(42)}, [])
         return {'Status': status, 'Device': dbus.ObjectPath('/device'),
                 'ObexPort': dbus.UInt16(4097),
-                'Track': dbus.Dictionary({'ImgHandle': 'image'}, signature='sv')}
+                'Track': current_track()}
 
     @dbus.service.method(iface, in_signature='', out_signature='', async_callbacks=('reply','error'))
     def Play(self, reply, error):
@@ -57,9 +66,15 @@ class Root(dbus.service.Object):
             raise dbus.exceptions.DBusException('Snapshot denied',
                 name='org.freedesktop.DBus.Error.AccessDenied')
         if not present: return {}
-        snapshot = {'/player': {iface: {'Status': status}},
-                    '/session': {'org.bluez.obex.Session1': {
-                        'Destination': '00:11:22:33:44:55', 'PSM': dbus.UInt16(4097)}}}
+        snapshot = {'/player': {iface: {
+            'Status': status,
+            'Device': dbus.ObjectPath('/device'),
+            'ObexPort': dbus.UInt16(4097),
+            'Track': current_track(),
+        }}}
+        if session_present:
+            snapshot['/session'] = {'org.bluez.obex.Session1': {
+                'Destination': '00:11:22:33:44:55', 'PSM': dbus.UInt16(4097)}}
 
         status = 'playing'
         player.PropertiesChanged(iface, {'Status': status}, [])
@@ -69,10 +84,23 @@ class Root(dbus.service.Object):
     @dbus.service.method('review.Test', in_signature='s')
     def Step(self, command):
         global present, status, invalidation_race, fail_snapshot, transfer_mode
+        global session_present, create_session_calls
         if command == 'reset':
             present = True
             status = 'paused'
             transfer_mode = 'active'
+            session_present = True
+            create_session_calls = 0
+        elif command == 'owned_native_image':
+            transfer_mode = 'owned_native_image'
+            session_present = False
+        elif command == 'restart_obex':
+            session_present = False
+            bus.release_name('org.bluez.obex')
+            GLib.timeout_add(50, lambda: (bus.request_name('org.bluez.obex'), False)[1])
+        elif command == 'remove_obex_session':
+            session_present = False
+            self.InterfacesRemoved('/session', ['org.bluez.obex.Session1'])
         elif command == 'fast_complete_without_size':
             transfer_mode = 'fast_complete_without_size'
         elif command == 'image_error':
@@ -84,6 +112,12 @@ class Root(dbus.service.Object):
             player.PropertiesChanged(iface, {}, ['Status'])
         elif command == 'assert_cancelled':
             if transfer.cancelled == 0: raise RuntimeError('Transfer was not cancelled')
+        elif command == 'assert_session_created':
+            if create_session_calls != 1: raise RuntimeError('Session was not created exactly once')
+        elif command == 'assert_session_recreated':
+            if create_session_calls != 2: raise RuntimeError('Session was not recreated exactly once')
+        elif command == 'assert_removed_session_recreated':
+            if create_session_calls != 3: raise RuntimeError('Removed session was not recreated exactly once')
         elif command == 'invalidate': player.PropertiesChanged(iface, {}, ['Status'])
         elif command in ('restart', 'restart_present'):
             present = command == 'restart_present'
@@ -109,7 +143,39 @@ class Device(dbus.service.Object):
     @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='s', out_signature='a{sv}')
     def GetAll(self, interface): return {'Address': '00:11:22:33:44:55'}
 
+class ObexClient(dbus.service.Object):
+    @dbus.service.method('org.bluez.obex.Client1', in_signature='sa{sv}', out_signature='o')
+    def CreateSession(self, destination, args):
+        global session_present, create_session_calls
+        if (destination != '00:11:22:33:44:55' or
+                args.get('Target') != 'bip-avrcp' or int(args.get('PSM', 0)) != 4097):
+            raise dbus.exceptions.DBusException(
+                'Invalid session arguments', name='org.bluez.obex.Error.InvalidArguments')
+        session_present = True
+        create_session_calls += 1
+        player.PropertiesChanged(iface, {'Track': current_track()}, [])
+        return '/session'
+
+    @dbus.service.method('org.bluez.obex.Client1', in_signature='o')
+    def RemoveSession(self, path):
+        global session_present
+        session_present = False
+
 class Image(dbus.service.Object):
+    @dbus.service.method('org.bluez.obex.Image1', in_signature='ssa{sv}', out_signature='oa{sv}')
+    def Get(self, target, handle, description):
+        if transfer_mode == 'image_error':
+            raise dbus.exceptions.DBusException(
+                'Remote player rejected the image request',
+                name='org.bluez.obex.Error.NotSupported')
+        if transfer_mode != 'owned_native_image' or description:
+            raise dbus.exceptions.DBusException(
+                'Remote player rejected the image request',
+                name='org.bluez.obex.Error.NotSupported')
+        with open(target, 'wb') as file: file.write(b'cover-art')
+        transfer.cancelled = 0
+        return '/transfer', {}
+
     @dbus.service.method('org.bluez.obex.Image1', in_signature='ss', out_signature='oa{sv}')
     def GetThumbnail(self, target, handle):
         if transfer_mode == 'image_error':
@@ -132,7 +198,7 @@ class Transfer(dbus.service.Object):
     cancelled = 0
     @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='ss', out_signature='v')
     def Get(self, interface, prop):
-        if transfer_mode == 'fast_complete_without_size':
+        if transfer_mode in ('fast_complete_without_size', 'owned_native_image'):
             raise dbus.exceptions.DBusException(
                 'Transfer already removed',
                 name='org.freedesktop.DBus.Error.UnknownObject')
@@ -141,6 +207,7 @@ class Transfer(dbus.service.Object):
     def Cancel(self): self.cancelled += 1
 
 device = Device(bus, '/device')
+obex_client = ObexClient(bus, '/org/bluez/obex')
 image = Image(bus, '/session')
 transfer = Transfer(bus, '/transfer')
 root = Root(bus, '/')

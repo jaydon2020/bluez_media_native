@@ -67,6 +67,35 @@ void main() {
     }
     expect(descriptor.existsSync(), isFalse);
   }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
+  test('cover art creates a session and requests the native image', () async {
+    await step('owned_native_image');
+    final client = await BluezMediaClient.create();
+    final directory = await Directory.systemTemp.createTemp(
+      'bluez-cover-owned-session-test-',
+    );
+    final target = File('${directory.path}/art');
+    try {
+      for (
+        var i = 0;
+        i < 20 && client.players.single.imageHandle.isEmpty;
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+      expect(client.players.single.imageHandle, 'image');
+      await step('restart_obex');
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await step('assert_session_recreated');
+      await step('remove_obex_session');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await step('assert_removed_session_recreated');
+      await client.getPlayerCoverArt('/player', target.path);
+      expect(await target.readAsBytes(), 'cover-art'.codeUnits);
+    } finally {
+      await client.close();
+      await directory.delete(recursive: true);
+    }
+  }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
   test(
     'acquired transport owns a real fd and closes it exactly once',
     () async {

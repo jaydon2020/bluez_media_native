@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -12,9 +13,11 @@
 
 class CoverArtService {
  public:
-  explicit CoverArtService(sdbus::IConnection& system_bus);
+  explicit CoverArtService(sdbus::IConnection& system_bus,
+                           std::function<void()> reconnect = {});
   ~CoverArtService();
   void reset();
+  void reconnect_players(std::chrono::milliseconds timeout);
 
   void register_player(const std::string& player_path,
                        const sdbus::ObjectPath& device_path,
@@ -41,6 +44,7 @@ class CoverArtService {
   struct Player {
     sdbus::ObjectPath device_path;
     std::string device_address;
+    uint16_t obex_port{};
   };
 
   struct Session {
@@ -61,6 +65,9 @@ class CoverArtService {
 
   sdbus::IConnection& system_bus_;
   std::unique_ptr<sdbus::IConnection> session_bus_;
+  sdbus::Slot obex_owner_subscription_;
+  sdbus::Slot session_removed_subscription_;
+  std::function<void()> reconnect_;
   std::map<std::string, Player> players_;
   std::map<std::string, Session> sessions_;
   std::mutex mutex_;

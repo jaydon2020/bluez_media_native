@@ -16,9 +16,12 @@ class MediaObjectManager {
  public:
   using RemovedCallback =
       std::function<void(const std::string&, const std::string&)>;
+  using PlayerCallback = std::function<
+      void(const std::string&, const sdbus::ObjectPath&, uint16_t)>;
   MediaObjectManager(sdbus::IConnection& conn,
                      Dart_Port_DL events_port,
-                     RemovedCallback removed = {});
+                     RemovedCallback removed = {},
+                     PlayerCallback player = {});
   ~MediaObjectManager();
 
   void get_managed_objects();
@@ -44,6 +47,7 @@ class MediaObjectManager {
   sdbus::IConnection& conn_;
   Dart_Port_DL events_port_;
   RemovedCallback removed_;
+  PlayerCallback player_;
   std::unique_ptr<sdbus::IProxy> root_proxy_;
   sdbus::Slot owner_subscription_;
   uint64_t owner_generation_ = 0;

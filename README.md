@@ -132,7 +132,7 @@ await client.registerPlayer(
 
 ## Troubleshooting
 
-- **Cover art is unavailable**: Cover art requires an `ImgHandle` in `MediaPlayer1.Track` and a running BlueZ `obexd` with the experimental Image API enabled. `getCoverArt` reuses an existing matching session (e.g. from `mpris-proxy`) or temporarily creates one. The destination path must be absolute and not already exist.
+- **Cover art is unavailable**: Cover art requires a running BlueZ `obexd` with the experimental Image API enabled. While the client is active, it maintains a matching BIP session for each player so BlueZ can include `ImgHandle` in subsequent `MediaPlayer1.Track` updates; an already-playing track may not gain a handle until its metadata changes. `getCoverArt` requests the native image first and falls back to the thumbnail or a negotiated native description. The destination path must be absolute and not already exist.
 - **No media objects listed**: Media objects only appear when BlueZ exposes them for connected devices. Ensure your device is paired, connected, and playing audio (`bluetoothctl devices Connected`).
 - **`org.bluez.Error.NotReady`**: Your Bluetooth adapter may be powered off or blocked. Check with `bluetoothctl power on` or `sudo rfkill unblock bluetooth`.
 - **Permission errors**: Some BlueZ operations require local system bus permissions. Ensure your user has the correct D-Bus permissions or try running with elevated privileges during development.

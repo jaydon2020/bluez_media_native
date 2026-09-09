@@ -1,10 +1,12 @@
 #include "cover_art_service.h"
 
+#include <algorithm>
 #include <exception>
 #include <filesystem>
 #include <map>
 #include <stdexcept>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "bluez_media_native.h"
@@ -311,11 +313,62 @@ bool get_thumbnail(sdbus::IConnection& session_bus,
 
 }  // namespace
 
-CoverArtService::CoverArtService(sdbus::IConnection& system_bus)
-    : system_bus_(system_bus) {}
+CoverArtService::CoverArtService(sdbus::IConnection& system_bus,
+                                 std::function<void()> reconnect)
+    : system_bus_(system_bus),
+      session_bus_(sdbus::createSessionBusConnection()),
+      reconnect_(std::move(reconnect)) {
+  obex_owner_subscription_ = session_bus_->addMatch(
+      "type='signal',sender='org.freedesktop.DBus',"
+      "interface='org.freedesktop.DBus',member='NameOwnerChanged',"
+      "arg0='org.bluez.obex'",
+      [this](sdbus::Message message) {
+        std::string name, previous, current;
+        message >> name >> previous >> current;
+        {
+          const std::scoped_lock lock(mutex_);
+          sessions_.clear();
+        }
+        if (!current.empty() && reconnect_)
+          reconnect_();
+      },
+      sdbus::return_slot);
+  session_removed_subscription_ = session_bus_->addMatch(
+      "type='signal',sender='org.bluez.obex',"
+      "interface='org.freedesktop.DBus.ObjectManager',"
+      "member='InterfacesRemoved'",
+      [this](sdbus::Message message) {
+        sdbus::ObjectPath path;
+        std::vector<std::string> interfaces;
+        message >> path >> interfaces;
+        if (std::ranges::find(interfaces, kObexSessionIface) ==
+            interfaces.end()) {
+          return;
+        }
+        bool removed = false;
+        {
+          const std::scoped_lock lock(mutex_);
+          for (auto session = sessions_.begin(); session != sessions_.end();
+               ++session) {
+            if (session->second.object_path == path) {
+              sessions_.erase(session);
+              removed = true;
+              break;
+            }
+          }
+        }
+        if (removed && reconnect_)
+          reconnect_();
+      },
+      sdbus::return_slot);
+  session_bus_->enterEventLoopAsync();
+}
 
 CoverArtService::~CoverArtService() {
+  obex_owner_subscription_.reset();
+  session_removed_subscription_.reset();
   reset();
+  session_bus_->leaveEventLoop();
 }
 
 void CoverArtService::reset() {
@@ -334,10 +387,28 @@ void CoverArtService::reset() {
 }
 
 sdbus::IConnection& CoverArtService::session_bus() {
-  if (!session_bus_) {
-    session_bus_ = sdbus::createSessionBusConnection();
-  }
   return *session_bus_;
+}
+
+void CoverArtService::reconnect_players(std::chrono::milliseconds timeout) {
+  std::vector<std::tuple<std::string, sdbus::ObjectPath, uint16_t>> players;
+  {
+    const std::scoped_lock lock(mutex_);
+    players.reserve(players_.size());
+    for (const auto& [path, player] : players_) {
+      players.emplace_back(path, player.device_path, player.obex_port);
+    }
+  }
+  std::exception_ptr last_error;
+  for (const auto& [path, device_path, port] : players) {
+    try {
+      register_player(path, device_path, port, Clock::now() + timeout);
+    } catch (...) {
+      last_error = std::current_exception();
+    }
+  }
+  if (last_error)
+    std::rethrow_exception(last_error);
 }
 
 void CoverArtService::register_player(const std::string& player_path,
@@ -404,7 +475,7 @@ void CoverArtService::register_player(const std::string& player_path,
             .first;
   }
   ++session->second.users;
-  players_.emplace(player_path, Player{device_path, device_address});
+  players_.emplace(player_path, Player{device_path, device_address, obex_port});
 }
 
 void CoverArtService::unregister_player(
@@ -544,6 +615,17 @@ int CoverArtService::get_impl(const std::string& object_path,
     try {
       auto image = sdbus::createProxy(bus, sdbus::ServiceName{kObexService},
                                       session_path);
+
+      try {
+        if (get_image(bus, *image, target_file, source.image_handle, {},
+                      deadline)) {
+          partial.complete = true;
+          return BLUEZ_MEDIA_SUCCESS;
+        }
+      } catch (const sdbus::Error&) {
+        last_dbus_error = std::current_exception();
+      }
+      remove_partial_file(target_file);
 
       try {
         if (get_thumbnail(bus, *image, target_file, source.image_handle,

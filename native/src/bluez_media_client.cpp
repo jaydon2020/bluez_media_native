@@ -234,8 +234,18 @@ std::shared_ptr<BluezMediaClientContext> create_context(int64_t events_port) {
   auto ctx = std::make_shared<BluezMediaClientContext>();
   ctx->conn = sdbus::createSystemBusConnection();
   ctx->client = std::make_unique<MediaClient>(*ctx->conn);
-  ctx->cover_art = std::make_unique<CoverArtService>(*ctx->conn);
   auto* context = ctx.get();
+  ctx->cover_art = std::make_unique<CoverArtService>(*ctx->conn, [context]() {
+    context->cover_operations.post([context]() {
+      try {
+        context->cover_art->reconnect_players(std::chrono::seconds{15});
+      } catch (const std::exception& error) {
+        log_exception("bluez_media cover art reconnect", error);
+      } catch (...) {
+        fprintf(stderr, "bluez_media cover art reconnect: unknown exception\n");
+      }
+    });
+  });
   ctx->object_manager = std::make_unique<MediaObjectManager>(
       *ctx->conn, events_port,
       [context](const std::string& path, const std::string& interface_name) {
@@ -248,6 +258,22 @@ std::shared_ptr<BluezMediaClientContext> create_context(int64_t events_port) {
             context->cover_operations.post([context, path]() {
               context->cover_art->unregister_player(path);
             });
+          }
+        });
+      },
+      [context](const std::string& path, const sdbus::ObjectPath& device_path,
+                uint16_t obex_port) {
+        context->cover_operations.post([context, path, device_path,
+                                        obex_port]() {
+          try {
+            context->cover_art->register_player(
+                path, device_path, obex_port,
+                std::chrono::steady_clock::now() + std::chrono::seconds{15});
+          } catch (const std::exception& error) {
+            log_exception("bluez_media cover art session", error);
+          } catch (...) {
+            fprintf(stderr,
+                    "bluez_media cover art session: unknown exception\n");
           }
         });
       });

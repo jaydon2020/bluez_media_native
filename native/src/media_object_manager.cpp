@@ -48,8 +48,12 @@ void post_bytes(Dart_Port_DL port,
 
 MediaObjectManager::MediaObjectManager(sdbus::IConnection& conn,
                                        Dart_Port_DL events_port,
-                                       RemovedCallback removed)
-    : conn_(conn), events_port_(events_port), removed_(std::move(removed)) {
+                                       RemovedCallback removed,
+                                       PlayerCallback player)
+    : conn_(conn),
+      events_port_(events_port),
+      removed_(std::move(removed)),
+      player_(std::move(player)) {
   // Install a service-wide match before requesting the snapshot. Per-object
   // matches installed after discovery lose changes while GetManagedObjects
   // runs.
@@ -254,6 +258,10 @@ void MediaObjectManager::post_properties(const std::string& path,
   }
   const auto& properties = interface_it->second;
   if (interface_name == kPlayerIface) {
+    if (player_) {
+      player_(path, media_property<sdbus::ObjectPath>(properties, "Device"),
+              media_property<uint16_t>(properties, "ObexPort"));
+    }
     post_bytes(events_port_, 0x01,
                MediaPlayerProxy::encode_properties(path, properties));
   } else if (interface_name == kControlIface) {

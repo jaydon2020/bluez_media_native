@@ -75,12 +75,13 @@ dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp
 dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 props
 ```
 
-Cover art requires an `ImgHandle` in the current track metadata and a running
-BlueZ `obexd` with the experimental BIP Image API enabled. The target file must
-not already exist. `getCoverArt` reuses a matching `mpris-proxy` session or
-creates a temporary owned session. Use `getCoverArtFromExistingSession` when
-the application must never create an OBEX session. The caller owns the target
-file and its cache lifetime in either case.
+Cover art requires a running BlueZ `obexd` with the experimental BIP Image API
+enabled. The client maintains a matching BIP session while it is active so
+BlueZ can include `ImgHandle` in subsequent track metadata; an already-playing
+track may not gain a handle until its metadata changes. The target file must not
+already exist. Use `getCoverArtFromExistingSession` when the application must
+never create an OBEX session. The caller owns the target file and its cache
+lifetime in either case.
 
 ## MediaControl1 Volume And Connectivity
 
