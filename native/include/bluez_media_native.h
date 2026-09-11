@@ -12,6 +12,13 @@
 extern "C" {
 #endif
 
+/* Disable proactive cover-art sessions when another process owns cover art.
+ * Explicit get-cover-art calls still perform their requested operation. */
+BLUEZ_MEDIA_EXPORT void bluez_media_client_create_with_options_async(
+    int64_t events_port,
+    int64_t result_port,
+    uint8_t manage_cover_art);
+
 typedef struct BluezMediaPlayerRegistration {
   const char* adapter_path;
   const char* player_path;

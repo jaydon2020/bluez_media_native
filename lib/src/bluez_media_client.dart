@@ -104,14 +104,30 @@ class BluezMediaClient implements Finalizable {
   }
 
   /// Connects to BlueZ and returns after the initial object snapshot is ready.
-  static Future<BluezMediaClient> create() async {
+  /// Set [manageCoverArt] to false when an external MPRIS proxy owns cover art.
+  /// This disables proactive sessions; explicit download calls remain enabled.
+  static Future<BluezMediaClient> create({bool manageCoverArt = true}) async {
     _initializeNativeApi();
     final client = BluezMediaClient._();
     final resultPort = ReceivePort('bluez_media.connect');
-    _bindings.bluez_media_client_create_async(
-      client._eventsPort!.sendPort.nativePort,
-      resultPort.sendPort.nativePort,
-    );
+    try {
+      if (manageCoverArt) {
+        _bindings.bluez_media_client_create_async(
+          client._eventsPort!.sendPort.nativePort,
+          resultPort.sendPort.nativePort,
+        );
+      } else {
+        _bindings.bluez_media_client_create_with_options_async(
+          client._eventsPort!.sendPort.nativePort,
+          resultPort.sendPort.nativePort,
+          0,
+        );
+      }
+    } catch (_) {
+      resultPort.close();
+      client._eventsPort?.close();
+      rethrow;
+    }
     final result = await resultPort.first;
     resultPort.close();
     if (result case final int address when address != 0) {
