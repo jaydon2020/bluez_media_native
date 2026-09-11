@@ -617,17 +617,6 @@ int CoverArtService::get_impl(const std::string& object_path,
                                       session_path);
 
       try {
-        if (get_image(bus, *image, target_file, source.image_handle, {},
-                      deadline)) {
-          partial.complete = true;
-          return BLUEZ_MEDIA_SUCCESS;
-        }
-      } catch (const sdbus::Error&) {
-        last_dbus_error = std::current_exception();
-      }
-      remove_partial_file(target_file);
-
-      try {
         if (get_thumbnail(bus, *image, target_file, source.image_handle,
                           deadline)) {
           partial.complete = true;

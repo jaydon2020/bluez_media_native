@@ -18,7 +18,7 @@ registrations = {}
 
 def current_track():
     track = {'Title': 'Blue Train'}
-    if transfer_mode != 'owned_native_image' or session_present:
+    if transfer_mode != 'owned_thumbnail' or session_present:
         track['ImgHandle'] = 'image'
     return dbus.Dictionary(track, signature='sv')
 
@@ -91,8 +91,8 @@ class Root(dbus.service.Object):
             transfer_mode = 'active'
             session_present = True
             create_session_calls = 0
-        elif command == 'owned_native_image':
-            transfer_mode = 'owned_native_image'
+        elif command == 'owned_thumbnail':
+            transfer_mode = 'owned_thumbnail'
             session_present = False
         elif command == 'restart_obex':
             session_present = False
@@ -162,30 +162,16 @@ class ObexClient(dbus.service.Object):
         session_present = False
 
 class Image(dbus.service.Object):
-    @dbus.service.method('org.bluez.obex.Image1', in_signature='ssa{sv}', out_signature='oa{sv}')
-    def Get(self, target, handle, description):
-        if transfer_mode == 'image_error':
-            raise dbus.exceptions.DBusException(
-                'Remote player rejected the image request',
-                name='org.bluez.obex.Error.NotSupported')
-        if transfer_mode != 'owned_native_image' or description:
-            raise dbus.exceptions.DBusException(
-                'Remote player rejected the image request',
-                name='org.bluez.obex.Error.NotSupported')
-        with open(target, 'wb') as file: file.write(b'cover-art')
-        transfer.cancelled = 0
-        return '/transfer', {}
-
     @dbus.service.method('org.bluez.obex.Image1', in_signature='ss', out_signature='oa{sv}')
     def GetThumbnail(self, target, handle):
         if transfer_mode == 'image_error':
             raise dbus.exceptions.DBusException(
                 'Remote player rejected the image request',
                 name='org.bluez.obex.Error.NotSupported')
-        content = b'cover-art' if transfer_mode == 'fast_complete_without_size' else b'partial'
+        content = b'cover-art' if transfer_mode in ('fast_complete_without_size', 'owned_thumbnail') else b'partial'
         with open(target, 'wb') as file: file.write(content)
         transfer.cancelled = 0
-        properties = {} if transfer_mode == 'fast_complete_without_size' else {'Size': dbus.UInt64(100)}
+        properties = {} if transfer_mode in ('fast_complete_without_size', 'owned_thumbnail') else {'Size': dbus.UInt64(100)}
         return '/transfer', properties
 
     @dbus.service.method('org.bluez.obex.Image1', in_signature='s', out_signature='aa{sv}')
@@ -198,7 +184,7 @@ class Transfer(dbus.service.Object):
     cancelled = 0
     @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='ss', out_signature='v')
     def Get(self, interface, prop):
-        if transfer_mode in ('fast_complete_without_size', 'owned_native_image'):
+        if transfer_mode in ('fast_complete_without_size', 'owned_thumbnail'):
             raise dbus.exceptions.DBusException(
                 'Transfer already removed',
                 name='org.freedesktop.DBus.Error.UnknownObject')

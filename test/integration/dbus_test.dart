@@ -67,8 +67,8 @@ void main() {
     }
     expect(descriptor.existsSync(), isFalse);
   }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
-  test('cover art creates a session and requests the native image', () async {
-    await step('owned_native_image');
+  test('cover art creates a session and requests the thumbnail', () async {
+    await step('owned_thumbnail');
     final client = await BluezMediaClient.create();
     final directory = await Directory.systemTemp.createTemp(
       'bluez-cover-owned-session-test-',
