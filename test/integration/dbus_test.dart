@@ -109,6 +109,29 @@ void main() {
       await client.close();
     }
   }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
+  test(
+    'passive cover art reuses an existing session without owning it',
+    () async {
+      await step('fast_complete_without_size');
+      final client = await BluezMediaClient.create(manageCoverArt: false);
+      final directory = await Directory.systemTemp.createTemp(
+        'bluez-cover-existing-session-test-',
+      );
+      final target = File('${directory.path}/art');
+      try {
+        await client.getPlayerCoverArtFromExistingSession(
+          '/player',
+          target.path,
+        );
+        expect(await target.readAsBytes(), 'cover-art'.codeUnits);
+        await step('assert_no_session_created');
+      } finally {
+        await client.close();
+        await directory.delete(recursive: true);
+      }
+    },
+    skip: Platform.environment['BLUEZ_TEST_BUS'] != '1',
+  );
   test('MPRIS cover art is process-verified and matched by track', () async {
     final client = await BluezMediaClient.create(manageCoverArt: false);
     try {
