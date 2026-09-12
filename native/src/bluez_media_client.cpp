@@ -362,7 +362,9 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
       operation == BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART ||
       operation == BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART ||
       operation == BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION ||
-      operation == BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION;
+      operation == BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION ||
+      operation == BLUEZ_MEDIA_OP_MPRIS_PROXY_RUNNING ||
+      operation == BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART;
   auto& queue = cover_operation ? ctx->cover_operations : ctx->operations;
   queue.post([context, operation, object_path = std::move(object_path),
               argument = std::move(argument), value, result_port]() {
@@ -434,6 +436,15 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
         case BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION:
           status = context->cover_art->get_item_from_existing_session(
               object_path, argument, std::chrono::milliseconds{value});
+          break;
+        case BLUEZ_MEDIA_OP_MPRIS_PROXY_RUNNING:
+          payload = {
+              static_cast<uint8_t>(context->cover_art->mpris_proxy_running(
+                  std::chrono::milliseconds{value}))};
+          break;
+        case BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART:
+          payload = context->cover_art->get_mpris_cover_art(
+              object_path, std::chrono::milliseconds{value});
           break;
         case BLUEZ_MEDIA_OP_CONTROL_PLAY:
         case BLUEZ_MEDIA_OP_CONTROL_PAUSE:

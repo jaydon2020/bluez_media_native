@@ -1,5 +1,6 @@
 import dbus, dbus.service, dbus.mainloop.glib
 from gi.repository import GLib
+import ctypes
 import os
 
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
@@ -15,9 +16,15 @@ transfer_mode = 'active'
 session_present = True
 create_session_calls = 0
 registrations = {}
+mpris_name = 'org.mpris.MediaPlayer2.Test_Phone'
+mpris_name_owned = False
+mpris_art_path = os.path.join(os.path.dirname(os.environ['BLUEZ_TEST_READY']), 'mpris-art')
+
+def set_process_name(value):
+    ctypes.CDLL(None).prctl(15, value.encode(), 0, 0, 0)
 
 def current_track():
-    track = {'Title': 'Blue Train'}
+    track = {'Title': 'Blue Train', 'Item': dbus.ObjectPath('/item')}
     if transfer_mode != 'owned_thumbnail' or session_present:
         track['ImgHandle'] = 'image'
     return dbus.Dictionary(track, signature='sv')
@@ -84,13 +91,17 @@ class Root(dbus.service.Object):
     @dbus.service.method('review.Test', in_signature='s')
     def Step(self, command):
         global present, status, invalidation_race, fail_snapshot, transfer_mode
-        global session_present, create_session_calls
+        global session_present, create_session_calls, mpris_name_owned
         if command == 'reset':
             present = True
             status = 'paused'
             transfer_mode = 'active'
             session_present = True
             create_session_calls = 0
+            if mpris_name_owned:
+                bus.release_name(mpris_name)
+                mpris_name_owned = False
+            set_process_name('python3')
         elif command == 'owned_thumbnail':
             transfer_mode = 'owned_thumbnail'
             session_present = False
@@ -114,10 +125,18 @@ class Root(dbus.service.Object):
             if transfer.cancelled == 0: raise RuntimeError('Transfer was not cancelled')
         elif command == 'assert_session_created':
             if create_session_calls != 1: raise RuntimeError('Session was not created exactly once')
+        elif command == 'assert_no_session_created':
+            if create_session_calls != 0: raise RuntimeError('A cover-art session was unexpectedly created')
         elif command == 'assert_session_recreated':
             if create_session_calls != 2: raise RuntimeError('Session was not recreated exactly once')
         elif command == 'assert_removed_session_recreated':
             if create_session_calls != 3: raise RuntimeError('Removed session was not recreated exactly once')
+        elif command in ('publish_mpris', 'enable_mpris'):
+            with open(mpris_art_path, 'wb') as file: file.write(b'mpris-cover-art')
+            if command == 'enable_mpris': set_process_name('mpris-proxy')
+            if not mpris_name_owned:
+                bus.request_name(mpris_name)
+                mpris_name_owned = True
         elif command == 'invalidate': player.PropertiesChanged(iface, {}, ['Status'])
         elif command in ('restart', 'restart_present'):
             present = command == 'restart_present'
@@ -192,10 +211,22 @@ class Transfer(dbus.service.Object):
     @dbus.service.method('org.bluez.obex.Transfer1')
     def Cancel(self): self.cancelled += 1
 
+class MprisPlayer(dbus.service.Object):
+    @dbus.service.method('org.freedesktop.DBus.Properties', in_signature='ss', out_signature='v')
+    def Get(self, interface, prop):
+        if interface != 'org.mpris.MediaPlayer2.Player' or prop != 'Metadata':
+            raise dbus.exceptions.DBusException(
+                'Unknown property', name='org.freedesktop.DBus.Error.UnknownProperty')
+        return dbus.Dictionary({
+            'mpris:trackid': dbus.ObjectPath('/item'),
+            'mpris:artUrl': 'file://' + mpris_art_path,
+        }, signature='sv')
+
 device = Device(bus, '/device')
 obex_client = ObexClient(bus, '/org/bluez/obex')
 image = Image(bus, '/session')
 transfer = Transfer(bus, '/transfer')
+mpris_player = MprisPlayer(bus, '/org/mpris/MediaPlayer2')
 root = Root(bus, '/')
 player = Player(bus, '/player')
 open(os.environ['BLUEZ_TEST_READY'], 'w').close()

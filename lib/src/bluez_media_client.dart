@@ -546,6 +546,47 @@ class BluezMediaClient implements Finalizable {
     ).then((_) => targetFile);
   }
 
+  /// Returns whether this process can find a running BlueZ `mpris-proxy`.
+  Future<bool> isMprisProxyRunning({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    _validateTimeout(timeout);
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_MPRIS_PROXY_RUNNING,
+      value: timeout.inMilliseconds,
+    );
+    return payload![0] != 0;
+  }
+
+  /// Reads artwork already published by `mpris-proxy` for [itemPath].
+  ///
+  /// This never creates or reuses an OBEX session.
+  Future<Uint8List> getMprisCoverArt(
+    String itemPath, {
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    if (!itemPath.startsWith('/')) {
+      throw ArgumentError.value(itemPath, 'itemPath', 'Must be absolute.');
+    }
+    _validateTimeout(timeout);
+    return (await _callAsync(
+      BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART,
+      objectPath: itemPath,
+      value: timeout.inMilliseconds,
+    ))!;
+  }
+
+  void _validateTimeout(Duration timeout) {
+    _ensureOpen();
+    if (timeout <= Duration.zero || timeout.inMilliseconds > 0x7fffffff) {
+      throw ArgumentError.value(
+        timeout,
+        'timeout',
+        'Must fit a positive int32.',
+      );
+    }
+  }
+
   // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
 
   /// Acquires a descriptor owned by the returned result. Keep the result alive

@@ -96,6 +96,44 @@ void main() {
       await directory.delete(recursive: true);
     }
   }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
+  test('passive client never creates a cover-art session', () async {
+    await step('owned_thumbnail');
+    final client = await BluezMediaClient.create(manageCoverArt: false);
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await step('assert_no_session_created');
+      await step('restart_obex');
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await step('assert_no_session_created');
+    } finally {
+      await client.close();
+    }
+  }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
+  test('MPRIS cover art is process-verified and matched by track', () async {
+    final client = await BluezMediaClient.create(manageCoverArt: false);
+    try {
+      expect(await client.isMprisProxyRunning(), isFalse);
+      await step('publish_mpris');
+      expect(await client.isMprisProxyRunning(), isFalse);
+      await expectLater(
+        client.getMprisCoverArt('/item'),
+        throwsA(isA<BlueZMediaOperationException>()),
+      );
+      await step('enable_mpris');
+      expect(await client.isMprisProxyRunning(), isTrue);
+      expect(
+        await client.getMprisCoverArt('/item'),
+        'mpris-cover-art'.codeUnits,
+      );
+      await expectLater(
+        client.getMprisCoverArt('/another-item'),
+        throwsA(isA<BlueZMediaOperationException>()),
+      );
+      await step('assert_no_session_created');
+    } finally {
+      await client.close();
+    }
+  }, skip: Platform.environment['BLUEZ_TEST_BUS'] != '1');
   test(
     'acquired transport owns a real fd and closes it exactly once',
     () async {

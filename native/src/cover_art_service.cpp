@@ -1,10 +1,17 @@
 #include "cover_art_service.h"
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #include <algorithm>
+#include <cerrno>
 #include <exception>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <stdexcept>
+#include <string_view>
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -25,6 +32,13 @@ constexpr auto kObexImageIface = "org.bluez.obex.Image1";
 constexpr auto kObexSessionIface = "org.bluez.obex.Session1";
 constexpr auto kObexTransferIface = "org.bluez.obex.Transfer1";
 constexpr auto kObjectManagerIface = "org.freedesktop.DBus.ObjectManager";
+constexpr auto kDbusService = "org.freedesktop.DBus";
+constexpr auto kDbusPath = "/org/freedesktop/DBus";
+constexpr auto kDbusIface = "org.freedesktop.DBus";
+constexpr auto kMprisPrefix = "org.mpris.MediaPlayer2.";
+constexpr auto kMprisPath = "/org/mpris/MediaPlayer2";
+constexpr auto kMprisPlayerIface = "org.mpris.MediaPlayer2.Player";
+constexpr std::size_t kMaxMprisCoverArtSize = 16 * 1024 * 1024;
 
 using Properties = std::map<std::string, sdbus::Variant>;
 using Clock = std::chrono::steady_clock;
@@ -311,6 +325,95 @@ bool get_thumbnail(sdbus::IConnection& session_bus,
       media_property<uint64_t>(transfer_properties, "Size"), deadline);
 }
 
+std::vector<std::string> bus_names(sdbus::IConnection& bus, Deadline deadline) {
+  auto proxy = sdbus::createProxy(bus, sdbus::ServiceName{kDbusService},
+                                  sdbus::ObjectPath{kDbusPath});
+  std::vector<std::string> names;
+  proxy->callMethod("ListNames")
+      .onInterface(kDbusIface)
+      .withTimeout(remaining_timeout(deadline))
+      .storeResultsTo(names);
+  return names;
+}
+
+bool is_mpris_proxy_process(sdbus::IConnection& bus,
+                            const std::string& name,
+                            Deadline deadline) {
+  auto proxy = sdbus::createProxy(bus, sdbus::ServiceName{kDbusService},
+                                  sdbus::ObjectPath{kDbusPath});
+  uint32_t pid{};
+  proxy->callMethod("GetConnectionUnixProcessID")
+      .onInterface(kDbusIface)
+      .withArguments(name)
+      .withTimeout(remaining_timeout(deadline))
+      .storeResultsTo(pid);
+  const auto comm_path = "/proc/" + std::to_string(pid) + "/comm";
+  std::ifstream comm{comm_path};
+  if (!comm.is_open()) {
+    if (!std::filesystem::exists(comm_path)) {
+      return false;
+    }
+    throw std::runtime_error("Unable to verify MPRIS process identity");
+  }
+  std::string process_name;
+  return std::getline(comm, process_name) && process_name == "mpris-proxy";
+}
+
+Properties mpris_metadata(sdbus::IConnection& bus,
+                          const std::string& name,
+                          Deadline deadline) {
+  auto proxy = sdbus::createProxy(bus, sdbus::ServiceName{name},
+                                  sdbus::ObjectPath{kMprisPath});
+  sdbus::Variant metadata;
+  proxy->callMethod("Get")
+      .onInterface(kPropertiesIface)
+      .withArguments(std::string{kMprisPlayerIface}, std::string{"Metadata"})
+      .withTimeout(remaining_timeout(deadline))
+      .storeResultsTo(metadata);
+  return metadata.get<Properties>();
+}
+
+std::string local_file_path(const std::string& url) {
+  constexpr std::string_view prefix{"file://"};
+  if (!url.starts_with(prefix) || url.size() == prefix.size() ||
+      url[prefix.size()] != '/' ||
+      url.find_first_of("?#") != std::string::npos) {
+    throw std::runtime_error("MPRIS cover art is not a local file URL");
+  }
+  return url.substr(prefix.size());
+}
+
+std::vector<uint8_t> read_cover_art_file(const std::string& path) {
+  const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (fd < 0) {
+    throw std::runtime_error("Unable to open MPRIS cover art");
+  }
+  struct CloseFile {
+    int fd;
+    ~CloseFile() { close(fd); }
+  } close_file{fd};
+
+  struct stat info{};
+  if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0 ||
+      static_cast<uint64_t>(info.st_size) > kMaxMprisCoverArtSize) {
+    throw std::runtime_error("Invalid MPRIS cover-art file");
+  }
+
+  std::vector<uint8_t> result(static_cast<std::size_t>(info.st_size));
+  std::size_t offset = 0;
+  while (offset < result.size()) {
+    const auto count = read(fd, result.data() + offset, result.size() - offset);
+    if (count > 0) {
+      offset += static_cast<std::size_t>(count);
+    } else if (count == 0) {
+      throw std::runtime_error("MPRIS cover-art file changed while reading");
+    } else if (errno != EINTR) {
+      throw std::runtime_error("Unable to read MPRIS cover art");
+    }
+  }
+  return result;
+}
+
 }  // namespace
 
 CoverArtService::CoverArtService(sdbus::IConnection& system_bus,
@@ -388,6 +491,53 @@ void CoverArtService::reset() {
 
 sdbus::IConnection& CoverArtService::session_bus() {
   return *session_bus_;
+}
+
+bool CoverArtService::mpris_proxy_running(std::chrono::milliseconds timeout) {
+  const auto deadline = Clock::now() + timeout;
+  for (const auto& name : bus_names(*session_bus_, deadline)) {
+    try {
+      if (is_mpris_proxy_process(*session_bus_, name, deadline)) {
+        return true;
+      }
+    } catch (const sdbus::Error&) {
+      // Connections may disappear while ListNames is being inspected.
+    }
+  }
+  return false;
+}
+
+std::vector<uint8_t> CoverArtService::get_mpris_cover_art(
+    const std::string& item_path,
+    std::chrono::milliseconds timeout) {
+  if (item_path.empty() || item_path.front() != '/') {
+    throw std::invalid_argument("A BlueZ media item path is required");
+  }
+  const auto deadline = Clock::now() + timeout;
+  for (const auto& name : bus_names(*session_bus_, deadline)) {
+    if (!name.starts_with(kMprisPrefix)) {
+      continue;
+    }
+    try {
+      if (!is_mpris_proxy_process(*session_bus_, name, deadline)) {
+        continue;
+      }
+      const auto metadata = mpris_metadata(*session_bus_, name, deadline);
+      const auto track = metadata.find("mpris:trackid");
+      const auto art = metadata.find("mpris:artUrl");
+      if (track == metadata.end() || art == metadata.end() ||
+          !track->second.containsValueOfType<sdbus::ObjectPath>() ||
+          !art->second.containsValueOfType<std::string>() ||
+          track->second.get<sdbus::ObjectPath>() != item_path) {
+        continue;
+      }
+      return read_cover_art_file(
+          local_file_path(art->second.get<std::string>()));
+    } catch (const sdbus::Error&) {
+      // A player may disappear or update while it is being inspected.
+    }
+  }
+  throw std::runtime_error("MPRIS cover art is not ready for " + item_path);
 }
 
 void CoverArtService::reconnect_players(std::chrono::milliseconds timeout) {
