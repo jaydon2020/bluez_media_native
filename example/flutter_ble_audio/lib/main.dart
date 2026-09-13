@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 void main() {
   const value = String.fromEnvironment(
     'BLUEZ_MEDIA_COVER_ART',
-    defaultValue: 'mpris',
+    defaultValue: 'native',
   );
   final useMprisProxy = switch (value) {
     'native' => false,

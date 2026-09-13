@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Made cover-art selection explicit in the command-line example, defaulted the
-  Flutter example to MPRIS, and removed the four-second MPRIS retry delay and
-  cross-mode OBEX fallback.
+  Flutter example to native OBEX, and removed the four-second MPRIS retry delay
+  and cross-mode OBEX fallback.
 - Preserved animated GIF bytes published through MPRIS for Flutter's built-in
   animated image decoder.
 - Stopped refresh events from reading incomplete MPRIS files and report an
