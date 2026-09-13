@@ -7,15 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-13
+
 ### Added
-- Existing-session-only cover art API for reusing sessions such as the one
-  owned by `mpris-proxy` while leaving file caching to the caller.
+- Explicit native or MPRIS cover-art mode selection with no runtime detection
+  or cross-mode fallback.
+- Session reuse cover art APIs (`getCoverArtFromExistingSession`) to reuse
+  existing OBEX sessions (e.g. `mpris-proxy`) without managing session
+  lifetimes.
+- MediaItem cover art acquisition across native C ABI and Dart APIs (`BluezMediaItem.getCoverArt()`).
+- Animated GIF artwork support through unchanged MPRIS image bytes and
+  Flutter's built-in decoder.
+- Relocated compiled consumer integration tests verifying native asset resolution.
+- Additional CI test suites for private D-Bus daemon resynchronization and isolate shutdown.
 
 ### Fixed
-- Revalidate stale OBEX sessions, reject partial fast-finished transfers, and
-  contain native exceptions and acquired file descriptors at the Dart FFI boundary.
-- Keep Dart proxy and Flutter example state synchronized across refreshes,
-  object lifecycle events, widget disposal, and overlapping cover art requests.
+- **OBEX Cover Art Service**:
+  - Maintained one OBEX BIP cover-art session per device while media clients are active, including recovery after `obexd` restarts.
+  - Accepted completed downloads without a total-size header and preserved their final OBEX errors.
+  - Reused a matching BIP session when available and created an owned session
+    only when needed, including recovery after stale sessions.
+  - Requested `Image1.GetThumbnail` first for broad phone compatibility and
+    retained native-image retrieval as a fallback.
+  - Reported empty MPRIS proxy files as not ready instead of invalid artwork.
+- **Native Library Resolution**:
+  - Made the bundled native library reliably discoverable by compiled consumer applications.
+- **State & Concurrency**:
+  - Prevented delayed asynchronous property refreshes from overwriting newer proxy states.
+  - Replayed concurrent updates after D-Bus daemon resynchronization.
+  - Retried property invalidations superseded by fast-arriving D-Bus property events.
+  - Discarded late updates and rejected calls on disposed media proxies (`BluezMediaPlayer`, `BluezMediaControl`, `BluezMediaFolder`, `BluezMediaItem`, `BluezMediaTransport`).
+  - Kept proxy objects and Flutter example UI synchronized across refreshes, object lifecycle events, widget disposal, and overlapping requests.
+- **Resource Management & Native Lifecycles**:
+  - Automatically reclaimed native client instances and handles on Dart isolate shutdown.
+  - Contained exceptions and handle validation inside descriptor C ABI entry points.
+  - Ensured native client teardown completes cleanly during asynchronous `close()` operations.
+  - Retained transport file descriptors and transport owners until explicit cleanup by Dart code.
+  - Cleaned up timed-out cover-art downloads and temporary directories on client exit.
+  - Revalidated stale OBEX sessions and rejected incomplete fast-finished transfers.
+- **D-Bus & BlueZ Integration**:
+  - Preserved original D-Bus error details when client creation fails.
+  - Maintained D-Bus event loop responsiveness during remote operation calls.
+  - Invalidated cached media states and resynchronized automatically when BlueZ service ownership changes.
+  - Subscribed to property change signals prior to ObjectManager discovery to prevent missing early updates.
+  - Serialized synchronous and raw asynchronous player registrations.
+  - Supplied required MPRIS properties during local player registration and stopped advertising unimplemented local playback capabilities.
+- **Build & Packaging**:
+  - Fixed bundled library resolution via native asset ID mapping.
+  - Optimized CMake target rules to compile native implementation objects only once.
+  - Validated native build targets and tracked vendored input files in build hooks.
+
+### Refactored
+- Streamlined cover art loading and retry logic in the Flutter demo application.
+- Defaulted the Flutter example to native OBEX, removed premature MPRIS reads
+  during refresh, and reported cover-art transfer duration.
+- Kept unchecked native decoding routines out of production builds.
+- Protected decoded media property snapshots against inadvertent caller mutation.
 
 ## [0.2.0] - 2026-08-20
 

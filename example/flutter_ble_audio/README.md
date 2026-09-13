@@ -3,10 +3,16 @@
 Flutter Linux example for controlling Bluetooth audio media through
 `bluez_media_native`.
 
-Run from this directory:
+Run from this directory. Native OBEX is the default cover-art backend:
 
 ```sh
 flutter run -d linux
+```
+
+Or use artwork already published by a running `mpris-proxy`:
+
+```sh
+flutter run -d linux --dart-define=BLUEZ_MEDIA_COVER_ART=mpris
 ```
 
 The app discovers BlueZ media objects, groups them by Bluetooth device, and
@@ -18,9 +24,12 @@ when BlueZ reports support for them.
 When the current `MediaPlayer1.Track` includes an experimental `ImgHandle`, the
 image button downloads and displays cover art through BlueZ OBEX BIP. This
 requires a running `obexd` with its experimental Image API enabled.
-The example reuses a matching `mpris-proxy` session when available and creates
-a temporary owned session otherwise. Its temporary image directory is the
-example's cache and is removed when replaced or when the app closes.
+Native mode reuses an existing matching BIP session or creates one as needed,
+then requests a thumbnail directly. MPRIS mode only reads the file published by
+`mpris-proxy`; it never falls back to OBEX or reads incomplete artwork during
+refresh. The app does not detect or switch between modes. Flutter displays
+animated GIF artwork without conversion. Its temporary image directory is
+removed when replaced or when the app closes.
 
 The UI follows ObjectManager property signals and provides an explicit refresh
 action for properties that BlueZ does not signal.

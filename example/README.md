@@ -47,7 +47,9 @@ dart run example/register_player.dart \
 Send standard player commands to a remote `org.bluez.MediaPlayer1` object:
 
 ```dart
-final client = await BluezMediaClient.create();
+final client = await BluezMediaClient.create(
+  coverArtMode: BluezMediaCoverArtMode.disabled,
+);
 final player = client.player('/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0');
 
 await player.play();
@@ -75,12 +77,35 @@ dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp
 dart run example/player_control.dart /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/avrcp/player0 props
 ```
 
-Cover art requires an `ImgHandle` in the current track metadata and a running
-BlueZ `obexd` with the experimental BIP Image API enabled. The target file must
-not already exist. `getCoverArt` reuses a matching `mpris-proxy` session or
-creates a temporary owned session. Use `getCoverArtFromExistingSession` when
+Cover art requires a running BlueZ `obexd` with the experimental BIP Image API
+enabled. The client reuses an existing matching BIP session or creates one while
+it is active so BlueZ can include `ImgHandle` in subsequent track metadata; an
+already-playing track may not gain a handle until its metadata changes. The
+target file must not already exist. Use `getCoverArtFromExistingSession` when
 the application must never create an OBEX session. The caller owns the target
 file and its cache lifetime in either case.
+
+## Media Cover Art
+
+Save cover art from the playing player by explicitly selecting one backend. If
+no player is present in the initial BlueZ snapshot, the command waits up to 20
+seconds for one. The modes never detect or fall back to each other.
+
+```sh
+dart run example/media_cover_art.dart /tmp/cover-art.jpg --mpris
+```
+
+To download directly through native OBEX, including by reusing an existing
+matching session:
+
+```sh
+dart run example/media_cover_art.dart /tmp/cover-art.jpg --native
+```
+
+MPRIS artwork keeps its original bytes, including animated GIF data supported
+by Flutter's built-in decoder. Native AVRCP thumbnails are normally static.
+
+Use `--player /org/bluez/.../player0` to select a specific player.
 
 ## MediaControl1 Volume And Connectivity
 
