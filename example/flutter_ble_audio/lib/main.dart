@@ -53,6 +53,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   String? _coverArtPath;
   var _coverArtLoading = false;
   var _coverArtPending = false;
+  var _useMprisProxy = true;
   double? _transportVolumeDraft;
 
   List<_MediaDevice> get _devices =>
@@ -97,7 +98,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
 
     try {
       final existingClient = _client;
-      final client = existingClient ?? await BluezMediaClient.create();
+      final client = existingClient ?? await _createClient();
       if (!mounted) {
         if (existingClient == null) await client.close();
         return;
@@ -184,6 +185,22 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
         _loading = false;
       });
     }
+  }
+
+  Future<BluezMediaClient> _createClient() async {
+    final passive = await BluezMediaClient.create(manageCoverArt: false);
+    var proxyRunning = true;
+    try {
+      proxyRunning = await passive.isMprisProxyRunning();
+    } catch (error) {
+      debugPrint(
+        'Unable to detect mpris-proxy; keeping cover art passive: $error',
+      );
+    }
+    _useMprisProxy = proxyRunning;
+    if (proxyRunning) return passive;
+    await passive.close();
+    return BluezMediaClient.create();
   }
 
   StreamSubscription<List<String>> _playerSubscription(
@@ -303,7 +320,13 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
 
   Future<void> _getCoverArt() async {
     final player = _selectedDevice?.player;
-    if (player == null || player.imageHandle.isEmpty) {
+    final client = _client;
+    final itemPath = _trackValue(player, const ['Item', 'mpris:trackid']);
+    if (player == null ||
+        client == null ||
+        (_useMprisProxy
+            ? itemPath.isEmpty && player.imageHandle.isEmpty
+            : player.imageHandle.isEmpty)) {
       return;
     }
     if (_coverArtLoading) {
@@ -320,7 +343,29 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     try {
       directory = await io.Directory.systemTemp.createTemp('bluez_media_art_');
       final target = '${directory.path}/cover-art';
-      final path = await player.getCoverArt(target);
+      if (_useMprisProxy) {
+        var publishedByProxy = false;
+        for (var attempt = 0; itemPath.isNotEmpty && attempt < 2; attempt++) {
+          try {
+            final bytes = await client.getMprisCoverArt(itemPath);
+            await io.File(target).writeAsBytes(bytes, flush: true);
+            publishedByProxy = true;
+            break;
+          } catch (_) {
+            await Future<void>.delayed(const Duration(seconds: 2));
+            if (!mounted || trackKey != _trackKey(player)) {
+              await directory.delete(recursive: true);
+              return;
+            }
+          }
+        }
+        if (!publishedByProxy) {
+          await player.getCoverArtFromExistingSession(target);
+        }
+      } else {
+        await player.getCoverArt(target);
+      }
+      final path = target;
       if (!mounted ||
           player != _selectedDevice?.player ||
           trackKey != _trackKey(player)) {
@@ -437,6 +482,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
           onShuffleChanged: _setShuffleMode,
           coverArtPath: coverArtPath,
           coverArtLoading: _coverArtLoading,
+          useMprisProxy: _useMprisProxy,
           onGetCoverArt: _getCoverArt,
           onListFolderItems: _listFolderItems,
           transportVolumeDraft: _transportVolumeDraft,
@@ -641,6 +687,7 @@ class _ProxyPanels extends StatelessWidget {
   final ValueChanged<String> onShuffleChanged;
   final String? coverArtPath;
   final bool coverArtLoading;
+  final bool useMprisProxy;
   final VoidCallback onGetCoverArt;
   final ValueChanged<BluezMediaFolder> onListFolderItems;
   final double? transportVolumeDraft;
@@ -657,6 +704,7 @@ class _ProxyPanels extends StatelessWidget {
     required this.onShuffleChanged,
     required this.coverArtPath,
     required this.coverArtLoading,
+    required this.useMprisProxy,
     required this.onGetCoverArt,
     required this.onListFolderItems,
     required this.transportVolumeDraft,
@@ -698,6 +746,7 @@ class _ProxyPanels extends StatelessWidget {
           onShuffleChanged: onShuffleChanged,
           coverArtPath: coverArtPath,
           coverArtLoading: coverArtLoading,
+          useMprisProxy: useMprisProxy,
           onGetCoverArt: onGetCoverArt,
           onCommand: onCommand,
         ),
@@ -734,6 +783,7 @@ class _PlayerProxyPanel extends StatelessWidget {
   final ValueChanged<String> onShuffleChanged;
   final String? coverArtPath;
   final bool coverArtLoading;
+  final bool useMprisProxy;
   final VoidCallback onGetCoverArt;
   final void Function(String label, FutureOr<void> Function() command)
   onCommand;
@@ -744,6 +794,7 @@ class _PlayerProxyPanel extends StatelessWidget {
     required this.onShuffleChanged,
     required this.coverArtPath,
     required this.coverArtLoading,
+    required this.useMprisProxy,
     required this.onGetCoverArt,
     required this.onCommand,
   });
@@ -753,6 +804,7 @@ class _PlayerProxyPanel extends StatelessWidget {
     final title = _trackValue(player, const ['Title', 'xesam:title']);
     final artist = _trackValue(player, const ['Artist', 'xesam:artist']);
     final album = _trackValue(player, const ['Album', 'xesam:album']);
+    final itemPath = _trackValue(player, const ['Item', 'mpris:trackid']);
     return _SectionPanel(
       icon: Icons.queue_music,
       title: 'MediaPlayer1',
@@ -836,9 +888,11 @@ class _PlayerProxyPanel extends StatelessWidget {
               _MetricTile(
                 icon: Icons.image_outlined,
                 label: 'Cover art',
-                value: (player?.obexPort ?? 0) > 0
-                    ? 'available'
-                    : 'unavailable',
+                value: player == null
+                    ? 'unavailable'
+                    : useMprisProxy
+                    ? 'MPRIS + existing-session fallback'
+                    : 'native OBEX',
               ),
             ],
           ),
@@ -907,7 +961,11 @@ class _PlayerProxyPanel extends StatelessWidget {
                     : 'Get cover art',
                 icon: Icons.image_outlined,
                 onPressed:
-                    player == null || player!.obexPort == 0 || coverArtLoading
+                    player == null ||
+                        coverArtLoading ||
+                        (useMprisProxy
+                            ? itemPath.isEmpty && player!.imageHandle.isEmpty
+                            : player!.imageHandle.isEmpty)
                     ? null
                     : onGetCoverArt,
               ),
@@ -1064,132 +1122,14 @@ class _FolderRow extends StatelessWidget {
   }
 }
 
-class _ItemRow extends StatefulWidget {
+class _ItemRow extends StatelessWidget {
   final BluezMediaItem item;
   final void Function(String label, FutureOr<void> Function() command)
   onCommand;
 
   const _ItemRow({super.key, required this.item, required this.onCommand});
-
-  @override
-  State<_ItemRow> createState() => _ItemRowState();
-}
-
-class _ItemRowState extends State<_ItemRow> {
-  io.Directory? _coverArtDirectory;
-  String? _coverArtPath;
-  String? _coverArtImageHandle;
-  String? _attemptedImageHandle;
-  int _coverArtRequest = 0;
-  var _coverArtLoading = false;
-  var _coverArtFailed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    unawaited(_checkCoverArt());
-  }
-
-  @override
-  void didUpdateWidget(_ItemRow oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.item.imageHandle != _attemptedImageHandle) {
-      unawaited(_checkCoverArt());
-    }
-  }
-
-  @override
-  void dispose() {
-    ++_coverArtRequest;
-    final directory = _coverArtDirectory;
-    _coverArtDirectory = null;
-    if (directory != null) {
-      unawaited(_deleteDirectory(directory));
-    }
-    super.dispose();
-  }
-
-  Future<void> _deleteDirectory(io.Directory directory) async {
-    try {
-      await directory.delete(recursive: true);
-    } catch (_) {}
-  }
-
-  Future<void> _checkCoverArt() async {
-    final imageHandle = widget.item.imageHandle;
-    _attemptedImageHandle = imageHandle;
-    final request = ++_coverArtRequest;
-    if (imageHandle.isEmpty) {
-      final previous = _coverArtDirectory;
-      if (mounted) {
-        setState(() {
-          _coverArtDirectory = null;
-          _coverArtPath = null;
-          _coverArtImageHandle = null;
-          _coverArtLoading = false;
-          _coverArtFailed = false;
-        });
-      }
-      if (previous != null) {
-        await _deleteDirectory(previous);
-      }
-      return;
-    }
-
-    if (imageHandle == _coverArtImageHandle) return;
-
-    setState(() {
-      _coverArtLoading = true;
-      _coverArtFailed = false;
-    });
-    io.Directory? directory;
-    try {
-      directory = await io.Directory.systemTemp.createTemp(
-        'bluez_media_item_art_',
-      );
-      final target = '${directory.path}/cover-art';
-      final path = await widget.item.getCoverArt(target);
-
-      if (!mounted ||
-          request != _coverArtRequest ||
-          widget.item.imageHandle != imageHandle) {
-        await _deleteDirectory(directory);
-        return;
-      }
-
-      final previous = _coverArtDirectory;
-      setState(() {
-        _coverArtDirectory = directory;
-        _coverArtPath = path;
-        _coverArtImageHandle = imageHandle;
-        _coverArtLoading = false;
-        _coverArtFailed = false;
-      });
-
-      if (previous != null) {
-        await _deleteDirectory(previous);
-      }
-    } catch (_) {
-      if (directory != null) {
-        await _deleteDirectory(directory);
-      }
-      if (mounted && request == _coverArtRequest) {
-        setState(() {
-          _coverArtLoading = false;
-          _coverArtFailed = true;
-        });
-      }
-    }
-  }
-
-  void _retryCoverArt() {
-    _attemptedImageHandle = null;
-    unawaited(_checkCoverArt());
-  }
-
   @override
   Widget build(BuildContext context) {
-    final item = widget.item;
     final depth = _itemDepth(item);
     final title = item.name.isEmpty ? _objectName(item.objectPath) : item.name;
     final subtitleParts = [
@@ -1214,46 +1154,13 @@ class _ItemRowState extends State<_ItemRow> {
             children: [
               Row(
                 children: [
-                  if (_coverArtLoading) ...[
-                    const SizedBox.square(
-                      dimension: 32,
-                      child: Padding(
-                        padding: EdgeInsets.all(6),
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  ] else if (_coverArtPath != null) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.file(
-                        io.File(_coverArtPath!),
-                        width: 32,
-                        height: 32,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) =>
-                            const Icon(Icons.broken_image, size: 32),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  ] else if (_coverArtFailed) ...[
-                    Tooltip(
-                      message: 'Download cover art',
-                      child: IconButton(
-                        onPressed: _retryCoverArt,
-                        icon: const Icon(Icons.refresh),
-                      ),
-                    ),
-                    const SizedBox(width: 2),
-                  ] else ...[
-                    Icon(
-                      item.type == 'folder' || item.folderType.isNotEmpty
-                          ? Icons.folder
-                          : Icons.music_note,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 10),
-                  ],
+                  Icon(
+                    item.type == 'folder' || item.folderType.isNotEmpty
+                        ? Icons.folder
+                        : Icons.music_note,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1279,7 +1186,7 @@ class _ItemRowState extends State<_ItemRow> {
                     tooltip: 'Play item',
                     icon: Icons.play_arrow,
                     onPressed: item.playable
-                        ? () => widget.onCommand('MediaItem1 Play', item.play)
+                        ? () => onCommand('MediaItem1 Play', item.play)
                         : null,
                   ),
                   const SizedBox(width: 6),
@@ -1287,7 +1194,7 @@ class _ItemRowState extends State<_ItemRow> {
                     tooltip: 'Add to now playing',
                     icon: Icons.playlist_add,
                     onPressed: item.playable
-                        ? () => widget.onCommand(
+                        ? () => onCommand(
                             'MediaItem1 Add to now playing',
                             item.addToNowPlaying,
                           )
@@ -2043,6 +1950,7 @@ String _trackKey(BluezMediaPlayer? player) => [
   _trackValue(player, const ['Artist', 'xesam:artist']),
   _trackValue(player, const ['Album', 'xesam:album']),
   _trackValue(player, const ['Duration', 'mpris:length']),
+  _trackValue(player, const ['Item', 'mpris:trackid']),
   player?.imageHandle ?? '',
 ].join('\u001f');
 

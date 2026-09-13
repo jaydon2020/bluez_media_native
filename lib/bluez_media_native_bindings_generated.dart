@@ -26,6 +26,28 @@ class BluezMediaNativeBindings {
     ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
   ) : _lookup = lookup;
 
+  /// Disable proactive cover-art sessions when another process owns cover art.
+  /// Explicit get-cover-art calls still perform their requested operation.
+  void bluez_media_client_create_with_options_async(
+    int events_port,
+    int result_port,
+    int manage_cover_art,
+  ) {
+    return _bluez_media_client_create_with_options_async(
+      events_port,
+      result_port,
+      manage_cover_art,
+    );
+  }
+
+  late final _bluez_media_client_create_with_options_asyncPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Int64, ffi.Uint8)>
+      >('bluez_media_client_create_with_options_async');
+  late final _bluez_media_client_create_with_options_async =
+      _bluez_media_client_create_with_options_asyncPtr
+          .asFunction<void Function(int, int, int)>();
+
   /// Absolute loader path of this native asset; borrowed for the library lifetime.
   ffi.Pointer<ffi.Char> bluez_media_library_path() {
     return _bluez_media_library_path();
@@ -1249,3 +1271,7 @@ const int BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION = 35;
 const int BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART = 36;
 
 const int BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION = 37;
+
+const int BLUEZ_MEDIA_OP_MPRIS_PROXY_RUNNING = 38;
+
+const int BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART = 39;

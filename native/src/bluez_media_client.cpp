@@ -230,7 +230,9 @@ bool prepare_buffer(BluezMediaBuffer* out) {
   return true;
 }
 
-std::shared_ptr<BluezMediaClientContext> create_context(int64_t events_port) {
+std::shared_ptr<BluezMediaClientContext> create_context(
+    int64_t events_port,
+    bool manage_cover_art = true) {
   auto ctx = std::make_shared<BluezMediaClientContext>();
   ctx->conn = sdbus::createSystemBusConnection();
   ctx->client = std::make_unique<MediaClient>(*ctx->conn);
@@ -261,8 +263,11 @@ std::shared_ptr<BluezMediaClientContext> create_context(int64_t events_port) {
           }
         });
       },
-      [context](const std::string& path, const sdbus::ObjectPath& device_path,
-                uint16_t obex_port) {
+      [context, manage_cover_art](const std::string& path,
+                                  const sdbus::ObjectPath& device_path,
+                                  uint16_t obex_port) {
+        if (!manage_cover_art)
+          return;
         context->cover_operations.post([context, path, device_path,
                                         obex_port]() {
           try {
@@ -357,7 +362,9 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
       operation == BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART ||
       operation == BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART ||
       operation == BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION ||
-      operation == BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION;
+      operation == BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION ||
+      operation == BLUEZ_MEDIA_OP_MPRIS_PROXY_RUNNING ||
+      operation == BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART;
   auto& queue = cover_operation ? ctx->cover_operations : ctx->operations;
   queue.post([context, operation, object_path = std::move(object_path),
               argument = std::move(argument), value, result_port]() {
@@ -429,6 +436,15 @@ void dispatch_async(const std::shared_ptr<BluezMediaClientContext>& ctx,
         case BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION:
           status = context->cover_art->get_item_from_existing_session(
               object_path, argument, std::chrono::milliseconds{value});
+          break;
+        case BLUEZ_MEDIA_OP_MPRIS_PROXY_RUNNING:
+          payload = {
+              static_cast<uint8_t>(context->cover_art->mpris_proxy_running(
+                  std::chrono::milliseconds{value}))};
+          break;
+        case BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART:
+          payload = context->cover_art->get_mpris_cover_art(
+              object_path, std::chrono::milliseconds{value});
           break;
         case BLUEZ_MEDIA_OP_CONTROL_PLAY:
         case BLUEZ_MEDIA_OP_CONTROL_PAUSE:
@@ -623,10 +639,17 @@ void* bluez_media_client_create(int64_t events_port) {
 }
 
 void bluez_media_client_create_async(int64_t events_port, int64_t result_port) {
+  bluez_media_client_create_with_options_async(events_port, result_port, 1);
+}
+
+void bluez_media_client_create_with_options_async(int64_t events_port,
+                                                  int64_t result_port,
+                                                  uint8_t manage_cover_art) {
   try {
-    registry().connections.post([events_port, result_port]() {
+    registry().connections.post([events_port, result_port, manage_cover_art]() {
       try {
-        void* handle = register_context(create_context(events_port));
+        void* handle = register_context(
+            create_context(events_port, manage_cover_art != 0));
         Dart_CObject result;
         result.type = Dart_CObject_kInt64;
         result.value.as_int64 =

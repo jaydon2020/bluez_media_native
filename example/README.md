@@ -83,6 +83,25 @@ already exist. Use `getCoverArtFromExistingSession` when the application must
 never create an OBEX session. The caller owns the target file and its cache
 lifetime in either case.
 
+## Media Cover Art
+
+Save cover art from the playing player. MPRIS is used by default; if its file
+is unavailable, the example requests a thumbnail through the proxy's existing
+OBEX session without taking ownership of that session. If no player is present
+in the initial BlueZ snapshot, the command waits up to 20 seconds for one.
+
+```sh
+dart run example/media_cover_art.dart /tmp/cover-art.jpg
+```
+
+When `mpris-proxy` is disabled, allow the example to own the OBEX session:
+
+```sh
+dart run example/media_cover_art.dart /tmp/cover-art.jpg --native
+```
+
+Use `--player /org/bluez/.../player0` to select a specific player.
+
 ## MediaControl1 Volume And Connectivity
 
 Use the deprecated but still available `org.bluez.MediaControl1` controller

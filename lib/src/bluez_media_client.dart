@@ -104,14 +104,30 @@ class BluezMediaClient implements Finalizable {
   }
 
   /// Connects to BlueZ and returns after the initial object snapshot is ready.
-  static Future<BluezMediaClient> create() async {
+  /// Set [manageCoverArt] to false when an external MPRIS proxy owns cover art.
+  /// This disables proactive sessions; explicit download calls remain enabled.
+  static Future<BluezMediaClient> create({bool manageCoverArt = true}) async {
     _initializeNativeApi();
     final client = BluezMediaClient._();
     final resultPort = ReceivePort('bluez_media.connect');
-    _bindings.bluez_media_client_create_async(
-      client._eventsPort!.sendPort.nativePort,
-      resultPort.sendPort.nativePort,
-    );
+    try {
+      if (manageCoverArt) {
+        _bindings.bluez_media_client_create_async(
+          client._eventsPort!.sendPort.nativePort,
+          resultPort.sendPort.nativePort,
+        );
+      } else {
+        _bindings.bluez_media_client_create_with_options_async(
+          client._eventsPort!.sendPort.nativePort,
+          resultPort.sendPort.nativePort,
+          0,
+        );
+      }
+    } catch (_) {
+      resultPort.close();
+      client._eventsPort?.close();
+      rethrow;
+    }
     final result = await resultPort.first;
     resultPort.close();
     if (result case final int address when address != 0) {
@@ -528,6 +544,47 @@ class BluezMediaClient implements Finalizable {
       argument: targetFile,
       value: timeout.inMilliseconds,
     ).then((_) => targetFile);
+  }
+
+  /// Returns whether this process can find a running BlueZ `mpris-proxy`.
+  Future<bool> isMprisProxyRunning({
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    _validateTimeout(timeout);
+    final payload = await _callAsync(
+      BLUEZ_MEDIA_OP_MPRIS_PROXY_RUNNING,
+      value: timeout.inMilliseconds,
+    );
+    return payload![0] != 0;
+  }
+
+  /// Reads artwork already published by `mpris-proxy` for [itemPath].
+  ///
+  /// This never creates or reuses an OBEX session.
+  Future<Uint8List> getMprisCoverArt(
+    String itemPath, {
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    if (!itemPath.startsWith('/')) {
+      throw ArgumentError.value(itemPath, 'itemPath', 'Must be absolute.');
+    }
+    _validateTimeout(timeout);
+    return (await _callAsync(
+      BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART,
+      objectPath: itemPath,
+      value: timeout.inMilliseconds,
+    ))!;
+  }
+
+  void _validateTimeout(Duration timeout) {
+    _ensureOpen();
+    if (timeout <= Duration.zero || timeout.inMilliseconds > 0x7fffffff) {
+      throw ArgumentError.value(
+        timeout,
+        'timeout',
+        'Must fit a positive int32.',
+      );
+    }
   }
 
   // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
