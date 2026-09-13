@@ -85,13 +85,13 @@ lifetime in either case.
 
 ## Media Cover Art
 
-Save cover art from the playing player. MPRIS is used by default; if its file
-is unavailable, the example requests a thumbnail through the proxy's existing
-OBEX session without taking ownership of that session. If no player is present
-in the initial BlueZ snapshot, the command waits up to 20 seconds for one.
+Save cover art from the playing player by selecting exactly one backend. The
+example does not detect `mpris-proxy`, retry, or fall back between MPRIS and
+native OBEX. If no player is present in the initial BlueZ snapshot, the command
+waits up to 20 seconds for one.
 
 ```sh
-dart run example/media_cover_art.dart /tmp/cover-art.jpg
+dart run example/media_cover_art.dart /tmp/cover-art.jpg --mpris
 ```
 
 When `mpris-proxy` is disabled, allow the example to own the OBEX session:
@@ -99,6 +99,9 @@ When `mpris-proxy` is disabled, allow the example to own the OBEX session:
 ```sh
 dart run example/media_cover_art.dart /tmp/cover-art.jpg --native
 ```
+
+MPRIS artwork keeps its original bytes. Flutter displays animated GIF artwork
+automatically; native AVRCP thumbnail downloads are normally static images.
 
 Use `--player /org/bluez/.../player0` to select a specific player.
 

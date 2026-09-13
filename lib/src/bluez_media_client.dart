@@ -546,18 +546,6 @@ class BluezMediaClient implements Finalizable {
     ).then((_) => targetFile);
   }
 
-  /// Returns whether this process can find a running BlueZ `mpris-proxy`.
-  Future<bool> isMprisProxyRunning({
-    Duration timeout = const Duration(seconds: 2),
-  }) async {
-    _validateTimeout(timeout);
-    final payload = await _callAsync(
-      BLUEZ_MEDIA_OP_MPRIS_PROXY_RUNNING,
-      value: timeout.inMilliseconds,
-    );
-    return payload![0] != 0;
-  }
-
   /// Reads artwork already published by `mpris-proxy` for [itemPath].
   ///
   /// This never creates or reuses an OBEX session.

@@ -38,7 +38,6 @@ class CoverArtService {
   int get_item_from_existing_session(const std::string& object_path,
                                      const std::string& target_file,
                                      std::chrono::milliseconds timeout);
-  bool mpris_proxy_running(std::chrono::milliseconds timeout);
   std::vector<uint8_t> get_mpris_cover_art(const std::string& item_path,
                                            std::chrono::milliseconds timeout);
 

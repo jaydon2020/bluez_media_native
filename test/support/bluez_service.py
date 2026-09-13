@@ -132,7 +132,10 @@ class Root(dbus.service.Object):
         elif command == 'assert_removed_session_recreated':
             if create_session_calls != 3: raise RuntimeError('Removed session was not recreated exactly once')
         elif command in ('publish_mpris', 'enable_mpris'):
-            with open(mpris_art_path, 'wb') as file: file.write(b'mpris-cover-art')
+            gif = bytes.fromhex(
+                '47494638396101000100800000000000ffffff21f9040100000000'
+                '2c00000000010001000002024401003b')
+            with open(mpris_art_path, 'wb') as file: file.write(gif)
             if command == 'enable_mpris': set_process_name('mpris-proxy')
             if not mpris_name_owned:
                 bus.request_name(mpris_name)

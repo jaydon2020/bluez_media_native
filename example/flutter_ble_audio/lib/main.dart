@@ -4,10 +4,22 @@ import 'dart:io' as io;
 import 'package:bluez_media_native/bluez_media_native.dart';
 import 'package:flutter/material.dart';
 
-void main() => runApp(const BluezMediaExample());
+void main() {
+  const value = String.fromEnvironment('BLUEZ_MEDIA_COVER_ART');
+  final useMprisProxy = switch (value) {
+    'native' => false,
+    'mpris' => true,
+    _ => throw ArgumentError(
+      'Set --dart-define=BLUEZ_MEDIA_COVER_ART=native or mpris.',
+    ),
+  };
+  runApp(BluezMediaExample(useMprisProxy: useMprisProxy));
+}
 
 class BluezMediaExample extends StatelessWidget {
-  const BluezMediaExample({super.key});
+  final bool useMprisProxy;
+
+  const BluezMediaExample({required this.useMprisProxy, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -22,13 +34,15 @@ class BluezMediaExample extends StatelessWidget {
         useMaterial3: true,
         visualDensity: VisualDensity.compact,
       ),
-      home: const MediaProxyDashboard(),
+      home: MediaProxyDashboard(useMprisProxy: useMprisProxy),
     );
   }
 }
 
 class MediaProxyDashboard extends StatefulWidget {
-  const MediaProxyDashboard({super.key});
+  final bool useMprisProxy;
+
+  const MediaProxyDashboard({required this.useMprisProxy, super.key});
 
   @override
   State<MediaProxyDashboard> createState() => _MediaProxyDashboardState();
@@ -53,7 +67,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   String? _coverArtPath;
   var _coverArtLoading = false;
   var _coverArtPending = false;
-  var _useMprisProxy = true;
+  bool get _useMprisProxy => widget.useMprisProxy;
   double? _transportVolumeDraft;
 
   List<_MediaDevice> get _devices =>
@@ -188,19 +202,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   }
 
   Future<BluezMediaClient> _createClient() async {
-    final passive = await BluezMediaClient.create(manageCoverArt: false);
-    var proxyRunning = true;
-    try {
-      proxyRunning = await passive.isMprisProxyRunning();
-    } catch (error) {
-      debugPrint(
-        'Unable to detect mpris-proxy; keeping cover art passive: $error',
-      );
-    }
-    _useMprisProxy = proxyRunning;
-    if (proxyRunning) return passive;
-    await passive.close();
-    return BluezMediaClient.create();
+    return BluezMediaClient.create(manageCoverArt: !_useMprisProxy);
   }
 
   StreamSubscription<List<String>> _playerSubscription(
@@ -324,9 +326,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     final itemPath = _trackValue(player, const ['Item', 'mpris:trackid']);
     if (player == null ||
         client == null ||
-        (_useMprisProxy
-            ? itemPath.isEmpty && player.imageHandle.isEmpty
-            : player.imageHandle.isEmpty)) {
+        (_useMprisProxy ? itemPath.isEmpty : player.imageHandle.isEmpty)) {
       return;
     }
     if (_coverArtLoading) {
@@ -339,29 +339,14 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       return;
     }
     setState(() => _coverArtLoading = true);
+    final elapsed = Stopwatch()..start();
     io.Directory? directory;
     try {
       directory = await io.Directory.systemTemp.createTemp('bluez_media_art_');
       final target = '${directory.path}/cover-art';
       if (_useMprisProxy) {
-        var publishedByProxy = false;
-        for (var attempt = 0; itemPath.isNotEmpty && attempt < 2; attempt++) {
-          try {
-            final bytes = await client.getMprisCoverArt(itemPath);
-            await io.File(target).writeAsBytes(bytes, flush: true);
-            publishedByProxy = true;
-            break;
-          } catch (_) {
-            await Future<void>.delayed(const Duration(seconds: 2));
-            if (!mounted || trackKey != _trackKey(player)) {
-              await directory.delete(recursive: true);
-              return;
-            }
-          }
-        }
-        if (!publishedByProxy) {
-          await player.getCoverArtFromExistingSession(target);
-        }
+        final bytes = await client.getMprisCoverArt(itemPath);
+        await io.File(target).writeAsBytes(bytes, flush: true);
       } else {
         await player.getCoverArt(target);
       }
@@ -381,7 +366,9 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       if (previous != null) {
         unawaited(_deleteDirectory(previous));
       }
-      _pushMessage('Saved cover art to $path');
+      _pushMessage(
+        'Saved cover art to $path in ${elapsed.elapsedMilliseconds} ms',
+      );
     } catch (error) {
       if (directory != null) {
         unawaited(_deleteDirectory(directory));
@@ -891,7 +878,7 @@ class _PlayerProxyPanel extends StatelessWidget {
                 value: player == null
                     ? 'unavailable'
                     : useMprisProxy
-                    ? 'MPRIS + existing-session fallback'
+                    ? 'MPRIS'
                     : 'native OBEX',
               ),
             ],
@@ -964,7 +951,7 @@ class _PlayerProxyPanel extends StatelessWidget {
                     player == null ||
                         coverArtLoading ||
                         (useMprisProxy
-                            ? itemPath.isEmpty && player!.imageHandle.isEmpty
+                            ? itemPath.isEmpty
                             : player!.imageHandle.isEmpty)
                     ? null
                     : onGetCoverArt,

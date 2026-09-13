@@ -493,20 +493,6 @@ sdbus::IConnection& CoverArtService::session_bus() {
   return *session_bus_;
 }
 
-bool CoverArtService::mpris_proxy_running(std::chrono::milliseconds timeout) {
-  const auto deadline = Clock::now() + timeout;
-  for (const auto& name : bus_names(*session_bus_, deadline)) {
-    try {
-      if (is_mpris_proxy_process(*session_bus_, name, deadline)) {
-        return true;
-      }
-    } catch (const sdbus::Error&) {
-      // Connections may disappear while ListNames is being inspected.
-    }
-  }
-  return false;
-}
-
 std::vector<uint8_t> CoverArtService::get_mpris_cover_art(
     const std::string& item_path,
     std::chrono::milliseconds timeout) {

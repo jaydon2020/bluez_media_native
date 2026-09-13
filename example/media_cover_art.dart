@@ -11,9 +11,10 @@ Future<void> main(List<String> args) async {
     printUsage('dart run example/media_cover_art.dart <target_file>', [
       'Options:',
       '  --player <object_path>  Use a specific MediaPlayer1 object.',
-      '  --native                Own an OBEX session instead of using MPRIS.',
+      '  --native                Use an application-owned OBEX session.',
+      '  --mpris                 Read artwork published by mpris-proxy.',
       '',
-      'MPRIS is the default. Use --native only when mpris-proxy is disabled.',
+      'Choose exactly one cover-art mode.',
     ]);
     return;
   }
@@ -24,10 +25,15 @@ Future<void> main(List<String> args) async {
   }
 
   final native = hasFlag(args, '--native');
+  final mpris = hasFlag(args, '--mpris');
+  if (native == mpris) {
+    throw const FormatException('Choose exactly one of --native or --mpris.');
+  }
   final requestedPlayer = hasFlag(args, '--player')
       ? optionValue(args, '--player')
       : null;
   final client = await BluezMediaClient.create(manageCoverArt: native);
+  final elapsed = Stopwatch()..start();
   try {
     final player = requestedPlayer == null
         ? await _currentPlayer(client)
@@ -38,25 +44,16 @@ Future<void> main(List<String> args) async {
       await player.getCoverArt(target.path);
     } else {
       final itemPath = _trackValue(player, 'Item');
-      if (itemPath.isEmpty && player.imageHandle.isEmpty) {
-        throw StateError('The current track has no cover-art metadata.');
+      if (itemPath.isEmpty) {
+        throw StateError('The current track has no MPRIS item path.');
       }
-      List<int>? bytes;
-      for (var attempt = 0; itemPath.isNotEmpty && attempt < 2; attempt++) {
-        try {
-          bytes = await client.getMprisCoverArt(itemPath);
-          break;
-        } catch (_) {
-          await Future<void>.delayed(const Duration(seconds: 2));
-        }
-      }
-      if (bytes != null) {
-        await target.writeAsBytes(bytes, flush: true);
-      } else {
-        await player.getCoverArtFromExistingSession(target.path);
-      }
+      final bytes = await client.getMprisCoverArt(itemPath);
+      await target.writeAsBytes(bytes, flush: true);
     }
-    print('Saved cover art to ${target.path}.');
+    print(
+      'Saved cover art to ${target.path} in '
+      '${elapsed.elapsedMilliseconds} ms.',
+    );
   } finally {
     await client.close();
   }
