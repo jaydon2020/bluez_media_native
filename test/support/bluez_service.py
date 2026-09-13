@@ -140,6 +140,8 @@ class Root(dbus.service.Object):
             if not mpris_name_owned:
                 bus.request_name(mpris_name)
                 mpris_name_owned = True
+        elif command == 'empty_mpris':
+            open(mpris_art_path, 'wb').close()
         elif command == 'invalidate': player.PropertiesChanged(iface, {}, ['Status'])
         elif command in ('restart', 'restart_present'):
             present = command == 'restart_present'

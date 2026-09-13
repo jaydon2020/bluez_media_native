@@ -213,7 +213,8 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   ) {
     return player.propertiesChanged.listen((changed) {
       _refreshView();
-      if (changed.contains('Track') &&
+      if (!_useMprisProxy &&
+          changed.contains('Track') &&
           player == _selectedDevice?.player &&
           player.imageHandle.isNotEmpty) {
         unawaited(_getCoverArt());
@@ -242,7 +243,8 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     try {
       await device?.player?.refresh();
       final player = device?.player;
-      if (player != null &&
+      if (!_useMprisProxy &&
+          player != null &&
           player == _selectedDevice?.player &&
           player.imageHandle.isNotEmpty) {
         unawaited(_getCoverArt());

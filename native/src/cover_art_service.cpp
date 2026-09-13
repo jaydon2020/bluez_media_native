@@ -394,9 +394,12 @@ std::vector<uint8_t> read_cover_art_file(const std::string& path) {
   } close_file{fd};
 
   struct stat info{};
-  if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0 ||
+  if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size < 0 ||
       static_cast<uint64_t>(info.st_size) > kMaxMprisCoverArtSize) {
     throw std::runtime_error("Invalid MPRIS cover-art file");
+  }
+  if (info.st_size == 0) {
+    throw std::runtime_error("MPRIS cover art is not ready");
   }
 
   std::vector<uint8_t> result(static_cast<std::size_t>(info.st_size));

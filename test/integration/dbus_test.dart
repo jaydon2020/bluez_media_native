@@ -143,6 +143,17 @@ void main() {
       await step('enable_mpris');
       final artwork = await client.getMprisCoverArt('/item');
       expect(artwork.take(6), 'GIF89a'.codeUnits);
+      await step('empty_mpris');
+      await expectLater(
+        client.getMprisCoverArt('/item'),
+        throwsA(
+          isA<BlueZMediaOperationException>().having(
+            (error) => error.message,
+            'message',
+            'MPRIS cover art is not ready',
+          ),
+        ),
+      );
       await expectLater(
         client.getMprisCoverArt('/another-item'),
         throwsA(isA<BlueZMediaOperationException>()),
