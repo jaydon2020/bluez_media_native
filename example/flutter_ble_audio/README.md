@@ -3,16 +3,16 @@
 Flutter Linux example for controlling Bluetooth audio media through
 `bluez_media_native`.
 
-Run from this directory with one manually selected cover-art backend:
+Run from this directory. MPRIS is the default cover-art backend:
+
+```sh
+flutter run -d linux
+```
+
+To use application-owned native OBEX instead:
 
 ```sh
 flutter run -d linux --dart-define=BLUEZ_MEDIA_COVER_ART=native
-```
-
-Or read artwork published by a running `mpris-proxy`:
-
-```sh
-flutter run -d linux --dart-define=BLUEZ_MEDIA_COVER_ART=mpris
 ```
 
 The app discovers BlueZ media objects, groups them by Bluetooth device, and

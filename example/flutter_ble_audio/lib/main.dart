@@ -5,7 +5,10 @@ import 'package:bluez_media_native/bluez_media_native.dart';
 import 'package:flutter/material.dart';
 
 void main() {
-  const value = String.fromEnvironment('BLUEZ_MEDIA_COVER_ART');
+  const value = String.fromEnvironment(
+    'BLUEZ_MEDIA_COVER_ART',
+    defaultValue: 'mpris',
+  );
   final useMprisProxy = switch (value) {
     'native' => false,
     'mpris' => true,
