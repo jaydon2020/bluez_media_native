@@ -1,10 +1,21 @@
 import 'dart:async';
+import 'dart:ffi';
 
 import 'bluez_media_client.dart';
 
 /// A proxy for a remote `org.bluez.MediaTransport1` object.
 class BluezMediaTransport {
   final BluezMediaClient _client;
+  bool _disposed = false;
+  int _revision = 0;
+
+  bool get isDisposed => _disposed;
+
+  BluezMediaClient get _activeClient {
+    if (_disposed) throw StateError('Media proxy has been disposed.');
+    return _client;
+  }
+
   final String objectPath;
   BlueZMediaTransportProps? _props;
   final _propertiesChangedCtrl = StreamController<List<String>>.broadcast();
@@ -26,7 +37,7 @@ class BluezMediaTransport {
   int get codec => props.codec;
 
   /// The configuration of the transport.
-  List<int> get configuration => props.configuration;
+  List<int> get configuration => List.unmodifiable(props.configuration);
 
   /// The state of the transport.
   String get state => props.state;
@@ -49,7 +60,7 @@ class BluezMediaTransport {
   /// Sets the volume of the transport.
   /// Automatically refreshes the property snapshot after the update.
   Future<void> setVolume(int value) async {
-    await _client.transportSetVolume(objectPath, value);
+    await _activeClient.transportSetVolume(objectPath, value);
     await refresh();
   }
 
@@ -57,7 +68,7 @@ class BluezMediaTransport {
   Future<BluezMediaAcquiredTransport> acquire() async {
     return BluezMediaAcquiredTransport._(
       _client,
-      await _client.transportAcquire(objectPath),
+      await _activeClient.transportAcquire(objectPath),
     );
   }
 
@@ -65,19 +76,25 @@ class BluezMediaTransport {
   Future<BluezMediaAcquiredTransport> tryAcquire() async {
     return BluezMediaAcquiredTransport._(
       _client,
-      await _client.transportTryAcquire(objectPath),
+      await _activeClient.transportTryAcquire(objectPath),
     );
   }
 
   /// Releases the transport file descriptor.
-  Future<void> release() => _client.transportRelease(objectPath);
+  Future<void> release() => _activeClient.transportRelease(objectPath);
 
   /// Fetches the latest properties from BlueZ and updates the snapshot.
   Future<void> refresh() async {
-    updateProps(await _client.getMediaTransportProperties(objectPath));
+    final revision = ++_revision;
+    final properties = await _activeClient.getMediaTransportProperties(
+      objectPath,
+    );
+    if (revision == _revision) updateProps(properties);
   }
 
   void updateProps(BlueZMediaTransportProps props) {
+    if (_disposed) return;
+    _revision++;
     final changed = <String>[];
     final previous = _props ?? BlueZMediaTransportProps(objectPath: objectPath);
     if (props.device != previous.device) changed.add('Device');
@@ -97,6 +114,8 @@ class BluezMediaTransport {
   }
 
   void dispose() {
+    if (_disposed) return;
+    _disposed = true;
     _propertiesChangedCtrl.close();
   }
 }
@@ -110,19 +129,12 @@ bool _sameInts(List<int> left, List<int> right) {
 }
 
 /// Owns a duplicated MediaTransport file descriptor.
-class BluezMediaAcquiredTransport {
-  static final Finalizer<_FdCleanup> _finalizer = Finalizer((cleanup) {
-    cleanup.close();
-  });
-
+class BluezMediaAcquiredTransport implements Finalizable {
   final BluezMediaClient _client;
   final BlueZMediaAcquireResult _result;
-  final Object _finalizerDetach = Object();
   bool _closed = false;
 
-  BluezMediaAcquiredTransport._(this._client, this._result) {
-    _finalizer.attach(this, _FdCleanup(_client, fd), detach: _finalizerDetach);
-  }
+  BluezMediaAcquiredTransport._(this._client, this._result);
 
   String get transportPath => _result.transportPath;
   int get fd => _result.fd;
@@ -133,23 +145,9 @@ class BluezMediaAcquiredTransport {
   /// Closes the duplicated file descriptor returned by BlueZ.
   void close() {
     if (_closed) return;
-    _client.closeFileDescriptor(fd);
+    // Linux releases the descriptor even on most close errors. Never retry a
+    // numeric fd that another thread may already have reused.
     _closed = true;
-    _finalizer.detach(_finalizerDetach);
-  }
-}
-
-class _FdCleanup {
-  final BluezMediaClient client;
-  final int fd;
-
-  const _FdCleanup(this.client, this.fd);
-
-  void close() {
-    try {
-      client.closeFileDescriptor(fd);
-    } on Object {
-      // Finalizers are a best-effort fallback; explicit close reports errors.
-    }
+    _client.closeFileDescriptor(fd);
   }
 }

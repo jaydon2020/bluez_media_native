@@ -2,6 +2,7 @@
 #include "media_client.h"
 #include "bluez_media_types.h"
 #include "local_player.h"
+#include "media_utils.h"
 
 MediaClient::MediaClient(sdbus::IConnection& conn) : conn_(conn) {
   try {
@@ -22,6 +23,7 @@ int MediaClient::register_player(
   if (registration.browsable != 0 || registration.searchable != 0) {
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
+  const std::scoped_lock lock(players_mutex_);
   std::string player_path{registration.player_path};
   if (players_.contains(player_path)) {
     return BLUEZ_MEDIA_ERROR_ALREADY_EXISTS;
@@ -37,6 +39,7 @@ int MediaClient::unregister_player(const char* adapter_path,
   if (adapter_path == nullptr || player_path == nullptr) {
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
+  const std::scoped_lock lock(players_mutex_);
   std::string player{player_path};
   auto it = players_.find(player);
   if (it == players_.end() || it->second->adapter_path() != adapter_path) {
@@ -52,9 +55,9 @@ std::vector<uint8_t> MediaClient::get_managed_objects() const {
   std::map<sdbus::ObjectPath,
            std::map<std::string, std::map<std::string, sdbus::Variant>>>
       objects;
-  proxy->callMethod("GetManagedObjects")
-      .onInterface("org.freedesktop.DBus.ObjectManager")
-      .storeResultsTo(objects);
+  media_call(*proxy, "org.freedesktop.DBus.ObjectManager",
+             "GetManagedObjects") >>
+      objects;
 
   BlueZMediaManagedObjects result;
   for (const auto& [path, interfaces] : objects) {
@@ -78,4 +81,15 @@ std::vector<uint8_t> MediaClient::get_managed_objects() const {
     }
   }
   return glz::encode(result);
+}
+
+void MediaClient::invalidate_registrations(const std::string& adapter_path) {
+  const std::scoped_lock lock(players_mutex_);
+  for (auto it = players_.begin(); it != players_.end();) {
+    if (adapter_path.empty() || it->second->adapter_path() == adapter_path) {
+      it->second->abandon();
+      it = players_.erase(it);
+    } else
+      ++it;
+  }
 }

@@ -12,6 +12,13 @@
 extern "C" {
 #endif
 
+/* Set manage_cover_art to 1 only for explicitly selected native OBEX mode.
+ * Zero leaves cover-art session ownership disabled. */
+BLUEZ_MEDIA_EXPORT void bluez_media_client_create_with_options_async(
+    int64_t events_port,
+    int64_t result_port,
+    uint8_t manage_cover_art);
+
 typedef struct BluezMediaPlayerRegistration {
   const char* adapter_path;
   const char* player_path;
@@ -71,6 +78,7 @@ typedef int32_t BluezMediaOperation;
 #define BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION 35
 #define BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART 36
 #define BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION 37
+#define BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART 39
 
 typedef struct BluezMediaBuffer {
   uint8_t* data;
@@ -79,11 +87,18 @@ typedef struct BluezMediaBuffer {
 
 // ── Client lifecycle ────────────────────────────────────────────────────────
 
+// Absolute loader path of this native asset; borrowed for the library lifetime.
+BLUEZ_MEDIA_EXPORT const char* bluez_media_library_path(void);
 BLUEZ_MEDIA_EXPORT void bluez_media_init(void* dart_api_dl_data);
+/* Creates a client with cover-art session ownership disabled. */
 BLUEZ_MEDIA_EXPORT void* bluez_media_client_create(int64_t events_port);
+/* Creates a client with cover-art session ownership disabled. */
 BLUEZ_MEDIA_EXPORT void bluez_media_client_create_async(int64_t events_port,
                                                         int64_t result_port);
 BLUEZ_MEDIA_EXPORT void bluez_media_client_destroy(void* handle);
+// Retire immediately; report completion after queued calls and cleanup finish.
+BLUEZ_MEDIA_EXPORT void bluez_media_client_destroy_async(void* handle,
+                                                         int64_t result_port);
 // Releases data returned through any BluezMediaBuffer and resets its fields.
 BLUEZ_MEDIA_EXPORT void bluez_media_buffer_free(BluezMediaBuffer* buffer);
 BLUEZ_MEDIA_EXPORT void bluez_media_call_async(void* handle,
@@ -227,6 +242,11 @@ BLUEZ_MEDIA_EXPORT int bluez_media_transport_set_volume(
     void* handle,
     const char* transport_path,
     uint16_t volume);
+// Async Acquire returns tag 0x11, a uint64 little-endian ownership token,
+// then the usual acquire payload. Install cleanup before claiming the token.
+// Unclaimed tokens are closed with their client. Release is idempotent.
+BLUEZ_MEDIA_EXPORT int bluez_media_claim_fd(void* handle, uint64_t token);
+BLUEZ_MEDIA_EXPORT void bluez_media_release_fd_token(void* token);
 BLUEZ_MEDIA_EXPORT int bluez_media_close_fd(int32_t fd);
 
 // ── ObjectManager queries ──────────────────────────────────────────────────

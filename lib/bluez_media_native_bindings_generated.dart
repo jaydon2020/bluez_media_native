@@ -26,7 +26,40 @@ class BluezMediaNativeBindings {
     ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
   ) : _lookup = lookup;
 
-  /// ── Client lifecycle ────────────────────────────────────────────────────────
+  /// Disable proactive cover-art sessions when another process owns cover art.
+  /// Explicit get-cover-art calls still perform their requested operation.
+  void bluez_media_client_create_with_options_async(
+    int events_port,
+    int result_port,
+    int manage_cover_art,
+  ) {
+    return _bluez_media_client_create_with_options_async(
+      events_port,
+      result_port,
+      manage_cover_art,
+    );
+  }
+
+  late final _bluez_media_client_create_with_options_asyncPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Int64, ffi.Uint8)>
+      >('bluez_media_client_create_with_options_async');
+  late final _bluez_media_client_create_with_options_async =
+      _bluez_media_client_create_with_options_asyncPtr
+          .asFunction<void Function(int, int, int)>();
+
+  /// Absolute loader path of this native asset; borrowed for the library lifetime.
+  ffi.Pointer<ffi.Char> bluez_media_library_path() {
+    return _bluez_media_library_path();
+  }
+
+  late final _bluez_media_library_pathPtr =
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Char> Function()>>(
+        'bluez_media_library_path',
+      );
+  late final _bluez_media_library_path = _bluez_media_library_pathPtr
+      .asFunction<ffi.Pointer<ffi.Char> Function()>();
+
   void bluez_media_init(ffi.Pointer<ffi.Void> dart_api_dl_data) {
     return _bluez_media_init(dart_api_dl_data);
   }
@@ -70,6 +103,22 @@ class BluezMediaNativeBindings {
       );
   late final _bluez_media_client_destroy = _bluez_media_client_destroyPtr
       .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  /// Retire immediately; report completion after queued calls and cleanup finish.
+  void bluez_media_client_destroy_async(
+    ffi.Pointer<ffi.Void> handle,
+    int result_port,
+  ) {
+    return _bluez_media_client_destroy_async(handle, result_port);
+  }
+
+  late final _bluez_media_client_destroy_asyncPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int64)>
+      >('bluez_media_client_destroy_async');
+  late final _bluez_media_client_destroy_async =
+      _bluez_media_client_destroy_asyncPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>, int)>();
 
   /// Releases data returned through any BluezMediaBuffer and resets its fields.
   void bluez_media_buffer_free(ffi.Pointer<BluezMediaBuffer> buffer) {
@@ -1038,6 +1087,31 @@ class BluezMediaNativeBindings {
             int Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Char>, int)
           >();
 
+  /// Async Acquire returns tag 0x11, a uint64 little-endian ownership token,
+  /// then the usual acquire payload. Install cleanup before claiming the token.
+  /// Unclaimed tokens are closed with their client. Release is idempotent.
+  int bluez_media_claim_fd(ffi.Pointer<ffi.Void> handle, int token) {
+    return _bluez_media_claim_fd(handle, token);
+  }
+
+  late final _bluez_media_claim_fdPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int Function(ffi.Pointer<ffi.Void>, ffi.Uint64)>
+      >('bluez_media_claim_fd');
+  late final _bluez_media_claim_fd = _bluez_media_claim_fdPtr
+      .asFunction<int Function(ffi.Pointer<ffi.Void>, int)>();
+
+  void bluez_media_release_fd_token(ffi.Pointer<ffi.Void> token) {
+    return _bluez_media_release_fd_token(token);
+  }
+
+  late final _bluez_media_release_fd_tokenPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+        'bluez_media_release_fd_token',
+      );
+  late final _bluez_media_release_fd_token = _bluez_media_release_fd_tokenPtr
+      .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
   int bluez_media_close_fd(int fd) {
     return _bluez_media_close_fd(fd);
   }
@@ -1197,3 +1271,5 @@ const int BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART_FROM_EXISTING_SESSION = 35;
 const int BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART = 36;
 
 const int BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART_FROM_EXISTING_SESSION = 37;
+
+const int BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART = 39;

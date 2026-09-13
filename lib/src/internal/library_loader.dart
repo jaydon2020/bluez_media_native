@@ -1,45 +1,65 @@
 import 'dart:ffi';
 import 'dart:io';
+import 'package:ffi/ffi.dart';
 
 const String _libraryName = 'libbluez_media_native.so';
 
+@Native<Pointer<Char> Function()>(
+  symbol: 'bluez_media_library_path',
+  assetId: 'package:bluez_media_native/src/ffi/bluez_media_native_asset.dart',
+)
+external Pointer<Char> _nativeLibraryPath();
+
 DynamicLibrary loadBluezMediaNative() {
+  // 1. Check BLUEZ_MEDIA_LIB environment variable override
   final override = Platform.environment['BLUEZ_MEDIA_LIB'];
   if (override != null && override.isNotEmpty) {
     return DynamicLibrary.open(override);
   }
 
   final errors = <String>[];
+
+  // 2. Try standard dynamic library load (system paths / rpath).
+  // DynamicLibrary.open wraps dlerror() in an ArgumentError on Dart 3.x / Linux.
   try {
     return DynamicLibrary.open(_libraryName);
-  } on ArgumentError catch (error) {
-    errors.add('dlopen($_libraryName): $error');
+  } on ArgumentError catch (e) {
+    errors.add('dlopen($_libraryName): $e');
   }
 
+  // 3. Search /proc/self/maps for sibling directories of loaded libraries (e.g., libapp.so)
   final loadedLibrarySibling = _findSiblingOfLoadedLibrary(_libraryName);
   if (loadedLibrarySibling != null) {
     try {
       return DynamicLibrary.open(loadedLibrarySibling);
-    } on ArgumentError catch (error) {
-      errors.add('$loadedLibrarySibling: $error');
+    } on ArgumentError catch (e) {
+      errors.add('dlopen($loadedLibrarySibling): $e');
     }
   }
 
-  final candidates = <String>[];
-  final hookArtifact = _findHookArtifact(_libraryName);
-  if (hookArtifact != null) candidates.add(hookArtifact);
-
+  // 4. Fall back to Native Assets _nativeLibraryPath() if available
   try {
-    final scriptDirectory = File(Platform.script.toFilePath()).parent.path;
-    candidates.addAll([
-      '$scriptDirectory/lib/$_libraryName',
-      '$scriptDirectory/../lib/$_libraryName',
-      '$scriptDirectory/../../lib/$_libraryName',
-    ]);
-  } on Exception {
-    // Platform.script need not be a file URI.
+    final path = _nativeLibraryPath();
+    if (path != nullptr) {
+      final pathStr = path.cast<Utf8>().toDartString();
+      if (pathStr.isNotEmpty) {
+        try {
+          return DynamicLibrary.open(pathStr);
+        } on ArgumentError catch (e) {
+          errors.add('dlopen($pathStr from native asset): $e');
+        }
+      }
+    }
+  } catch (e) {
+    // Catches TypeError (asset not linked) and any other resolution failure.
+    errors.add(
+      '@Native bluez_media_library_path resolution failed '
+      '(asset may not be linked): $e',
+    );
   }
 
+  // 5. Try candidate directories relative to executable or current working directory
+  final candidates = <String>[];
   final executableDirectory = File(Platform.resolvedExecutable).parent.path;
   candidates.addAll([
     '$executableDirectory/lib/$_libraryName',
@@ -48,70 +68,45 @@ DynamicLibrary loadBluezMediaNative() {
     '${Directory.current.path}/build/$_libraryName',
   ]);
 
-  for (final directory in (Platform.environment['LD_LIBRARY_PATH'] ?? '').split(
-    ':',
-  )) {
-    if (directory.isNotEmpty) candidates.add('$directory/$_libraryName');
-  }
-
   for (final path in candidates) {
     final file = File(path);
-    if (!file.existsSync()) continue;
-    try {
-      return DynamicLibrary.open(file.absolute.path);
-    } on ArgumentError catch (error) {
-      errors.add('${file.absolute.path}: $error');
+    if (file.existsSync()) {
+      try {
+        return DynamicLibrary.open(file.absolute.path);
+      } on ArgumentError catch (e) {
+        errors.add('dlopen(${file.absolute.path}): $e');
+      }
     }
   }
 
   throw StateError(
     'Failed to load $_libraryName. Set BLUEZ_MEDIA_LIB to its absolute path.\n'
-    'Candidates:\n${candidates.map((path) => '  $path').join('\n')}\n'
     'Errors:\n${errors.join('\n')}',
   );
 }
 
-String? _findHookArtifact(String libraryName) {
-  var directory = Directory.current;
-  for (var depth = 0; depth < 6; depth++) {
-    final root = Directory(
-      '${directory.path}/.dart_tool/hooks_runner/shared/'
-      'bluez_media_native/build',
-    );
-    if (root.existsSync()) {
-      File? newest;
-      var newestTime = DateTime.fromMillisecondsSinceEpoch(0);
-      for (final entity in root.listSync(recursive: true)) {
-        if (entity is File && entity.path.endsWith('/$libraryName')) {
-          final modified = entity.statSync().modified;
-          if (modified.isAfter(newestTime)) {
-            newest = entity;
-            newestTime = modified;
-          }
-        }
-      }
-      if (newest != null) return newest.path;
-    }
-    if (directory.parent.path == directory.path) break;
-    directory = directory.parent;
-  }
-  return null;
-}
-
+/// Scans `/proc/self/maps` (Linux only) for any already-loaded shared library
+/// whose directory also contains [libraryName]. This handles Flutter/AGL
+/// deployments where `libbluez_media_native.so` is co-located with `libapp.so`.
 String? _findSiblingOfLoadedLibrary(String libraryName) {
+  // /proc/self/maps only exists on Linux; bail out on other platforms.
+  if (!Platform.isLinux) return null;
   try {
     final maps = File('/proc/self/maps');
     if (!maps.existsSync()) return null;
     final directories = <String>{};
     for (final line in maps.readAsLinesSync()) {
-      final path = line.substring(line.lastIndexOf(' ') + 1);
+      final lastSpace = line.lastIndexOf(' ');
+      if (lastSpace == -1) continue;
+      final path = line.substring(lastSpace + 1).trim();
       if (!path.startsWith('/')) continue;
       final directory = File(path).parent.path;
       if (!directories.add(directory)) continue;
       final candidate = '$directory/$libraryName';
       if (File(candidate).existsSync()) return candidate;
     }
-  } on FileSystemException {
+  } on Exception {
+    // Swallow I/O errors; this is a best-effort probe.
     return null;
   }
   return null;

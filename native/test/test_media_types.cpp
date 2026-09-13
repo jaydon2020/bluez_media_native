@@ -1,3 +1,4 @@
+#include "wire_decode.h"
 // test_media_types.cpp — glaze roundtrip tests for BlueZ Media wire structs.
 
 #include "bluez_media_native.h"

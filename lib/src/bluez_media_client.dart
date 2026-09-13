@@ -54,9 +54,35 @@ class BluezMediaPlayerRegistrationConfig {
   });
 }
 
-class BluezMediaClient {
+/// Selects the single cover-art backend used by this client.
+enum BluezMediaCoverArtMode { disabled, native, mpris }
+
+class BluezMediaClient implements Finalizable {
+  static final _finalizer = NativeFinalizer(
+    _dylib.lookup<NativeFunction<Void Function(Pointer<Void>)>>(
+      'bluez_media_client_destroy',
+    ),
+  );
+  static final _fdFinalizer = NativeFinalizer(
+    _dylib.lookup<NativeFunction<Void Function(Pointer<Void>)>>(
+      'bluez_media_release_fd_token',
+    ),
+  );
+
   Pointer<Void> _handle;
+  final BluezMediaCoverArtMode coverArtMode;
   bool _closed = false;
+  bool _serviceAvailable = true;
+  final _serviceAvailabilityCtrl = StreamController<bool>.broadcast();
+
+  /// Whether BlueZ has a current owner and its object snapshot is available.
+  bool get isServiceAvailable => !_closed && _serviceAvailable;
+
+  /// Emits false on owner loss and true after the replacement snapshot arrives.
+  /// Local registrations are invalidated on owner/adapter loss. Register them
+  /// again when the service and adapter are available.
+  Stream<bool> get serviceAvailabilityChanged =>
+      _serviceAvailabilityCtrl.stream;
   final _players = <String, BluezMediaPlayer>{};
   final _controls = <String, BluezMediaControl>{};
   final _folders = <String, BluezMediaFolder>{};
@@ -76,24 +102,34 @@ class BluezMediaClient {
   final _ready = Completer<void>();
   ReceivePort? _eventsPort;
 
-  BluezMediaClient._() : _handle = nullptr {
+  BluezMediaClient._(this.coverArtMode) : _handle = nullptr {
     _eventsPort = ReceivePort('bluez_media.events');
     _eventsPort!.listen(_onEvent);
   }
 
-  /// Connects to BlueZ and returns after the initial object snapshot is ready.
-  static Future<BluezMediaClient> create() async {
+  /// Connects to BlueZ using the explicitly selected [coverArtMode].
+  static Future<BluezMediaClient> create({
+    required BluezMediaCoverArtMode coverArtMode,
+  }) async {
     _initializeNativeApi();
-    final client = BluezMediaClient._();
+    final client = BluezMediaClient._(coverArtMode);
     final resultPort = ReceivePort('bluez_media.connect');
-    _bindings.bluez_media_client_create_async(
-      client._eventsPort!.sendPort.nativePort,
-      resultPort.sendPort.nativePort,
-    );
+    try {
+      _bindings.bluez_media_client_create_with_options_async(
+        client._eventsPort!.sendPort.nativePort,
+        resultPort.sendPort.nativePort,
+        coverArtMode == BluezMediaCoverArtMode.native ? 1 : 0,
+      );
+    } catch (_) {
+      resultPort.close();
+      client._eventsPort?.close();
+      rethrow;
+    }
     final result = await resultPort.first;
     resultPort.close();
     if (result case final int address when address != 0) {
       client._handle = Pointer<Void>.fromAddress(address);
+      _finalizer.attach(client, client._handle, detach: client);
       await client.ready;
       return client;
     }
@@ -102,10 +138,22 @@ class BluezMediaClient {
     throw _exceptionFromResult(result, serviceUnavailable: true);
   }
 
-  Future<void> close() async {
+  Future<void>? _closeFuture;
+
+  /// Retires this client and waits for queued native operations and cleanup.
+  /// Repeated calls return the same completion future.
+  Future<void> close() => _closeFuture ??= _close();
+
+  Future<void> _close() async {
     if (_closed) return;
     _closed = true;
-    if (_handle != nullptr) _bindings.bluez_media_client_destroy(_handle);
+    _finalizer.detach(this);
+    final closedPort = ReceivePort('bluez_media.close');
+    _bindings.bluez_media_client_destroy_async(
+      _handle,
+      closedPort.sendPort.nativePort,
+    );
+    final nativeClosed = _awaitNativeResult(closedPort);
     _handle = nullptr;
     _eventsPort?.close();
     _eventsPort = null;
@@ -130,6 +178,8 @@ class BluezMediaClient {
     _items.clear();
     _transports.clear();
     await Future.wait([
+      nativeClosed,
+      _serviceAvailabilityCtrl.close(),
       _transportAddedCtrl.close(),
       _transportRemovedCtrl.close(),
       _playerAddedCtrl.close(),
@@ -238,6 +288,9 @@ class BluezMediaClient {
     return item(props.objectPath)..updateProps(props);
   }
 
+  /// Registers an experimental, inert MPRIS object for registration testing.
+  /// It does not route commands to a Dart audio player or publish its metadata.
+  /// Playback capabilities are false and remote commands return NotSupported.
   Future<void> registerPlayer(BluezMediaPlayerRegistrationConfig config) async {
     _ensureOpen();
     _validateRegistrationConfig(config);
@@ -337,6 +390,7 @@ class BluezMediaClient {
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
   }) {
+    _requireCoverArtMode(BluezMediaCoverArtMode.native);
     _validateCoverArtRequest(targetFile, timeout);
     return _callAsync(
       BLUEZ_MEDIA_OP_PLAYER_GET_COVER_ART,
@@ -467,6 +521,7 @@ class BluezMediaClient {
     String targetFile, {
     Duration timeout = const Duration(seconds: 15),
   }) {
+    _requireCoverArtMode(BluezMediaCoverArtMode.native);
     _validateCoverArtRequest(targetFile, timeout);
     return _callAsync(
       BLUEZ_MEDIA_OP_ITEM_GET_COVER_ART,
@@ -490,16 +545,59 @@ class BluezMediaClient {
     ).then((_) => targetFile);
   }
 
+  /// Reads artwork already published by `mpris-proxy` for [itemPath].
+  ///
+  /// This never creates or reuses an OBEX session.
+  Future<Uint8List> getMprisCoverArt(
+    String itemPath, {
+    Duration timeout = const Duration(seconds: 2),
+  }) async {
+    _requireCoverArtMode(BluezMediaCoverArtMode.mpris);
+    if (!itemPath.startsWith('/')) {
+      throw ArgumentError.value(itemPath, 'itemPath', 'Must be absolute.');
+    }
+    _validateTimeout(timeout);
+    return (await _callAsync(
+      BLUEZ_MEDIA_OP_MPRIS_GET_COVER_ART,
+      objectPath: itemPath,
+      value: timeout.inMilliseconds,
+    ))!;
+  }
+
+  void _validateTimeout(Duration timeout) {
+    _ensureOpen();
+    if (timeout <= Duration.zero || timeout.inMilliseconds > 0x7fffffff) {
+      throw ArgumentError.value(
+        timeout,
+        'timeout',
+        'Must fit a positive int32.',
+      );
+    }
+  }
+
+  void _requireCoverArtMode(BluezMediaCoverArtMode requiredMode) {
+    if (coverArtMode != requiredMode) {
+      throw StateError(
+        'This operation requires ${requiredMode.name} cover-art mode.',
+      );
+    }
+  }
+
   // ── org.bluez.MediaTransport1 remote transports ────────────────────────────
 
+  /// Acquires a descriptor owned by the returned result. Keep the result alive
+  /// while using its fd and close it once with [closeFileDescriptor]. Prefer
+  /// [BluezMediaTransport.acquire] for idempotent explicit cleanup.
   Future<BlueZMediaAcquireResult> transportAcquire(String transportPath) async {
     final payload = await _callAsync(
       BLUEZ_MEDIA_OP_TRANSPORT_ACQUIRE,
       objectPath: transportPath,
     );
-    return GlazeCodec.decode<BlueZMediaAcquireResult>(payload!, 0);
+    return _decodeAcquire(payload!);
   }
 
+  /// Like [transportAcquire], but asks BlueZ to acquire only a pending transport.
+  /// The returned result owns the descriptor and must outlive its use.
   Future<BlueZMediaAcquireResult> transportTryAcquire(
     String transportPath,
   ) async {
@@ -507,7 +605,27 @@ class BluezMediaClient {
       BLUEZ_MEDIA_OP_TRANSPORT_TRY_ACQUIRE,
       objectPath: transportPath,
     );
-    return GlazeCodec.decode<BlueZMediaAcquireResult>(payload!, 0);
+    return _decodeAcquire(payload!);
+  }
+
+  BlueZMediaAcquireResult _decodeAcquire(Uint8List payload) {
+    final token = ByteData.sublistView(payload).getUint64(0, Endian.little);
+    final pointer = Pointer<Void>.fromAddress(token);
+    try {
+      final result = GlazeCodec.decode<BlueZMediaAcquireResult>(payload, 8);
+      _fdFinalizer.attach(result, pointer, detach: result);
+      final status = _bindings.bluez_media_claim_fd(_handle, token);
+      if (status != 0) {
+        _fdFinalizer.detach(result);
+        throw StateError(
+          'Client closed before transport ownership was claimed.',
+        );
+      }
+      return result;
+    } catch (_) {
+      _bindings.bluez_media_release_fd_token(pointer);
+      rethrow;
+    }
   }
 
   Future<void> transportRelease(String transportPath) =>
@@ -559,6 +677,14 @@ class BluezMediaClient {
 
   void _dispatchEvent(Uint8List message) {
     switch (message[0]) {
+      case 0x30:
+      case 0x31:
+        final available = message[0] == 0x31;
+        if (_serviceAvailable != available) {
+          _serviceAvailable = available;
+          _serviceAvailabilityCtrl.add(available);
+        }
+        return;
       case 0x00:
         if (!_ready.isCompleted) _ready.complete();
         return;
@@ -683,6 +809,7 @@ class BluezMediaClient {
         case 0xFF:
           return null;
         case 0x10:
+        case 0x11:
           return Uint8List.sublistView(result, 1);
         case 0x20:
           throw _exceptionFromResult(result);
@@ -704,7 +831,11 @@ class BluezMediaClient {
     if (result is Uint8List && result.isNotEmpty && result[0] == 0x20) {
       final error = GlazeCodec.decode<BlueZMediaError>(result, 1);
       if (serviceUnavailable) {
-        return BlueZMediaServiceUnavailableException(error.message);
+        return BlueZMediaServiceUnavailableException.withDetails(
+          error.message,
+          name: error.name,
+          objectPath: error.objectPath,
+        );
       }
       return BlueZMediaOperationException(
         error.message,

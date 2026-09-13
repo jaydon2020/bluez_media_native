@@ -1,9 +1,19 @@
 #include "cover_art_service.h"
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <cerrno>
+#include <exception>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <stdexcept>
+#include <string_view>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "bluez_media_native.h"
@@ -22,6 +32,13 @@ constexpr auto kObexImageIface = "org.bluez.obex.Image1";
 constexpr auto kObexSessionIface = "org.bluez.obex.Session1";
 constexpr auto kObexTransferIface = "org.bluez.obex.Transfer1";
 constexpr auto kObjectManagerIface = "org.freedesktop.DBus.ObjectManager";
+constexpr auto kDbusService = "org.freedesktop.DBus";
+constexpr auto kDbusPath = "/org/freedesktop/DBus";
+constexpr auto kDbusIface = "org.freedesktop.DBus";
+constexpr auto kMprisPrefix = "org.mpris.MediaPlayer2.";
+constexpr auto kMprisPath = "/org/mpris/MediaPlayer2";
+constexpr auto kMprisPlayerIface = "org.mpris.MediaPlayer2.Player";
+constexpr std::size_t kMaxMprisCoverArtSize = 16 * 1024 * 1024;
 
 using Properties = std::map<std::string, sdbus::Variant>;
 using Clock = std::chrono::steady_clock;
@@ -55,10 +72,40 @@ bool file_has_size(const std::string& path, uint64_t expected_size) {
          std::filesystem::file_size(path, error) == expected_size;
 }
 
+bool transfer_file_complete(const std::string& path, uint64_t expected_size) {
+  return expected_size > 0 ? file_has_size(path, expected_size)
+                           : file_has_data(path);
+}
+
 void remove_partial_file(const std::string& path) {
   std::error_code error;
   std::filesystem::remove(path, error);
 }
+
+struct PartialFile {
+  const std::string& path;
+  bool complete = false;
+  ~PartialFile() {
+    if (!complete)
+      remove_partial_file(path);
+  }
+};
+
+struct TransferCleanup {
+  sdbus::IProxy& proxy;
+  bool finished = false;
+  ~TransferCleanup() {
+    if (finished)
+      return;
+    try {
+      proxy.callMethod("Cancel")
+          .onInterface(kObexTransferIface)
+          .withTimeout(uint64_t{200000});
+    } catch (...) {
+      // Cleanup must not replace the original timeout/transfer error.
+    }
+  }
+};
 
 Properties get_properties(sdbus::IConnection& bus,
                           const char* service,
@@ -67,11 +114,12 @@ Properties get_properties(sdbus::IConnection& bus,
                           Deadline deadline) {
   auto proxy = sdbus::createProxy(bus, sdbus::ServiceName{service}, path);
   Properties properties;
-  proxy->callMethod("GetAll")
-      .onInterface(kPropertiesIface)
-      .withArguments(std::string{interface})
-      .withTimeout(remaining_timeout(deadline))
-      .storeResultsTo(properties);
+  properties = proxy->callMethodAsync("GetAll")
+                   .onInterface(kPropertiesIface)
+                   .withArguments(std::string{interface})
+                   .withTimeout(remaining_timeout(deadline))
+                   .getResultAsFuture<Properties>()
+                   .get();
   return properties;
 }
 
@@ -182,8 +230,9 @@ void remove_session(sdbus::IConnection& session_bus,
                            sdbus::ObjectPath{"/org/bluez/obex"});
     proxy->callMethod("RemoveSession")
         .onInterface(kObexClientIface)
-        .withArguments(session);
-  } catch (const sdbus::Error&) {
+        .withArguments(session)
+        .withTimeout(uint64_t{200000});
+  } catch (...) {
   }
 }
 
@@ -211,6 +260,7 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
                        Deadline deadline) {
   auto transfer = sdbus::createProxy(
       session_bus, sdbus::ServiceName{kObexService}, transfer_path);
+  TransferCleanup cleanup{*transfer};
   while (Clock::now() < deadline) {
     try {
       sdbus::Variant value;
@@ -222,24 +272,21 @@ bool wait_for_transfer(sdbus::IConnection& session_bus,
       if (value.containsValueOfType<std::string>()) {
         const auto status = value.get<std::string>();
         if (status == "complete") {
-          return expected_size > 0 ? file_has_size(target_file, expected_size)
-                                   : file_has_data(target_file);
+          cleanup.finished = true;
+          return transfer_file_complete(target_file, expected_size);
         }
         if (status == "error") {
+          cleanup.finished = true;
           return false;
         }
       }
     } catch (const sdbus::Error& error) {
       return error.getName() == "org.freedesktop.DBus.Error.UnknownObject" &&
-             file_has_size(target_file, expected_size);
+             transfer_file_complete(target_file, expected_size);
     }
     std::this_thread::sleep_for(std::chrono::milliseconds{100});
   }
 
-  try {
-    transfer->callMethod("Cancel").onInterface(kObexTransferIface);
-  } catch (const sdbus::Error&) {
-  }
   return false;
 }
 
@@ -278,12 +325,160 @@ bool get_thumbnail(sdbus::IConnection& session_bus,
       media_property<uint64_t>(transfer_properties, "Size"), deadline);
 }
 
+std::vector<std::string> bus_names(sdbus::IConnection& bus, Deadline deadline) {
+  auto proxy = sdbus::createProxy(bus, sdbus::ServiceName{kDbusService},
+                                  sdbus::ObjectPath{kDbusPath});
+  std::vector<std::string> names;
+  proxy->callMethod("ListNames")
+      .onInterface(kDbusIface)
+      .withTimeout(remaining_timeout(deadline))
+      .storeResultsTo(names);
+  return names;
+}
+
+bool is_mpris_proxy_process(sdbus::IConnection& bus,
+                            const std::string& name,
+                            Deadline deadline) {
+  auto proxy = sdbus::createProxy(bus, sdbus::ServiceName{kDbusService},
+                                  sdbus::ObjectPath{kDbusPath});
+  uint32_t pid{};
+  proxy->callMethod("GetConnectionUnixProcessID")
+      .onInterface(kDbusIface)
+      .withArguments(name)
+      .withTimeout(remaining_timeout(deadline))
+      .storeResultsTo(pid);
+  const auto comm_path = "/proc/" + std::to_string(pid) + "/comm";
+  std::ifstream comm{comm_path};
+  if (!comm.is_open()) {
+    if (!std::filesystem::exists(comm_path)) {
+      return false;
+    }
+    throw std::runtime_error("Unable to verify MPRIS process identity");
+  }
+  std::string process_name;
+  return std::getline(comm, process_name) && process_name == "mpris-proxy";
+}
+
+Properties mpris_metadata(sdbus::IConnection& bus,
+                          const std::string& name,
+                          Deadline deadline) {
+  auto proxy = sdbus::createProxy(bus, sdbus::ServiceName{name},
+                                  sdbus::ObjectPath{kMprisPath});
+  sdbus::Variant metadata;
+  proxy->callMethod("Get")
+      .onInterface(kPropertiesIface)
+      .withArguments(std::string{kMprisPlayerIface}, std::string{"Metadata"})
+      .withTimeout(remaining_timeout(deadline))
+      .storeResultsTo(metadata);
+  return metadata.get<Properties>();
+}
+
+std::string local_file_path(const std::string& url) {
+  constexpr std::string_view prefix{"file://"};
+  if (!url.starts_with(prefix) || url.size() == prefix.size() ||
+      url[prefix.size()] != '/' ||
+      url.find_first_of("?#") != std::string::npos) {
+    throw std::runtime_error("MPRIS cover art is not a local file URL");
+  }
+  return url.substr(prefix.size());
+}
+
+std::vector<uint8_t> read_cover_art_file(const std::string& path) {
+  const int fd = open(path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+  if (fd < 0) {
+    throw std::runtime_error("Unable to open MPRIS cover art");
+  }
+  struct CloseFile {
+    int fd;
+    ~CloseFile() { close(fd); }
+  } close_file{fd};
+
+  struct stat info{};
+  if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size < 0 ||
+      static_cast<uint64_t>(info.st_size) > kMaxMprisCoverArtSize) {
+    throw std::runtime_error("Invalid MPRIS cover-art file");
+  }
+  if (info.st_size == 0) {
+    throw std::runtime_error("MPRIS cover art is not ready");
+  }
+
+  std::vector<uint8_t> result(static_cast<std::size_t>(info.st_size));
+  std::size_t offset = 0;
+  while (offset < result.size()) {
+    const auto count = read(fd, result.data() + offset, result.size() - offset);
+    if (count > 0) {
+      offset += static_cast<std::size_t>(count);
+    } else if (count == 0) {
+      throw std::runtime_error("MPRIS cover-art file changed while reading");
+    } else if (errno != EINTR) {
+      throw std::runtime_error("Unable to read MPRIS cover art");
+    }
+  }
+  return result;
+}
+
 }  // namespace
 
-CoverArtService::CoverArtService(sdbus::IConnection& system_bus)
-    : system_bus_(system_bus) {}
+CoverArtService::CoverArtService(sdbus::IConnection& system_bus,
+                                 std::function<void()> reconnect)
+    : system_bus_(system_bus),
+      session_bus_(sdbus::createSessionBusConnection()),
+      reconnect_(std::move(reconnect)) {
+  obex_owner_subscription_ = session_bus_->addMatch(
+      "type='signal',sender='org.freedesktop.DBus',"
+      "interface='org.freedesktop.DBus',member='NameOwnerChanged',"
+      "arg0='org.bluez.obex'",
+      [this](sdbus::Message message) {
+        std::string name, previous, current;
+        message >> name >> previous >> current;
+        {
+          const std::scoped_lock lock(mutex_);
+          sessions_.clear();
+        }
+        if (!current.empty() && reconnect_)
+          reconnect_();
+      },
+      sdbus::return_slot);
+  session_removed_subscription_ = session_bus_->addMatch(
+      "type='signal',sender='org.bluez.obex',"
+      "interface='org.freedesktop.DBus.ObjectManager',"
+      "member='InterfacesRemoved'",
+      [this](sdbus::Message message) {
+        sdbus::ObjectPath path;
+        std::vector<std::string> interfaces;
+        message >> path >> interfaces;
+        if (std::ranges::find(interfaces, kObexSessionIface) ==
+            interfaces.end()) {
+          return;
+        }
+        bool removed = false;
+        {
+          const std::scoped_lock lock(mutex_);
+          for (auto session = sessions_.begin(); session != sessions_.end();
+               ++session) {
+            if (session->second.object_path == path) {
+              sessions_.erase(session);
+              removed = true;
+              break;
+            }
+          }
+        }
+        if (removed && reconnect_)
+          reconnect_();
+      },
+      sdbus::return_slot);
+  session_bus_->enterEventLoopAsync();
+}
 
 CoverArtService::~CoverArtService() {
+  obex_owner_subscription_.reset();
+  session_removed_subscription_.reset();
+  reset();
+  session_bus_->leaveEventLoop();
+}
+
+void CoverArtService::reset() {
+  const std::scoped_lock transfer_lock(transfer_mutex_);
   const std::scoped_lock lock(mutex_);
   if (!session_bus_) {
     return;
@@ -293,13 +488,66 @@ CoverArtService::~CoverArtService() {
       remove_session(*session_bus_, session.object_path);
     }
   }
+  sessions_.clear();
+  players_.clear();
 }
 
 sdbus::IConnection& CoverArtService::session_bus() {
-  if (!session_bus_) {
-    session_bus_ = sdbus::createSessionBusConnection();
-  }
   return *session_bus_;
+}
+
+std::vector<uint8_t> CoverArtService::get_mpris_cover_art(
+    const std::string& item_path,
+    std::chrono::milliseconds timeout) {
+  if (item_path.empty() || item_path.front() != '/') {
+    throw std::invalid_argument("A BlueZ media item path is required");
+  }
+  const auto deadline = Clock::now() + timeout;
+  for (const auto& name : bus_names(*session_bus_, deadline)) {
+    if (!name.starts_with(kMprisPrefix)) {
+      continue;
+    }
+    try {
+      if (!is_mpris_proxy_process(*session_bus_, name, deadline)) {
+        continue;
+      }
+      const auto metadata = mpris_metadata(*session_bus_, name, deadline);
+      const auto track = metadata.find("mpris:trackid");
+      const auto art = metadata.find("mpris:artUrl");
+      if (track == metadata.end() || art == metadata.end() ||
+          !track->second.containsValueOfType<sdbus::ObjectPath>() ||
+          !art->second.containsValueOfType<std::string>() ||
+          track->second.get<sdbus::ObjectPath>() != item_path) {
+        continue;
+      }
+      return read_cover_art_file(
+          local_file_path(art->second.get<std::string>()));
+    } catch (const sdbus::Error&) {
+      // A player may disappear or update while it is being inspected.
+    }
+  }
+  throw std::runtime_error("MPRIS cover art is not ready for " + item_path);
+}
+
+void CoverArtService::reconnect_players(std::chrono::milliseconds timeout) {
+  std::vector<std::tuple<std::string, sdbus::ObjectPath, uint16_t>> players;
+  {
+    const std::scoped_lock lock(mutex_);
+    players.reserve(players_.size());
+    for (const auto& [path, player] : players_) {
+      players.emplace_back(path, player.device_path, player.obex_port);
+    }
+  }
+  std::exception_ptr last_error;
+  for (const auto& [path, device_path, port] : players) {
+    try {
+      register_player(path, device_path, port, Clock::now() + timeout);
+    } catch (...) {
+      last_error = std::current_exception();
+    }
+  }
+  if (last_error)
+    std::rethrow_exception(last_error);
 }
 
 void CoverArtService::register_player(const std::string& player_path,
@@ -366,7 +614,7 @@ void CoverArtService::register_player(const std::string& player_path,
             .first;
   }
   ++session->second.users;
-  players_.emplace(player_path, Player{device_path, device_address});
+  players_.emplace(player_path, Player{device_path, device_address, obex_port});
 }
 
 void CoverArtService::unregister_player(
@@ -456,6 +704,7 @@ int CoverArtService::get_impl(const std::string& object_path,
     return BLUEZ_MEDIA_ERROR_INVALID_ARGUMENT;
   }
 
+  PartialFile partial{target_file};
   const auto deadline = Clock::now() + timeout;
   const bool item = object_kind == ObjectKind::item;
   auto source = get_cover_art_source(system_bus_, object_path, deadline, item);
@@ -470,6 +719,7 @@ int CoverArtService::get_impl(const std::string& object_path,
   }
 
   const int attempts = existing_session_only ? 1 : 2;
+  std::exception_ptr last_dbus_error;
   for (int attempt = 0; attempt < attempts; ++attempt) {
     sdbus::ObjectPath session_path;
     if (existing_session_only) {
@@ -508,9 +758,11 @@ int CoverArtService::get_impl(const std::string& object_path,
       try {
         if (get_thumbnail(bus, *image, target_file, source.image_handle,
                           deadline)) {
+          partial.complete = true;
           return BLUEZ_MEDIA_SUCCESS;
         }
       } catch (const sdbus::Error&) {
+        last_dbus_error = std::current_exception();
       }
       remove_partial_file(target_file);
 
@@ -519,9 +771,11 @@ int CoverArtService::get_impl(const std::string& object_path,
       if (!preferred.empty() &&
           get_image(bus, *image, target_file, source.image_handle, preferred,
                     deadline)) {
+        partial.complete = true;
         return BLUEZ_MEDIA_SUCCESS;
       }
     } catch (const sdbus::Error&) {
+      last_dbus_error = std::current_exception();
     }
     remove_partial_file(target_file);
     if (!existing_session_only) {
@@ -529,5 +783,8 @@ int CoverArtService::get_impl(const std::string& object_path,
     }
   }
 
+  if (last_dbus_error) {
+    std::rethrow_exception(last_dbus_error);
+  }
   return BLUEZ_MEDIA_ERROR_OPERATION_FAILED;
 }

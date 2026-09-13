@@ -33,7 +33,9 @@ void printUsage(String usage, List<String> details) {
 
 Future<BluezMediaClient> createClient() async {
   try {
-    return await BluezMediaClient.create();
+    return await BluezMediaClient.create(
+      coverArtMode: BluezMediaCoverArtMode.disabled,
+    );
   } on BlueZMediaException catch (error) {
     throw BlueZMediaException(
       '$error\n'
