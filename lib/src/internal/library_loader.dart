@@ -1,3 +1,9 @@
+// library_loader.dart — DynamicLibrary resolution for libbluez_media_native.so.
+//
+// Search order patterned after https://github.com/jwinarske/bluez_native,
+// which is in turn patterned after
+// https://github.com/meta-flutter/appstream_dart/blob/main/lib/src/bindings.dart
+
 import 'dart:ffi';
 import 'dart:io';
 import 'package:ffi/ffi.dart';
