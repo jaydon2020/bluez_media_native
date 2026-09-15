@@ -11,7 +11,6 @@ native/third_party/sdbus-cpp/build/
 native/third_party/sdbus-cpp/.git/
 example/flutter_ble_audio/.desktop-homescreen/
 
-interfaces/
 scripts/
 .github/
 .clang-format
