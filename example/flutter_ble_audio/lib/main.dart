@@ -70,6 +70,9 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   String? _coverArtPath;
   var _coverArtLoading = false;
   var _coverArtPending = false;
+  Timer? _coverArtRetryTimer;
+  String? _coverArtRetryKey;
+  var _coverArtRetryCount = 0;
   bool get _useMprisProxy =>
       widget.coverArtMode == BluezMediaCoverArtMode.mpris;
   double? _transportVolumeDraft;
@@ -96,6 +99,7 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
 
   @override
   void dispose() {
+    _coverArtRetryTimer?.cancel();
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
@@ -214,10 +218,11 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
   ) {
     return player.propertiesChanged.listen((changed) {
       _refreshView();
-      if (!_useMprisProxy &&
-          changed.contains('Track') &&
+      if (changed.contains('Track') &&
           player == _selectedDevice?.player &&
-          player.imageHandle.isNotEmpty) {
+          (_useMprisProxy
+              ? _trackValue(player, const ['Item', 'mpris:trackid']).isNotEmpty
+              : player.imageHandle.isNotEmpty)) {
         unawaited(_getCoverArt());
       }
     });
@@ -244,10 +249,11 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     try {
       await device?.player?.refresh();
       final player = device?.player;
-      if (!_useMprisProxy &&
-          player != null &&
+      if (player != null &&
           player == _selectedDevice?.player &&
-          player.imageHandle.isNotEmpty) {
+          (_useMprisProxy
+              ? _trackValue(player, const ['Item', 'mpris:trackid']).isNotEmpty
+              : player.imageHandle.isNotEmpty)) {
         unawaited(_getCoverArt());
       }
       await device?.control?.refresh();
@@ -341,6 +347,12 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     }
 
     final trackKey = _trackKey(player);
+    if (_coverArtRetryKey != trackKey) {
+      _coverArtRetryTimer?.cancel();
+      _coverArtRetryTimer = null;
+      _coverArtRetryKey = trackKey;
+      _coverArtRetryCount = 0;
+    }
     if (_coverArtPath != null && trackKey == _coverArtTrackKey) {
       return;
     }
@@ -351,8 +363,24 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       directory = await io.Directory.systemTemp.createTemp('bluez_media_art_');
       final target = '${directory.path}/cover-art';
       if (_useMprisProxy) {
-        final bytes = await client.getMprisCoverArt(itemPath);
-        await io.File(target).writeAsBytes(bytes, flush: true);
+        List<int>? publishedBytes;
+        for (var attempt = 0; attempt < 2; attempt++) {
+          try {
+            publishedBytes = await client.getMprisCoverArt(itemPath);
+            break;
+          } catch (_) {
+            await Future<void>.delayed(const Duration(seconds: 2));
+            if (!mounted || trackKey != _trackKey(player)) {
+              await directory.delete(recursive: true);
+              return;
+            }
+          }
+        }
+        if (publishedBytes != null) {
+          await io.File(target).writeAsBytes(publishedBytes, flush: true);
+        } else {
+          await player.getCoverArtFromExistingSession(target);
+        }
       } else {
         await player.getCoverArt(target);
       }
@@ -369,6 +397,9 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
         _coverArtTrackKey = trackKey;
         _coverArtPath = path;
       });
+      _coverArtRetryTimer?.cancel();
+      _coverArtRetryTimer = null;
+      _coverArtRetryCount = 0;
       if (previous != null) {
         unawaited(_deleteDirectory(previous));
       }
@@ -379,7 +410,21 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
       if (directory != null) {
         unawaited(_deleteDirectory(directory));
       }
-      _pushMessage('$error');
+      _coverArtPending = false;
+      if (mounted && trackKey == _trackKey(player) && _coverArtRetryCount < 2) {
+        _coverArtRetryCount++;
+        _coverArtRetryTimer = Timer(
+          Duration(seconds: 2 * _coverArtRetryCount),
+          () {
+            _coverArtRetryTimer = null;
+            if (mounted && trackKey == _trackKey(player)) {
+              unawaited(_getCoverArt());
+            }
+          },
+        );
+      } else {
+        _pushMessage('$error');
+      }
     } finally {
       if (mounted) {
         setState(() => _coverArtLoading = false);
@@ -460,10 +505,9 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final selectedDevice = _selectedDevice;
-        final coverArtPath =
-            _trackKey(selectedDevice?.player) == _coverArtTrackKey
-            ? _coverArtPath
-            : null;
+        // Match the homescreen: retain the last valid image while BlueZ is
+        // still publishing metadata for the replacement track.
+        final coverArtPath = _coverArtPath;
         final maxWidth = constraints.maxWidth >= 1040
             ? 1000.0
             : double.infinity;
@@ -498,6 +542,10 @@ class _MediaProxyDashboardState extends State<MediaProxyDashboard> {
                       value: selectedDevice,
                       onChanged: (device) {
                         final previousCoverArt = _coverArtDirectory;
+                        _coverArtRetryTimer?.cancel();
+                        _coverArtRetryTimer = null;
+                        _coverArtRetryKey = null;
+                        _coverArtRetryCount = 0;
                         setState(() {
                           _selectedDevicePath = device?.devicePath;
                           _coverArtDirectory = null;
