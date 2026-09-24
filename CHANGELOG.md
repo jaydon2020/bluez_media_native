@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-24
+
+### Fixed
+- Allow Linux cross-compilation by deferring architecture and toolchain
+  selection to the consuming build environment.
+
 ## [0.3.0] - 2026-09-13
 
 ### Added

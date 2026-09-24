@@ -3,22 +3,22 @@ import 'package:test/test.dart';
 import '../hook/build.dart' as hook;
 
 void main() {
-  test('native Linux target is accepted', () {
+  test('Linux host and target are accepted', () {
     expect(
-      () => hook.validateTarget(OS.linux, Architecture.current),
+      () => hook.validateOperatingSystems(OS.linux, OS.linux),
       returnsNormally,
     );
-  }, skip: OS.current != OS.linux);
-  test('unsupported OS is rejected before starting CMake', () {
+  });
+  test('unsupported host OS is rejected before starting CMake', () {
     expect(
-      () => hook.validateTarget(OS.windows, Architecture.current),
+      () => hook.validateOperatingSystems(OS.windows, OS.linux),
       throwsUnsupportedError,
     );
   });
-  test('cross-architecture build is rejected rather than mislabeled', () {
-    final other = Architecture.current == Architecture.x64
-        ? Architecture.arm64
-        : Architecture.x64;
-    expect(() => hook.validateTarget(OS.linux, other), throwsUnsupportedError);
+  test('unsupported target OS is rejected before starting CMake', () {
+    expect(
+      () => hook.validateOperatingSystems(OS.linux, OS.windows),
+      throwsUnsupportedError,
+    );
   });
 }
