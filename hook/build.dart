@@ -13,15 +13,13 @@ import 'package:hooks/hooks.dart';
 void main(List<String> args) async {
   await build(args, (input, output) async {
     if (!input.config.buildCodeAssets) return;
-    validateTarget(
-      input.config.code.targetOS,
-      input.config.code.targetArchitecture,
-    );
 
     if (Platform.environment.containsKey('SKIP_NATIVE_BUILD')) {
       stderr.writeln('SKIP_NATIVE_BUILD set — skipping native build.');
       return;
     }
+
+    validateOperatingSystems(OS.current, input.config.code.targetOS);
 
     final packageRoot = input.packageRoot.toFilePath();
     final nativeRoot = '${packageRoot}native';
@@ -60,6 +58,7 @@ void main(List<String> args) async {
         buildDirectory,
         '-DCMAKE_BUILD_TYPE=Release',
         '-DBUILD_TESTING=OFF',
+        '-DBLUEZ_HOOK_BUILD=ON',
         if (hasNinja) ...['-G', 'Ninja'],
       ]);
     }
@@ -117,19 +116,10 @@ Future<bool> _which(String executable) async {
   return result.exitCode == 0;
 }
 
-/// This CMake hook supports native Linux builds only. Do not label a host
-/// binary as a different requested target when no cross toolchain is configured.
-void validateTarget(OS targetOS, Architecture targetArchitecture) {
-  if (OS.current != OS.linux || targetOS != OS.linux) {
+void validateOperatingSystems(OS hostOS, OS targetOS) {
+  if (hostOS != OS.linux || targetOS != OS.linux) {
     throw UnsupportedError(
       'bluez_media_native requires a Linux host and target.',
-    );
-  }
-  if (targetArchitecture != Architecture.current) {
-    throw UnsupportedError(
-      'Cross-compiling bluez_media_native from '
-      '${Architecture.current} to $targetArchitecture is not supported. '
-      'Build on a Linux host with the target architecture.',
     );
   }
 }
